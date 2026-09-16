@@ -1,0 +1,98 @@
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon_
+._*
+.Spotlight-V100
+.Trashes
+*.icloud
+
+
+*.hide/
+*.local/
+*.zip
+
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+gen/
+!/.idea/runConfigurations/ # Разрешаем делиться общими конфигурациями запуска
+
+# java
+
+HELP.md
+
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+release.properties
+
+# Логи и таймстампы
+*.log
+*.log.*
+log/
+
+# docker
+.docker/
+docker-data/
+nats-data/
+jetstream-store/
+*.db
+*.sqlite
+
+docker-compose.override.yml
+
+#==================
+# python
+venv/
+.venv/
+env/
+ENV/
+bin/
+include/
+lib/
+share/
+pyvenv.cfg
+
+.uv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+.ruff_cache/
+
+*.onnx
+*.pb
+*.h5
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.gguf
+models/
+datasets/
+data/
+!.gitkeep
+#==================
+
+# local
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.jks
