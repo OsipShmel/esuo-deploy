@@ -16,9 +16,9 @@
 	<version>0.0.1-SNAPSHOT</version>
 
 	<modules>
-		<module>common-dto</module>
+		<module>node-app</module>
+		<module>shared-contracts</module>
 	</modules>
-
 
 	<scm>
 		<connection/>
@@ -26,39 +26,22 @@
 		<tag/>
 		<url/>
 	</scm>
-	<properties>
-		<java.version>21</java.version>
-	</properties>
 
+	<properties>
+		<java.version>25</java.version>
+		<nats.version>2.26.3</nats.version>
+	</properties>
 
 	<dependencyManagement>
 		<dependencies>
-			<dependency>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-starter-security</artifactId>
-			</dependency>
-			<dependency>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-starter-webmvc</artifactId>
-			</dependency>
+			<!-- Убрали отсюда пустые Спринг-стартеры. Оставили только внешнюю либу -->
 			<dependency>
 				<groupId>io.nats</groupId>
 				<artifactId>jnats</artifactId>
 				<version>${nats.version}</version>
 			</dependency>
-			<dependency>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-starter-security-test</artifactId>
-				<scope>test</scope>
-			</dependency>
-			<dependency>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-starter-webmvc-test</artifactId>
-				<scope>test</scope>
-			</dependency>
 		</dependencies>
 	</dependencyManagement>
-
 
 	<dependencies>
 		<dependency>
@@ -67,7 +50,6 @@
 			<optional>true</optional>
 		</dependency>
 	</dependencies>
-
 
 	<build>
 		<pluginManagement>
