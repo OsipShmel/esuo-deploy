@@ -5,8 +5,9 @@ services:
     environment:
       POSTGRES_DB: esuo
       POSTGRES_USER: ${DB_USER:-esuo}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
-    ports: ["127.0.0.1:${DB_PORT:-5432}:5432"]
+      POSTGRES_PASSWORD: ${DB_PASSWORD:? Задайте DB_PASSWORD в .env}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports: ["127.0.0.1:${DB_PORT:-5433}:5432"]
     volumes: ["branch-db:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d esuo"]
@@ -35,7 +36,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
       BRANCH_ID: b01
       DEMO_DATA: ${DEMO_DATA:-true}
-      OPERATOR_API_KEY: ${OPERATOR_API_KEY:?Задайте OPERATOR_API_KEY в .env}
+      JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
+      DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
     ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}

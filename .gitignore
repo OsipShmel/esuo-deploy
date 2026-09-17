@@ -98,5 +98,5 @@ data/
 *.jks
 
 .dockerignore
-.env.example
+.env
 /docs

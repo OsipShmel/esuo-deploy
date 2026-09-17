@@ -2,6 +2,7 @@ package honey.road.config;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -11,8 +12,12 @@ import java.time.Clock;
 import java.time.ZoneId;
 import java.util.UUID;
 
+/** Первый раннер: отделение, конфиг, демо-справочник. {@code DemoUsersSeeder} идёт после. */
+@Order(DatabaseBootstrap.ORDER)
 @Component
 public class DatabaseBootstrap implements ApplicationRunner {
+    public static final int ORDER = 0;
+
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
     private final honey.road.config.NodeProperties node;

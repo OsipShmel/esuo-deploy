@@ -6,7 +6,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
-import honey.road.config.NodeProperties2;
+import honey.road.config.NodeProperties;
 import honey.road.security.auth.UserCredentials;
 
 import java.time.Clock;
@@ -19,10 +19,10 @@ public class TokenService {
     }
 
     private final JwtEncoder encoder;
-    private final NodeProperties2 props;
+    private final NodeProperties props;
     private final Clock clock;
 
-    TokenService(JwtEncoder encoder, NodeProperties2 props, Clock clock) {
+    TokenService(JwtEncoder encoder, NodeProperties props, Clock clock) {
         this.encoder = encoder;
         this.props = props;
         this.clock = clock;

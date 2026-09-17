@@ -13,7 +13,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import honey.road.config.NodeProperties2;
+import honey.road.config.NodeProperties;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -28,10 +28,10 @@ class JwtConfig {
     private static final int MIN_KEY_BYTES = 32;
 
     @Bean
-    SecretKey jwtSigningKey(NodeProperties2 props) {
+    SecretKey jwtSigningKey(NodeProperties props) {
         var bytes = Base64.getDecoder().decode(props.security().jwtSecret());
         if (bytes.length < MIN_KEY_BYTES) {
-            throw new IllegalStateException("esuo.node.security.jwt-secret must be >= 256 bits (base64)");
+            throw new IllegalStateException("esuo.security.jwt-secret (env JWT_SECRET) must be >= 256 bits (base64)");
         }
         return new SecretKeySpec(bytes, "HmacSHA256");
     }
@@ -42,7 +42,7 @@ class JwtConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(SecretKey jwtSigningKey, NodeProperties2 props) {
+    JwtDecoder jwtDecoder(SecretKey jwtSigningKey, NodeProperties props) {
         var decoder = NimbusJwtDecoder.withSecretKey(jwtSigningKey).macAlgorithm(MacAlgorithm.HS256).build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(props.jwtIssuer()),     // exp/nbf + iss

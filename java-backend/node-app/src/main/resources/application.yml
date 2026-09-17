@@ -4,15 +4,13 @@ spring:
   config:
     import: classpath:queue-defaults.yml
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/esuo}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/esuo}
     username: ${DB_USER:esuo}
-    password: ${DB_PASSWORD}
+    password: ${DB_PASSWORD:?Задайте JWT_SECRET в .env}
   flyway:
     enabled: true
   jackson:
     property-naming-strategy: SNAKE_CASE
-    serialization:
-      write-dates-as-timestamps: false
 server:
   port: ${SERVER_PORT:8080}
 management:
@@ -36,4 +34,10 @@ esuo:
   branch-name: ${BRANCH_NAME:Демонстрационное отделение}
   timezone: ${BRANCH_TIMEZONE:Europe/Moscow}
   demo-data: ${DEMO_DATA:false}
-  operator-key: ${OPERATOR_API_KEY:}
+  security:
+    jwt-secret: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
+    jwt-ttl: 4h
+    cors-origins: ${CORS_ORIGINS:http://localhost:5173}
+  demo-users:                                # работают только при demo-data=true; пустой пароль = пользователь не создаётся
+    operator-password: ${DEMO_OPERATOR_PASSWORD:}
+    admin-password: ${DEMO_ADMIN_PASSWORD:}

@@ -21,12 +21,13 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
-import honey.road.config.NodeProperties2;
+import honey.road.config.NodeProperties;
 
 import java.util.List;
 
 /**
  * Публичное (клиент, табло) — строго под /api/v1/public/**, всё остальное API закрыто.
+ * (было решено в обход доков, на сколько помню)
  */
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity
@@ -83,7 +84,7 @@ class SecurityConfig {
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource(NodeProperties2 props) {
+    CorsConfigurationSource corsConfigurationSource(NodeProperties props) {
         var cors = new CorsConfiguration();
         cors.setAllowedOrigins(props.security().corsOrigins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));

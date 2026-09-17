@@ -20,6 +20,7 @@ import honey.road.error.ErrorCode;
 import honey.road.error.EsuoException;
 import honey.road.error.FieldViolation;
 import honey.road.api.web.RequestIdFilter;
+import honey.road.queue.domain.DomainException;
 
 import java.net.URI;
 import java.util.List;
@@ -37,6 +38,22 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(EsuoException.class)
     ResponseEntity<Object> handleEsuo(EsuoException ex, WebRequest request) {
         return problem(ex.code(), ex.getMessage(), ex.violations(), request);
+    }
+
+    /**
+     * Мост к доменным ошибкам A: строковый код → {@link ErrorCode}.
+     * Неизвестный код — баг (опечатка), наружу 500, в лог — сам код.
+     */
+    @ExceptionHandler(DomainException.class)
+    ResponseEntity<Object> handleDomain(DomainException ex, WebRequest request) {
+        ErrorCode code;
+        try {
+            code = ErrorCode.valueOf(ex.code());
+        } catch (IllegalArgumentException _) {
+            log.error("unknown domain error code={}", ex.code());
+            return problem(ErrorCode.INTERNAL_ERROR, null, List.of(), request);
+        }
+        return problem(code, ex.getMessage(), List.of(), request);
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -87,6 +104,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static void decorate(ProblemDetail pd, ErrorCode code, @Nullable String requestId) {
         pd.setType(URI.create(code.typeUri()));
         pd.setTitle(code.title());
+
+        // Не путь запроса: в пути бывает токен талона (идея A).
+        pd.setInstance(URI.create("urn:esuo:request:" + (requestId == null ? "unknown" : requestId)));
         pd.setProperty("code", code.name());
         pd.setProperty("request_id", requestId);
     }
