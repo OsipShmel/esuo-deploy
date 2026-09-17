@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: node-app
+  config:
+    import: classpath:queue-defaults.yml
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/esuo}
+    username: ${DB_USER:esuo}
+    password: ${DB_PASSWORD}
+  flyway:
+    enabled: true
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    serialization:
+      write-dates-as-timestamps: false
+server:
+  port: ${SERVER_PORT:8080}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db
+      probes:
+        enabled: true
+logging:
+  structured:
+    format:
+      console: ecs
+esuo:
+  branch-id: ${BRANCH_ID:b01}
+  branch-name: ${BRANCH_NAME:Демонстрационное отделение}
+  timezone: ${BRANCH_TIMEZONE:Europe/Moscow}
+  demo-data: ${DEMO_DATA:false}
+  operator-key: ${OPERATOR_API_KEY:}

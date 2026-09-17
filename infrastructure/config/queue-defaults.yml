@@ -1,0 +1,18 @@
+queue:
+  config-version: 1
+  target-wait-min:
+    qr: {default: 20, pensioner: 15, svo: 5}
+    walkin: {default: 30, pensioner: 20, svo: 5}
+  early-checkin-min: 15
+  grace-late-min: 10
+  late-checkin-retention-min: 60
+  slot-duration-min: 15
+  slot-capacity: 1
+  booking-horizon-days: 30
+  opening-time: "09:00"
+  closing-time: "18:00"
+  slack-min: 5
+  call-timeout-sec: 90
+  max-recalls: 2
+  auto-call-on-free: false
+  scoring-strategy: uniform

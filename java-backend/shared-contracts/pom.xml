@@ -5,14 +5,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-		<groupId>com.osipshmel</groupId>
+		<groupId>honey.road</groupId>
 		<artifactId>java-backend</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
     <artifactId>shared-contracts</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
     <name>shared-contracts</name>
+
 
     <properties>
         <maven.compiler.source>25</maven.compiler.source>

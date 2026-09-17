@@ -96,3 +96,7 @@ data/
 *.key
 *.p12
 *.jks
+
+.dockerignore
+.env.example
+/docs

@@ -11,21 +11,16 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 
-	<groupId>com.osipshmel</groupId>
+	<groupId>honey.road</groupId>
 	<artifactId>java-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 
 	<modules>
-		<module>node-app</module>
 		<module>shared-contracts</module>
+		<module>common-dto</module>
+		<module>node-app</module>
+		<module>center-app</module>
 	</modules>
-
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
 
 	<properties>
 		<java.version>25</java.version>
@@ -34,7 +29,11 @@
 
 	<dependencyManagement>
 		<dependencies>
-			<!-- Убрали отсюда пустые Спринг-стартеры. Оставили только внешнюю либу -->
+			<dependency>
+				<groupId>honey.road</groupId>
+				<artifactId>common-dto</artifactId>
+				<version>${project.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>io.nats</groupId>
 				<artifactId>jnats</artifactId>
@@ -58,6 +57,7 @@
 					<groupId>org.springframework.boot</groupId>
 					<artifactId>spring-boot-maven-plugin</artifactId>
 				</plugin>
+				<!-- Настройка компилятора под Lombok -->
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-compiler-plugin</artifactId>
@@ -73,5 +73,4 @@
 			</plugins>
 		</pluginManagement>
 	</build>
-
 </project>

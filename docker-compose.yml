@@ -1,0 +1,51 @@
+name: esuo
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: esuo
+      POSTGRES_USER: ${DB_USER:-esuo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
+    ports: ["127.0.0.1:${DB_PORT:-5432}:5432"]
+    volumes: ["branch-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d esuo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  nats-hub:
+    image: nats:2.10.26-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes: ["./infrastructure/nats/hub.conf:/etc/nats/nats.conf:ro", "hub-data:/data"]
+    ports: ["127.0.0.1:8222:8222"]
+  nats-leaf:
+    image: nats:2.10.26-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-data:/data"]
+    depends_on: [nats-hub]
+    ports: ["127.0.0.1:4222:4222", "127.0.0.1:8223:8222"]
+  node-app:
+    build:
+      context: .
+      dockerfile: java-backend/Dockerfile
+      args: {MODULE: node-app}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/esuo
+      DB_USER: ${DB_USER:-esuo}
+      DB_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
+      BRANCH_ID: b01
+      DEMO_DATA: ${DEMO_DATA:-true}
+      OPERATOR_API_KEY: ${OPERATOR_API_KEY:?Задайте OPERATOR_API_KEY в .env}
+    ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  center-app:
+    build:
+      context: .
+      dockerfile: java-backend/Dockerfile
+      args: {MODULE: center-app}
+    ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
+volumes:
+  branch-db:
+  hub-data:
+  leaf-data:
