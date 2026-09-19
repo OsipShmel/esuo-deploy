@@ -6,13 +6,21 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/esuo}
     username: ${DB_USER:esuo}
-    password: ${DB_PASSWORD:?Задайте JWT_SECRET в .env}
+    password: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
   flyway:
     enabled: true
   jackson:
     property-naming-strategy: SNAKE_CASE
+  threads:
+    virtual:
+      enabled: true          # SSE-соединения и блокирующий JDBC на виртуальных потоках
+  task:
+    scheduling:
+      pool:
+        size: 4              # outbox, heartbeat, планировщики домена; каждая задача сама по себе однопоточна
 server:
   port: ${SERVER_PORT:8080}
+  shutdown: graceful
 management:
   endpoints:
     web:
@@ -20,6 +28,7 @@ management:
         include: health,info
   endpoint:
     health:
+      show-details: always
       group:
         readiness:
           include: readinessState,db
@@ -36,8 +45,16 @@ esuo:
   demo-data: ${DEMO_DATA:false}
   security:
     jwt-secret: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
-    jwt-ttl: 4h
+    jwt-ttl: 12h
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
   demo-users:                                # работают только при demo-data=true; пустой пароль = пользователь не создаётся
     operator-password: ${DEMO_OPERATOR_PASSWORD:}
     admin-password: ${DEMO_ADMIN_PASSWORD:}
+  nats:
+    url: ${NATS_URL:nats://localhost:4222}   # локальный leaf отделения; адрес центра знает только leaf
+    heartbeat-interval: 10s
+    outbox:
+      poll-interval: 200ms
+      batch-size: 100
+      max-backoff: 30s
+      sent-retention: 24h

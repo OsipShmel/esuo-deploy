@@ -26,7 +26,7 @@
 
         <dependency>
             <groupId>honey.road</groupId>
-            <artifactId>common-dto</artifactId>
+            <artifactId>shared-contracts</artifactId>
         </dependency>
     </dependencies>
 

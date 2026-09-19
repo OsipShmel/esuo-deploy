@@ -1,0 +1,59 @@
+# Отделение для стенда из нескольких машин. Запуск на ПК отделения:
+#   cp deploy/branch/.env.example deploy/branch/.env   # задать BRANCH_ID, CENTER_HOST, пароли
+#   docker compose -f deploy/branch/docker-compose.yml --env-file deploy/branch/.env up -d --build
+# Отделению нужен только исходящий TCP до CENTER_HOST:7422 (LAN или VPS — без разницы).
+name: esuo-branch-${BRANCH_ID:?Задайте BRANCH_ID}
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: esuo
+      POSTGRES_USER: ${DB_USER:-esuo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD}
+    ports: ["127.0.0.1:${DB_PORT:-5433}:5432"]
+    volumes: ["branch-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d esuo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  nats-leaf:
+    image: nats:2.10.26-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    environment:
+      LEAF_SERVER_NAME: leaf-${BRANCH_ID}
+      JS_DOMAIN: branch-${BRANCH_ID}
+      LEAF_REMOTE_URL: nats-leaf://${LEAF_USER:-leaf}:${LEAF_PASSWORD:?Задайте LEAF_PASSWORD}@${CENTER_HOST:?Задайте CENTER_HOST}:${CENTER_LEAF_PORT:-7422}
+    volumes: ["../../infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-data:/data"]
+    ports: ["127.0.0.1:${LEAF_CLIENT_PORT:-4222}:4222", "127.0.0.1:${LEAF_MONITOR_PORT:-8223}:8222"]
+    restart: unless-stopped
+
+  node-app:
+    build:
+      context: ../..
+      dockerfile: java-backend/Dockerfile
+      args: {MODULE: node-app}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/esuo
+      DB_USER: ${DB_USER:-esuo}
+      DB_PASSWORD: ${DB_PASSWORD}
+      BRANCH_ID: ${BRANCH_ID}
+      BRANCH_NAME: ${BRANCH_NAME:-Отделение ${BRANCH_ID}}
+      NATS_URL: nats://nats-leaf:4222
+      DEMO_DATA: ${DEMO_DATA:-true}
+      JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET}
+      DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    # 0.0.0.0: операторы и клиенты в Wi-Fi отделения ходят на ноду напрямую.
+    ports: ["${NODE_BIND:-0.0.0.0}:${NODE_PORT:-8080}:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      nats-leaf: {condition: service_started}
+    restart: unless-stopped
+
+volumes:
+  branch-db:
+  leaf-data:

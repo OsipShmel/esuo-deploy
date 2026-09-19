@@ -17,7 +17,6 @@
 
 	<modules>
 		<module>shared-contracts</module>
-		<module>common-dto</module>
 		<module>node-app</module>
 		<module>center-app</module>
 	</modules>
@@ -31,7 +30,7 @@
 		<dependencies>
 			<dependency>
 				<groupId>honey.road</groupId>
-				<artifactId>common-dto</artifactId>
+				<artifactId>shared-contracts</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

@@ -1,54 +1,171 @@
+# All-in-one: центр и два отделения на одной машине (для проверки жюри и разработки).
+#   cp .env.example .env && docker compose up -d --build
+# Сети: каждое отделение изолировано, с центром связано только через сеть wan (как через интернет).
+# Разрыв связи b01 ↔ центр:   ./scripts/chaos/cut-branch-link.sh b01   (docker network disconnect)
+# Для стенда из нескольких машин — deploy/center и deploy/branch.
 name: esuo
+
+x-node-app: &node-app
+  build:
+    context: .
+    dockerfile: java-backend/Dockerfile
+    args: {MODULE: node-app}
+  restart: unless-stopped
+
+x-leaf: &leaf
+  image: nats:2.10.26-alpine
+  command: ["-c", "/etc/nats/nats.conf"]
+  volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro"]
+  restart: unless-stopped
+
+x-pg: &pg
+  image: postgres:16-alpine
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+    interval: 5s
+    timeout: 3s
+    retries: 20
+  restart: unless-stopped
+
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: esuo
-      POSTGRES_USER: ${DB_USER:-esuo}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:? Задайте DB_PASSWORD в .env}
-      POSTGRES_HOST_AUTH_METHOD: trust
-    ports: ["127.0.0.1:${DB_PORT:-5433}:5432"]
-    volumes: ["branch-db:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d esuo"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+  # ------------------------------------------------------------------ центр
   nats-hub:
     image: nats:2.10.26-alpine
+    container_name: esuo-nats-hub
     command: ["-c", "/etc/nats/nats.conf"]
-    volumes: ["./infrastructure/nats/hub.conf:/etc/nats/nats.conf:ro", "hub-data:/data"]
-    ports: ["127.0.0.1:8222:8222"]
-  nats-leaf:
-    image: nats:2.10.26-alpine
-    command: ["-c", "/etc/nats/nats.conf"]
-    volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-data:/data"]
-    depends_on: [nats-hub]
-    ports: ["127.0.0.1:4222:4222", "127.0.0.1:8223:8222"]
-  node-app:
-    build:
-      context: .
-      dockerfile: java-backend/Dockerfile
-      args: {MODULE: node-app}
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/esuo
-      DB_USER: ${DB_USER:-esuo}
-      DB_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
-      BRANCH_ID: b01
-      DEMO_DATA: ${DEMO_DATA:-true}
-      JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
-      DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
-      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
-    ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
-    depends_on:
-      postgres: {condition: service_healthy}
+      LEAF_SHARED_USER: leaf
+      LEAF_SHARED_PASSWORD: ${LEAF_PASSWORD:?Задайте LEAF_PASSWORD в .env}
+      LEAF_B01_PASSWORD: ${LEAF_PASSWORD}
+      LEAF_B02_PASSWORD: ${LEAF_PASSWORD}
+    volumes: ["./infrastructure/nats/hub.conf:/etc/nats/nats.conf:ro", "hub-data:/data"]
+    ports: ["127.0.0.1:4222:4222", "127.0.0.1:8222:8222", "127.0.0.1:7422:7422"]
+    networks: [center, wan]
+    restart: unless-stopped
+
+  postgres-center:
+    <<: *pg
+    container_name: esuo-postgres-center
+    environment:
+      POSTGRES_DB: esuo_center
+      POSTGRES_USER: ${DB_USER:-esuo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
+    ports: ["127.0.0.1:5435:5432"]
+    volumes: ["center-db:/var/lib/postgresql/data"]
+    networks: [center]
+
   center-app:
     build:
       context: .
       dockerfile: java-backend/Dockerfile
       args: {MODULE: center-app}
+    container_name: esuo-center-app
+    environment:
+      DB_URL: jdbc:postgresql://postgres-center:5432/esuo_center
+      DB_USER: ${DB_USER:-esuo}
+      DB_PASSWORD: ${DB_PASSWORD}
+      NATS_URL: nats://nats-hub:4222
+      JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
     ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
+    depends_on:
+      postgres-center: {condition: service_healthy}
+      nats-hub: {condition: service_started}
+    networks: [center]
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------ отделение b01
+  nats-leaf-b01:
+    <<: *leaf
+    container_name: esuo-nats-leaf-b01
+    environment:
+      LEAF_SERVER_NAME: leaf-b01
+      JS_DOMAIN: branch-b01
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
+    volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-b01-data:/data"]
+    ports: ["127.0.0.1:8223:8222"]
+    networks: [b01, wan]
+
+  postgres-b01:
+    <<: *pg
+    container_name: esuo-postgres-b01
+    environment:
+      POSTGRES_DB: esuo
+      POSTGRES_USER: ${DB_USER:-esuo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports: ["127.0.0.1:${DB_PORT:-5433}:5432"]
+    volumes: ["b01-db:/var/lib/postgresql/data"]
+    networks: [b01]
+
+  node-b01:
+    <<: *node-app
+    container_name: esuo-node-b01
+    environment: &node-env
+      DB_URL: jdbc:postgresql://postgres-b01:5432/esuo
+      DB_USER: ${DB_USER:-esuo}
+      DB_PASSWORD: ${DB_PASSWORD}
+      BRANCH_ID: b01
+      BRANCH_NAME: Отделение 101000 (b01)
+      NATS_URL: nats://nats-leaf-b01:4222
+      DEMO_DATA: ${DEMO_DATA:-true}
+      JWT_SECRET: ${JWT_SECRET}
+      DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
+    depends_on:
+      postgres-b01: {condition: service_healthy}
+      nats-leaf-b01: {condition: service_started}
+    networks: [b01]
+
+  # ------------------------------------------------------------------ отделение b02
+  nats-leaf-b02:
+    <<: *leaf
+    container_name: esuo-nats-leaf-b02
+    environment:
+      LEAF_SERVER_NAME: leaf-b02
+      JS_DOMAIN: branch-b02
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
+    volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-b02-data:/data"]
+    ports: ["127.0.0.1:8224:8222"]
+    networks: [b02, wan]
+
+  postgres-b02:
+    <<: *pg
+    container_name: esuo-postgres-b02
+    environment:
+      POSTGRES_DB: esuo
+      POSTGRES_USER: ${DB_USER:-esuo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports: ["127.0.0.1:5434:5432"]
+    volumes: ["b02-db:/var/lib/postgresql/data"]
+    networks: [b02]
+
+  node-b02:
+    <<: *node-app
+    container_name: esuo-node-b02
+    environment:
+      <<: *node-env
+      DB_URL: jdbc:postgresql://postgres-b02:5432/esuo
+      BRANCH_ID: b02
+      BRANCH_NAME: Отделение 102000 (b02)
+      NATS_URL: nats://nats-leaf-b02:4222
+    ports: ["127.0.0.1:8090:8080"]
+    depends_on:
+      postgres-b02: {condition: service_healthy}
+      nats-leaf-b02: {condition: service_started}
+    networks: [b02]
+
+networks:
+  center:
+  wan:
+  b01:
+  b02:
+
 volumes:
-  branch-db:
   hub-data:
-  leaf-data:
+  center-db:
+  leaf-b01-data:
+  b01-db:
+  leaf-b02-data:
+  b02-db:

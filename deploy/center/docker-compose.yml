@@ -1,0 +1,57 @@
+# Центр для стенда из нескольких машин. Запуск на ПК центра (или VPS):
+#   cp deploy/center/.env.example deploy/center/.env
+#   docker compose -f deploy/center/docker-compose.yml --env-file deploy/center/.env up -d --build
+# Наружу открыты: 7422 (leaf-подключения отделений) и 8081 (публичный API центра).
+name: esuo-center
+services:
+  postgres-center:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: esuo_center
+      POSTGRES_USER: ${CENTER_DB_USER:-esuo}
+      POSTGRES_PASSWORD: ${CENTER_DB_PASSWORD:?Задайте CENTER_DB_PASSWORD}
+    ports: ["127.0.0.1:${CENTER_DB_PORT:-5435}:5432"]
+    volumes: ["center-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d esuo_center"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  nats-hub:
+    image: nats:2.10.26-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    environment:
+      LEAF_SHARED_USER: ${LEAF_SHARED_USER:-leaf}
+      LEAF_SHARED_PASSWORD: ${LEAF_SHARED_PASSWORD:?Задайте LEAF_SHARED_PASSWORD}
+      LEAF_B01_PASSWORD: ${LEAF_B01_PASSWORD:-${LEAF_SHARED_PASSWORD}}
+      LEAF_B02_PASSWORD: ${LEAF_B02_PASSWORD:-${LEAF_SHARED_PASSWORD}}
+    volumes: ["../../infrastructure/nats/hub.conf:/etc/nats/nats.conf:ro", "hub-data:/data"]
+    ports:
+      - "${LEAF_BIND:-0.0.0.0}:7422:7422"     # отделения
+      - "127.0.0.1:4222:4222"                 # отладка (nats CLI)
+      - "127.0.0.1:8222:8222"                 # мониторинг: /leafz, /jsz
+    restart: unless-stopped
+
+  center-app:
+    build:
+      context: ../..
+      dockerfile: java-backend/Dockerfile
+      args: {MODULE: center-app}
+    environment:
+      DB_URL: jdbc:postgresql://postgres-center:5432/esuo_center
+      DB_USER: ${CENTER_DB_USER:-esuo}
+      DB_PASSWORD: ${CENTER_DB_PASSWORD}
+      NATS_URL: nats://nats-hub:4222
+      JWT_SECRET: ${CENTER_JWT_SECRET:?Задайте CENTER_JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080"]
+    depends_on:
+      postgres-center: {condition: service_healthy}
+      nats-hub: {condition: service_started}
+    restart: unless-stopped
+
+volumes:
+  center-db:
+  hub-data:
