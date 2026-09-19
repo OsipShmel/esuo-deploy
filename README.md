@@ -45,3 +45,13 @@ infrastructure/       NATS-конфиги (параметры из env), queue-d
 deploy/               compose для центра и отделения по отдельности
 scripts/              smoke-проверки, chaos
 ```
+
+## Заметки A для B (день 1; пакеты с тех пор — honey.road.node.*, DTO — shared-contracts/dto)
+
+
+- Команды ядра: `IssueTicket.execute`, `IssueTicket.fromMobileAppointment`, `CancelTicket.execute`.
+- Чтение: `TicketQueries`; DTO: `common-dto/TicketView` и `EventEnvelope`.
+- Запрос кандидата: `TicketRepository.lockHead`; обязателен активный контекст транзакции. Он не назначает клиента окну.
+- `ticket_events` и `outbox` пишутся синхронно в транзакции команды; публиковать `pending` должен будущий воркер B.
+- Внутренний вход МП принимает `externalId`, повторяет исходный ответ и не открыт наружу.
+- Для проигрывания новых доменных ошибок следует использовать `code` из `DomainException` и коды дизайн-документа.
