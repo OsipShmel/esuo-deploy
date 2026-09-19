@@ -58,14 +58,14 @@ public class NetworkController {
             boolean isOnline = online(b.lastHeartbeatAt(), now);
             if (isOnline) { online++; }
             var anomalies = new ArrayList<String>();
-            long waiting = hb.path("waiting").asLong();
-            long oldestWait = hb.path("oldest_wait_sec").asLong();
-            long overdue = hb.path("overdue").asLong();
+            long waiting = hb.path("waiting").asLong(0);
+            long oldestWait = hb.path("oldest_wait_sec").asLong(0);
+            long overdue = hb.path("overdue").asLong(0);
             if (!isOnline) { anomalies.add("offline"); }
             if (oldestWait > 1800 && waiting <= 3) { anomalies.add("wait_grows_without_tickets"); }
             if (overdue > 5) { anomalies.add("overdue_tickets"); }
-            if (hb.path("windows_open").asLong() == 0 && waiting > 0) { anomalies.add("no_open_windows"); }
-            if (hb.path("outbox_lag_sec").asLong() > 60) { anomalies.add("outbox_lag"); }
+            if (hb.path("windows_open").asLong(0) == 0 && waiting > 0) { anomalies.add("no_open_windows"); }
+            if (hb.path("outbox_lag_sec").asLong(0) > 60) { anomalies.add("outbox_lag"); }
             var m = new LinkedHashMap<String, Object>();
             m.put("id", b.id());
             m.put("name", b.name());
@@ -76,10 +76,10 @@ public class NetworkController {
             m.put("waiting", waiting);
             m.put("overdue", overdue);
             m.put("oldest_wait_sec", oldestWait);
-            m.put("windows_open", hb.path("windows_open").asLong());
-            m.put("windows_total", hb.path("windows_total").asLong());
-            m.put("outbox_pending", hb.path("outbox_pending").asLong());
-            m.put("config_version", hb.path("config_version").asInt());
+            m.put("windows_open", hb.path("windows_open").asLong(0));
+            m.put("windows_total", hb.path("windows_total").asLong(0));
+            m.put("outbox_pending", hb.path("outbox_pending").asLong(0));
+            m.put("config_version", hb.path("config_version").asInt(0));
             m.put("anomalies", anomalies);
             branches.add(m);
         }

@@ -71,7 +71,7 @@ public class BranchRpcClient {
                 throw unavailable(branchId, "no responders");
             }
             JsonNode envelope = json.readTree(new String(reply.getData(), StandardCharsets.UTF_8));
-            return new RpcResult(envelope.path("ok").asBoolean(), envelope.path("status").asInt(502),
+            return new RpcResult(envelope.path("ok").asBoolean(false), envelope.path("status").asInt(502),
                     envelope.get("data"), envelope.get("problem"));
         } catch (CancellationException | TimeoutException e) {
             throw unavailable(branchId, e.getClass().getSimpleName());

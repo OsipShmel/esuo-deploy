@@ -61,7 +61,7 @@ public class HeartbeatListener {
             boolean isNew = registry.upsertHeartbeat(branchId, hb.path("name").asString(branchId),
                     hb.path("timezone").asString("Europe/Moscow"), body, clock.instant());
             if (isNew) {
-                log.info("new branch registered id={} name={}", branchId, hb.path("name").asString());
+                log.info("new branch registered id={} name={}", branchId, hb.path("name").asString(""));
                 attach(branchId);
             }
         } catch (RuntimeException e) {
