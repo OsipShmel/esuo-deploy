@@ -18,16 +18,20 @@ import java.util.UUID;
 @Component
 public class RpcOperations {
     private final PublicTicketController api;
+    private final honey.road.node.queue.application.TicketQueries queries;
     private final JsonCodec json;
     private final Validator validator;
 
-    public RpcOperations(PublicTicketController api, JsonCodec json, Validator validator) {
+    public RpcOperations(PublicTicketController api, honey.road.node.queue.application.TicketQueries queries,
+                         JsonCodec json, Validator validator) {
         this.api = api;
+        this.queries = queries;
         this.json = json;
         this.validator = validator;
     }
 
     public record TokenRequest(UUID token) { }
+    public record MpRequest(String mpAppointmentId) { }
     public record SlotsRequest(UUID serviceId, LocalDate date) { }
     public record PostponeRequest(UUID token, Integer minutes) { }
     public record CheckInRequest(UUID token, String qrCode) { }
@@ -45,6 +49,11 @@ public class RpcOperations {
             case "qr.issue" -> RpcReply.ok(201, api.qr(key(idempotencyKey),
                     valid(read(body, PublicTicketController.QrRequest.class))));
             case "ticket.get" -> RpcReply.ok(200, api.get(token(body)));
+            case "ticket.by_mp" -> {
+                var r = read(body, MpRequest.class);
+                require(r.mpAppointmentId() != null && !r.mpAppointmentId().isBlank(), "mp_appointment_id обязателен");
+                yield RpcReply.ok(200, queries.byMpAppointment(r.mpAppointmentId()));
+            }
             case "ticket.cancel" -> RpcReply.ok(200, api.cancel(token(body)));
             case "ticket.postpone" -> {
                 var r = read(body, PostponeRequest.class);

@@ -81,6 +81,13 @@ public class TicketRepository {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    /** Талон записи из МП по внешнему идентификатору (уникален в БД). */
+    public Ticket byMpAppointmentId(String branch, String mpAppointmentId) {
+        return jdbc.query("SELECT * FROM tickets WHERE branch_id=:branch AND mp_appointment_id=:id",
+                Map.of("branch",branch,"id",mpAppointmentId), MAPPER).stream().findFirst()
+                .orElseThrow(() -> new DomainException("TICKET_NOT_FOUND", "Запись МП не найдена"));
+    }
+
     public void lockDevice(String branch, String device) {
         // Блокировка по устройству даёт понятную ошибку до срабатывания уникального индекса.
         jdbc.getJdbcTemplate().query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",

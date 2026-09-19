@@ -31,6 +31,11 @@ public class TicketQueries {
                          SlotRepository slots, honey.road.node.queue.application.TicketViews views, NodeProperties node, Clock clock) {
         this.catalog=catalog;this.policies=policies;this.tickets=tickets;this.slots=slots;this.views=views;this.node=node;this.clock=clock;
     }
+    /** Для центра (RPC {@code ticket.by_mp}): по записи МП находит талон; токен уходит только в RPC-ответе. */
+    public TicketView byMpAppointment(String mpAppointmentId) {
+        return views.of(tickets.byMpAppointmentId(node.branchId(), mpAppointmentId));
+    }
+
     public TicketView get(UUID token) { return views.of(tickets.byToken(node.branchId(),token,false)); }
 
     public Map<String,Object> branch() {
