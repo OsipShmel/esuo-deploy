@@ -131,6 +131,9 @@ req "$NODE" POST "/api/v1/tickets/$T2/complete" "${A2[@]}"
 req "$NODE" POST "/api/v1/windows/$W2/call-next" "${A2[@]}"
 [ "$STATUS" = 200 ] && req "$NODE" POST "/api/v1/tickets/$(json .ticket_id)/complete" "${A2[@]}"
 
+# окно 1 снова открыто — на нём завязан day1.sh (walk-in)
+req "$NODE" POST "/api/v1/windows/$W1/open" "${J[@]}" "${A1[@]}" -d "{\"service_ids\":[\"$S_PARCEL\",\"$S_SEND\"]}"
+
 echo "== 6. Центр: автоподключение отделений"
 sleep 12   # heartbeat раз в 10 с
 req "$CENTER" GET /api/v1/network/overview

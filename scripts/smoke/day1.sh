@@ -113,10 +113,10 @@ expect "неизвестный токен → 404" 404 '.code == "TICKET_NOT_FOU
 req POST /api/v1/public/qr-tickets "${H[@]}" -d "$QR_BODY"
 expect "без Idempotency-Key → 400" 400 '.code == "VALIDATION_ERROR"'
 
-echo "== 14. События легли в outbox"
-OUTBOX=$(docker compose exec -T postgres psql -U "${DB_USER:-esuo}" -d esuo -tAc \
-  "SELECT count(*) FROM outbox WHERE status='pending' AND subject LIKE 'branch.%.evt.ticket.%'" 2>/dev/null | tr -d '[:space:]')
-[ "${OUTBOX:-0}" -gt 0 ] 2>/dev/null && ok "outbox pending: $OUTBOX" || bad "outbox" "получили: '${OUTBOX}' (запущен ли postgres через docker compose?)"
+echo "== 14. События легли в outbox (outbox-воркер с дня 3 переводит их в sent)"
+OUTBOX=$(docker compose exec -T postgres-b01 psql -U "${DB_USER:-esuo}" -d esuo -tAc \
+  "SELECT count(*) FROM outbox WHERE subject LIKE 'branch.%.evt.ticket.%'" 2>/dev/null | tr -d '[:space:]')
+[ "${OUTBOX:-0}" -gt 0 ] 2>/dev/null && ok "outbox: $OUTBOX событий" || bad "outbox" "получили: '${OUTBOX}' (запущен ли стенд через docker compose?)"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
