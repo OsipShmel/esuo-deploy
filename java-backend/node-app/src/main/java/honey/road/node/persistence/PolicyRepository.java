@@ -1,18 +1,38 @@
 package honey.road.node.persistence;
 
+import honey.road.node.config.JsonCodec;
+import honey.road.node.queue.application.ConfigRules;
 import honey.road.node.queue.domain.QueuePolicy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import honey.road.node.config.JsonCodec;
+import tools.jackson.databind.JsonNode;
 
+/**
+ * Действующие правила очереди = центральная версия + локальные переопределения руководителя (раздел 4.8).
+ * {@code config_version} действующей политики — {@code effective_version}: она растёт при любом изменении
+ * и фиксируется в каждом новом талоне.
+ */
 @Repository
 public class PolicyRepository {
     private final JdbcTemplate jdbc;
     private final JsonCodec json;
-    public PolicyRepository(JdbcTemplate jdbc, JsonCodec json) { this.jdbc = jdbc; this.json = json; }
+
+    public PolicyRepository(JdbcTemplate jdbc, JsonCodec json) {
+        this.jdbc = jdbc;
+        this.json = json;
+    }
 
     public QueuePolicy current() {
-        // Центральные переопределения будут применяться отдельной командой Дня 4.
-        return json.readValue(jdbc.queryForObject("SELECT central_config::text FROM branch_config WHERE id=1", String.class), QueuePolicy.class);
+        return jdbc.queryForObject("""
+                SELECT central_config::text AS c, local_overrides::text AS o, effective_version AS v
+                  FROM branch_config WHERE id=1
+                """, (rs, n) -> compose(json.readTree(rs.getString("c")), json.readTree(rs.getString("o")), rs.getInt("v")));
+    }
+
+    /** Собирает политику из центральной конфигурации и переопределений; невалидная комбинация — исключение. */
+    public QueuePolicy compose(JsonNode central, JsonNode overrides, int effectiveVersion) {
+        var merged = ConfigRules.merge(central, overrides);
+        merged.put("config_version", effectiveVersion);
+        return json.treeToValue(merged, QueuePolicy.class);
     }
 }

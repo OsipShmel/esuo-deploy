@@ -150,6 +150,25 @@ public class TicketRepository {
                 """, Map.of("b", t.branchId(), "s", t.serviceId(), "due", Timestamp.from(t.dueAt()), "seq", t.seq()), Integer.class);
     }
 
+    /** Ожидающие талоны, о приближении очереди которым ещё не сообщали (4.7). */
+    public java.util.Set<UUID> waitingNotNotified(String branch) {
+        return new java.util.HashSet<>(jdbc.queryForList("""
+                SELECT id FROM tickets WHERE branch_id=:b AND status='waiting' AND notified_approaching_at IS NULL
+                """, Map.of("b", branch), UUID.class));
+    }
+
+    /**
+     * Ставит флаг «о приближении сообщили». Условие {@code IS NULL} — проверка-и-установка: при гонке двух
+     * проходов флаг поставит только один, поэтому событие по талону уходит ровно один раз.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean markApproachingNotified(UUID id, Instant now) {
+        return jdbc.update("""
+                UPDATE tickets SET notified_approaching_at=:now
+                 WHERE id=:id AND status='waiting' AND notified_approaching_at IS NULL
+                """, Map.of("id", id, "now", Timestamp.from(now))) == 1;
+    }
+
     /** Ожидающие талоны, адресованные окну (S4: при закрытии окна адрес сбрасывается). */
     @Transactional(propagation = Propagation.MANDATORY)
     public java.util.List<Ticket> lockTargetedTo(UUID window) {

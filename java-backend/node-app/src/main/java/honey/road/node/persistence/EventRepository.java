@@ -110,9 +110,20 @@ public class EventRepository {
     @Transactional(propagation = Propagation.MANDATORY)
     public EventEnvelope otherEvent(String branchId, String aggregateType, UUID aggregateId, long version,
                                     String type, Actor actor, Instant now, Integer configVersion, Map<String, Object> data) {
+        return otherEvent(branchId, aggregateType, aggregateId, version, type, actor, now, configVersion, data, null);
+    }
+
+    /**
+     * То же, но с токеном владельца талона: SSE-хаб ноды доставит событие именно его странице
+     * (уведомление в браузере работает и при отсутствии центра, 4.7 п.4). Токен в outbox не попадает.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public EventEnvelope otherEvent(String branchId, String aggregateType, UUID aggregateId, long version,
+                                    String type, Actor actor, Instant now, Integer configVersion, Map<String, Object> data,
+                                    UUID publicToken) {
         var envelope = new EventEnvelope(ids.next(now), type, EventEnvelope.SCHEMA_VERSION, branchId,
                 aggregateType, aggregateId, version, now, configVersion, actor, data);
-        enqueue(envelope, null);
+        enqueue(envelope, publicToken);
         return envelope;
     }
 
