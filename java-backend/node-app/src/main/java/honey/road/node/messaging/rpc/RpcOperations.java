@@ -14,7 +14,6 @@ import java.util.UUID;
 
 /**
  * RPC-операции (раздел 10.1) — те же публичные сценарии, что и REST ноды: центр лишь транспорт.
- * Логика не дублируется: вызываются методы {@link PublicTicketController} с той же валидацией.
  */
 @Component
 public class RpcOperations {

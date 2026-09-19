@@ -139,7 +139,7 @@ sleep 12   # heartbeat раз в 10 с
 req "$CENTER" GET /api/v1/network/overview
 expect "центр видит b01 и b02 online без ручной настройки" 200 \
   '([.branches[] | select(.online) | .id] | index("b01") != null and index("b02") != null)'
-expect "события b01/b02 подключены к CENTER_EVT" 200 '[.branches[] | select(.id=="b01" or .id=="b02") | .events_attached] | all'
+expect "события b01/b02 подключены к CENTER_EVT" 200 '[.branches[] | select(.id=="b01" or .id=="b02") | .events_attached] | (length == 2 and all)'
 LEAFS=$(curl -s "$HUB_MONITOR/leafz" | jq '.leafs | length' 2>/dev/null || echo 0)
 [ "${LEAFS:-0}" -ge 2 ] && ok "hub: $LEAFS leaf-подключения" || bad "leafz" "подключений: ${LEAFS:-0}"
 JSZ=$(curl -s "$HUB_MONITOR/jsz?streams=true" | jq '[.account_details[]?.stream_detail[]? | select(.name=="CENTER_EVT") | .state.messages] | first // 0')

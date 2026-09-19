@@ -47,7 +47,6 @@ services:
       DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
-    # 0.0.0.0: операторы и клиенты в Wi-Fi отделения ходят на ноду напрямую.
     ports: ["${NODE_BIND:-0.0.0.0}:${NODE_PORT:-8080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}

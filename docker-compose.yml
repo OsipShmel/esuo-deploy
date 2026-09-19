@@ -18,6 +18,11 @@ x-leaf: &leaf
   volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro"]
   restart: unless-stopped
 
+x-link: &link
+  image: alpine/socat:latest
+  command: ["-d", "tcp-listen:7422,fork,reuseaddr", "tcp-connect:nats-hub:7422"]
+  restart: "no"
+
 x-pg: &pg
   image: postgres:16-alpine
   healthcheck:
@@ -38,10 +43,13 @@ services:
       LEAF_SHARED_PASSWORD: ${LEAF_PASSWORD:?Задайте LEAF_PASSWORD в .env}
       LEAF_B01_PASSWORD: ${LEAF_PASSWORD}
       LEAF_B02_PASSWORD: ${LEAF_PASSWORD}
+      LEAF_ADVERTISE: center-link:7422
     volumes: ["./infrastructure/nats/hub.conf:/etc/nats/nats.conf:ro", "hub-data:/data"]
     ports: ["127.0.0.1:4222:4222", "127.0.0.1:8222:8222", "127.0.0.1:7422:7422"]
     networks: [center, wan]
     restart: unless-stopped
+
+
 
   postgres-center:
     <<: *pg
@@ -81,10 +89,18 @@ services:
     environment:
       LEAF_SERVER_NAME: leaf-b01
       JS_DOMAIN: branch-b01
-      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
-    volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-b01-data:/data"]
-    ports: ["127.0.0.1:8223:8222"]
-    networks: [b01, wan]
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@center-link:7422
+    volumes: [ "./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-b01-data:/data" ]
+    ports: [ "127.0.0.1:8223:8222" ]
+    depends_on: [ link-b01 ]
+    networks: [ b01 ]
+
+  link-b01:
+    <<: *link
+    container_name: esuo-link-b01
+    networks:
+      b01: { aliases: [ center-link ] }
+      wan: { }
 
   postgres-b01:
     <<: *pg
@@ -125,10 +141,18 @@ services:
     environment:
       LEAF_SERVER_NAME: leaf-b02
       JS_DOMAIN: branch-b02
-      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
-    volumes: ["./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-b02-data:/data"]
-    ports: ["127.0.0.1:8224:8222"]
-    networks: [b02, wan]
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@center-link:7422
+    volumes: [ "./infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro", "leaf-b02-data:/data" ]
+    ports: [ "127.0.0.1:8224:8222" ]
+    depends_on: [ link-b02 ]
+    networks: [ b02 ]
+
+  link-b02:
+    <<: *link
+    container_name: esuo-link-b02
+    networks:
+      b02: { aliases: [ center-link ] }
+      wan: { }
 
   postgres-b02:
     <<: *pg

@@ -27,6 +27,7 @@ services:
       LEAF_SHARED_PASSWORD: ${LEAF_SHARED_PASSWORD:?Задайте LEAF_SHARED_PASSWORD}
       LEAF_B01_PASSWORD: ${LEAF_B01_PASSWORD:-${LEAF_SHARED_PASSWORD}}
       LEAF_B02_PASSWORD: ${LEAF_B02_PASSWORD:-${LEAF_SHARED_PASSWORD}}
+      LEAF_ADVERTISE: ${LEAF_ADVERTISE:?Задайте LEAF_ADVERTISE=<адрес центра для отделений>:7422}
     volumes: ["../../infrastructure/nats/hub.conf:/etc/nats/nats.conf:ro", "hub-data:/data"]
     ports:
       - "${LEAF_BIND:-0.0.0.0}:7422:7422"     # отделения

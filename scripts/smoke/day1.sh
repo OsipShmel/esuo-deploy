@@ -53,7 +53,7 @@ LEAFS=$(curl -s "$HUB_MONITOR/leafz" | jq '.leafs | length' 2>/dev/null || echo 
 echo "== 4. Отделение и услуга"
 req GET /api/v1/public/branch
 expect "GET /public/branch" 200 '.services | length > 0'
-SERVICE_ID=$(json '.services[0].id')
+SERVICE_ID=$(json '(.services[] | select(.code=="parcel") | .id) // .services[0].id')
 
 echo "== 5–8. QR-талон и идемпотентность"
 QR_BODY=$(jq -nc --arg s "$SERVICE_ID" --arg d "dev-$RUN" '{qr_code:"demo:b01", service_id:$s, device_id:$d}')
