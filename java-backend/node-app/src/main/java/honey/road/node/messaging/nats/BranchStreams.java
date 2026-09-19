@@ -30,6 +30,7 @@ public class BranchStreams {
     private final NodeProperties node;
     private final NatsProperties props;
     private volatile boolean branchEvtReady;
+    private volatile boolean branchInboxReady;
 
     public BranchStreams(NatsGateway nats, NodeProperties node, NatsProperties props) {
         this.nats = nats;
@@ -44,6 +45,24 @@ public class BranchStreams {
 
     public boolean branchEvtReady() { return branchEvtReady; }
 
+    public boolean branchInboxReady() { return branchInboxReady; }
+
+    /**
+     * Собственный subject у BRANCH_INBOX: без него сервер назначит subject = имени стрима. Локальный subject
+     * пригодится для ручной вставки при отладке; с sources он не пересекается.
+     */
+    private String inboxLocalSubject() {
+        return "branch." + node.branchId() + ".inbox.local";
+    }
+
+    private static io.nats.client.api.Source source(String stream, String filter, String api) {
+        return io.nats.client.api.Source.builder()
+                .name(stream)
+                .filterSubject(filter)
+                .external(io.nats.client.api.External.builder().api(api).build())
+                .build();
+    }
+
     void ensure(Connection c) {
         try {
             var jsm = c.jetStreamManagement();
@@ -53,8 +72,21 @@ public class BranchStreams {
                     .maxAge(props.eventRetention())
                     .duplicateWindow(Duration.ofHours(1)));
             branchEvtReady = true;
+            // Центр → отделение (раздел 10.4): конфигурация и записи МП копируются из домена центра
+            // и остаются доступны отделению при потере связи.
+            var center = Subjects.jsApiPrefix(Subjects.CENTER_DOMAIN);
+            ensureStream(jsm, Subjects.STREAM_BRANCH_INBOX, b -> b
+                    .storageType(StorageType.File)
+                    .maxAge(props.eventRetention())
+                    .subjects(inboxLocalSubject())
+                    .sources(
+                            source(Subjects.STREAM_CONFIG, Subjects.CONFIG_GLOBAL, center),
+                            source(Subjects.STREAM_CONFIG, Subjects.configBranch(node.branchId()), center),
+                            source(Subjects.STREAM_MP_INBOX, Subjects.mpInbox(node.branchId()), center)));
+            branchInboxReady = true;
         } catch (IOException | JetStreamApiException e) {
             branchEvtReady = false;
+            branchInboxReady = false;
             log.error("cannot ensure {} stream (is JetStream enabled on leaf?)", Subjects.STREAM_BRANCH_EVT, e);
         }
     }
