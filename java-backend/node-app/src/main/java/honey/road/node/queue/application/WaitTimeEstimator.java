@@ -33,8 +33,6 @@ import java.util.UUID;
  */
 @Component
 public class WaitTimeEstimator {
-    private static final int MIN_SAMPLES = 5;
-
     private final TicketRepository tickets;
     private final WindowRepository windows;
     private final HandlingStatsRepository stats;
@@ -74,7 +72,7 @@ public class WaitTimeEstimator {
         var durations = new HashMap<UUID, Long>();
         var measured = new HashSet<UUID>();
         java.util.function.ToLongFunction<UUID> duration = service -> durations.computeIfAbsent(service, s -> {
-            var avg = stats.averageForService(s, MIN_SAMPLES);
+            var avg = stats.averageForService(s, policy.heuristicMinSamples());
             if (avg.isPresent()) { measured.add(s); }
             return Math.round(avg.orElse((double) policy.defaultServiceDurationSec()));
         });

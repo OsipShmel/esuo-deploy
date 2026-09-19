@@ -19,13 +19,15 @@ public record QueueProperties(
         Integer postponeMaxCount, Integer postponeMaxMin,
         Integer defaultServiceDurationSec,
         Integer approachingPositionLte, Integer approachingEtaLteMin,
-        Integer idleAlertMin, Integer longServiceMin) {
+        Integer idleAlertMin, Integer longServiceMin,
+        Integer heuristicMinSamples, Integer recommendOverdueMin, Integer recommendOverdueCount) {
 
     public QueuePolicy toPolicy() {
         return new QueuePolicy(configVersion, targetWaitMin, earlyCheckinMin, graceLateMin,
                 lateCheckinRetentionMin, slotDurationMin, slotCapacity, bookingHorizonDays,
                 openingTime, closingTime, slackMin, callTimeoutSec, maxRecalls, autoCallOnFree, scoringStrategy,
                 latePolicy, requeueDefaultMode, postponeMaxCount, postponeMaxMin, defaultServiceDurationSec,
-                approachingPositionLte, approachingEtaLteMin, idleAlertMin, longServiceMin);
+                approachingPositionLte, approachingEtaLteMin, idleAlertMin, longServiceMin,
+                heuristicMinSamples, recommendOverdueMin, recommendOverdueCount);
     }
 }

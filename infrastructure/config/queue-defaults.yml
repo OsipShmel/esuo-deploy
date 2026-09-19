@@ -1,7 +1,7 @@
 # Default queue coefficients (doc section 6.9).
 # config-version is incremented whenever the file is modified.
 queue:
-  config-version: 2
+  config-version: 4
   target-wait-min:              # due_at = момент выдачи + значение(стоит пересмотреть)
     qr: {default: 20, pensioner: 15, svo: 5}
     walkin: {default: 30, pensioner: 20, svo: 5}
@@ -25,3 +25,8 @@ queue:
   default-service-duration-sec: 300     # прогноз обслуживания, затычка
   approaching-position-lte: 3           # "очередь приближается"
   approaching-eta-lte-min: 5
+  idle-alert-min: 15                    # окно open без активности дольше — отклонение S14
+  long-service-min: 20                  # обслуживание дольше — отклонение «долгое обслуживание»
+  heuristic-min-samples: 5              # heuristic: минимум наблюдений, чтобы верить среднему уровня каскада (16.2)
+  recommend-overdue-min: 10             # рекомендация открыть окно: ETA позже дедлайна больше чем на N минут (6.8)
+  recommend-overdue-count: 5            # ...или просроченных талонов услуги больше N

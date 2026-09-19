@@ -64,7 +64,7 @@ public class HeartbeatPublisher {
         }
     }
 
-    Map<String, Object> snapshot() {
+    public Map<String, Object> snapshot() {
         var branch = catalog.branch(node.branchId());
         var stats = outbox.stats();
         var allWindows = windows.all(node.branchId());
@@ -75,7 +75,11 @@ public class HeartbeatPublisher {
         hb.put("name", branch.name());
         hb.put("timezone", branch.timezone());
         hb.put("sent_at", now);
-        hb.put("config_version", policies.current().configVersion());
+        // config_version — версия, которую опубликовал центр (по ней центр видит, применена ли его конфигурация);
+        // effective_config_version растёт и от локальных изменений руководителя и записывается в талоны.
+        var versions = policies.versions();
+        hb.put("config_version", versions.central());
+        hb.put("effective_config_version", versions.effective());
         hb.put("outbox_pending", stats.pending());
         hb.put("outbox_lag_sec", stats.oldestAge().toSeconds());
         hb.put("windows_total", allWindows.size());

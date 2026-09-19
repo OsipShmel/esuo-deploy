@@ -29,6 +29,15 @@ public class PolicyRepository {
                 """, (rs, n) -> compose(json.readTree(rs.getString("c")), json.readTree(rs.getString("o")), rs.getInt("v")));
     }
 
+    /** Версии конфигурации отделения: центральная (та, что опубликовал центр) и действующая (с локальными изменениями). */
+    public record Versions(int central, int effective) {
+    }
+
+    public Versions versions() {
+        return jdbc.queryForObject("SELECT central_version, effective_version FROM branch_config WHERE id=1",
+                (rs, n) -> new Versions(rs.getInt("central_version"), rs.getInt("effective_version")));
+    }
+
     /** Собирает политику из центральной конфигурации и переопределений; невалидная комбинация — исключение. */
     public QueuePolicy compose(JsonNode central, JsonNode overrides, int effectiveVersion) {
         var merged = ConfigRules.merge(central, overrides);

@@ -89,8 +89,23 @@ public abstract class AbstractNodeIT {
             return null;
         });
         jdbc.update("UPDATE windows SET status='closed', opened_at=NULL, current_employee_id=NULL");
+        restoreDemoWindowServices();
         jdbc.update("DELETE FROM inbox_processed");
+        jdbc.update("DELETE FROM handling_stats");            // статистика влияет на ETA и heuristic-скоринг
         restoreConfig();
+    }
+
+    /**
+     * {@code windows.open} заменяет набор услуг окна насовсем, поэтому тесты, открывавшие окно с другими услугами,
+     * меняли демо-справочник для всех следующих. Возвращаем исходный набор (DatabaseBootstrap): окно 1 — посылки и
+     * отправка, окно 2 — посылки и финансы, окно 3 — отправка и финансы.
+     */
+    private void restoreDemoWindowServices() {
+        jdbc.update("DELETE FROM window_services WHERE window_id IN (?,?,?)", W1, W2, W3);
+        var pairs = new UUID[][]{{W1, PARCEL}, {W1, SEND}, {W2, PARCEL}, {W2, FINANCE}, {W3, SEND}, {W3, FINANCE}};
+        for (var p : pairs) {
+            jdbc.update("INSERT INTO window_services(window_id, service_id) VALUES (?,?)", p[0], p[1]);
+        }
     }
 
     /** Конфигурация очереди на момент первого теста: тесты BRANCH_INBOX меняют её, остальные не должны это видеть. */

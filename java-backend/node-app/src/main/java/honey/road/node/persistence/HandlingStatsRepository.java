@@ -52,5 +52,47 @@ public class HandlingStatsRepository {
                 .single();
     }
 
+    /** Прогноз длительности и уровень каскада, на котором он получен (раздел 16.2). */
+    public record Forecast(double seconds, String level, int samples) {
+    }
+
+    public static final String LEVEL_EMPLOYEE_SERVICE_CATEGORY = "employee_service_category";
+    public static final String LEVEL_EMPLOYEE_SERVICE = "employee_service";
+    public static final String LEVEL_SERVICE_CATEGORY = "service_category";
+    public static final String LEVEL_SERVICE = "service";
+    public static final String LEVEL_FALLBACK = "fallback";
+
+    /**
+     * Каскад уточнений: на каждом уровне значение берётся, если {@code sample_count >= minSamples}.
+     * 1) сотрудник+услуга+категория, 2) сотрудник+услуга, 3) услуга+категория (все сотрудники), 4) услуга.
+     * Пусто — ни на одном уровне данных достаточно нет, вызывающий берёт {@code fallback_duration_sec}.
+     */
+    public Optional<Forecast> forecast(UUID service, UUID employee, String category, int minSamples) {
+        if (employee != null) {
+            var f = level(LEVEL_EMPLOYEE_SERVICE_CATEGORY, minSamples,
+                    "service_id=:s AND employee_id=:e AND window_id IS NULL AND client_category=:c", service, employee, category);
+            if (f.isPresent()) { return f; }
+            f = level(LEVEL_EMPLOYEE_SERVICE, minSamples,
+                    "service_id=:s AND employee_id=:e AND window_id IS NULL", service, employee, category);
+            if (f.isPresent()) { return f; }
+        }
+        var f = level(LEVEL_SERVICE_CATEGORY, minSamples,
+                "service_id=:s AND employee_id IS NULL AND window_id IS NULL AND client_category=:c", service, employee, category);
+        if (f.isPresent()) { return f; }
+        return level(LEVEL_SERVICE, minSamples, "service_id=:s AND employee_id IS NULL AND window_id IS NULL",
+                service, employee, category);
+    }
+
+    private Optional<Forecast> level(String name, int minSamples, String where, UUID service, UUID employee, String category) {
+        var q = jdbc.sql("SELECT sum(avg_duration_sec * sample_count) / NULLIF(sum(sample_count), 0) AS avg, "
+                        + "COALESCE(sum(sample_count), 0) AS n FROM handling_stats WHERE " + where)
+                .param("s", service);
+        if (where.contains(":e")) { q = q.param("e", employee); }
+        if (where.contains(":c")) { q = q.param("c", category); }
+        return q.query((rs, i) -> rs.getLong("n") >= Math.max(1, minSamples)
+                        ? Optional.of(new Forecast(rs.getDouble("avg"), name, (int) rs.getLong("n"))) : Optional.<Forecast>empty())
+                .single();
+    }
+
     static UUID none() { return NONE; }
 }

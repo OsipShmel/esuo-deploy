@@ -39,7 +39,7 @@ public class CatalogRepository {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public ServiceWindow lockWindow(String branch, UUID id) {
-        return jdbc.query("SELECT * FROM windows WHERE branch_id = ? AND id = ? FOR UPDATE", (rs, n) -> new ServiceWindow(
+        return jdbc.query("SELECT * FROM windows WHERE branch_id = ? AND id = ? AND active FOR UPDATE", (rs, n) -> new ServiceWindow(
                 rs.getObject("id", UUID.class), rs.getString("branch_id"), rs.getString("name"), rs.getString("status"),
                 rs.getObject("current_employee_id", UUID.class), rs.getInt("version")), branch, id).stream().findFirst()
                 .orElseThrow(() -> new DomainException("WINDOW_NOT_FOUND", "Окно не найдено"));

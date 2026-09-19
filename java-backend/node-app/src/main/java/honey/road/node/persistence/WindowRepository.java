@@ -29,19 +29,19 @@ public class WindowRepository {
     /** Строка окна — точка сериализации всех команд окна (docs, sect 6.4, 6.7). */
     @Transactional(propagation = Propagation.MANDATORY)
     public ServiceWindow lock(String branch, UUID id) {
-        return jdbc.sql("SELECT * FROM windows WHERE branch_id=:b AND id=:id FOR UPDATE")
+        return jdbc.sql("SELECT * FROM windows WHERE branch_id=:b AND id=:id AND active FOR UPDATE")
                 .param("b", branch).param("id", id).query(MAPPER).optional()
                 .orElseThrow(() -> new DomainException("WINDOW_NOT_FOUND", "Окно не найдено"));
     }
 
     public ServiceWindow get(String branch, UUID id) {
-        return jdbc.sql("SELECT * FROM windows WHERE branch_id=:b AND id=:id")
+        return jdbc.sql("SELECT * FROM windows WHERE branch_id=:b AND id=:id AND active")
                 .param("b", branch).param("id", id).query(MAPPER).optional()
                 .orElseThrow(() -> new DomainException("WINDOW_NOT_FOUND", "Окно не найдено"));
     }
 
     public List<ServiceWindow> all(String branch) {
-        return jdbc.sql("SELECT * FROM windows WHERE branch_id=:b ORDER BY name").param("b", branch).query(MAPPER).list();
+        return jdbc.sql("SELECT * FROM windows WHERE branch_id=:b AND active ORDER BY name").param("b", branch).query(MAPPER).list();
     }
 
     public List<UUID> serviceIds(UUID window) {

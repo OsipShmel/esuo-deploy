@@ -15,6 +15,7 @@ import honey.road.node.queue.domain.Ticket;
 import honey.road.node.queue.domain.TicketChange;
 import honey.road.node.queue.domain.TicketStatus;
 import honey.road.node.queue.domain.WindowStatus;
+import honey.road.node.queue.scoring.ScoreResult;
 import honey.road.node.queue.scoring.ScoringStrategies;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,22 +67,32 @@ public class CallNext {
             throw new DomainException("QUEUE_EMPTY", "Нет клиентов, которых может вызвать это окно");
         }
         var strategy = scoring.get(policy.scoringStrategy());
+        // Оценки считаются один раз на голову и идут в журнал: решение можно переиграть (раздел 6.6).
+        var results = new LinkedHashMap<UUID, ScoreResult>();
+        for (var h : heads) {
+            results.put(h.id(), strategy.score(h, window, employee));
+        }
         var selection = QueueSelection.choose(heads, now, Duration.ofMinutes(policy.slackMin()),
-                t -> strategy.score(t, window, employee).value());
+                t -> results.get(t.id()).value());
 
         var candidates = new ArrayList<Map<String, Object>>();
         for (var h : heads) {
+            var r = results.get(h.id());
             var c = new LinkedHashMap<String, Object>();
             c.put("ticket_id", h.id());
             c.put("display_number", h.displayNumber());
             c.put("service_id", h.serviceId());
             c.put("due_at", h.dueAt());
-            c.put("score", selection.scores().get(h.id()));
+            c.put("score", r.value());
+            c.put("predicted_duration_sec", r.predictedDuration().toSeconds());
+            c.put("basis", r.basis());
+            c.put("samples", r.samples());
             candidates.add(c);
         }
         var extra = new LinkedHashMap<String, Object>();
         extra.put("reason", selection.reason());
         extra.put("scoring_strategy", strategy.name());
+        extra.put("model_version", results.get(selection.chosen().id()).modelVersion());
         extra.put("candidates", candidates);
         return views.of(assign(selection.chosen(), window, employee, now, extra));
     }
