@@ -28,10 +28,9 @@ class DemoUsersSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoUsersSeeder.class);
 
-    /** Сотрудник из демо-справочника {@link DatabaseBootstrap}. */
-    private static final UUID DEMO_EMPLOYEE = UUID.fromString("00000000-0000-4000-8000-000000000002");
     private static final UUID OPERATOR_ID = UUID.fromString("00000000-0000-4000-8000-000000000011");
     private static final UUID ADMIN_ID = UUID.fromString("00000000-0000-4000-8000-000000000012");
+    private static final UUID OPERATOR2_ID = UUID.fromString("00000000-0000-4000-8000-000000000013");
 
     private final JdbcClient jdbc;
     private final PasswordEncoder passwordEncoder;
@@ -46,11 +45,13 @@ class DemoUsersSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        upsert(OPERATOR_ID, "operator", node.demoUsers().operatorPassword(), Role.OPERATOR);
-        upsert(ADMIN_ID, "admin", node.demoUsers().adminPassword(), Role.BRANCH_ADMIN);
+        var operatorPassword = node.demoUsers().operatorPassword();
+        upsert(OPERATOR_ID, "operator", operatorPassword, Role.OPERATOR, DatabaseBootstrap.DEMO_EMPLOYEE_1);
+        upsert(OPERATOR2_ID, "operator2", operatorPassword, Role.OPERATOR, DatabaseBootstrap.DEMO_EMPLOYEE_2);
+        upsert(ADMIN_ID, "admin", node.demoUsers().adminPassword(), Role.BRANCH_ADMIN, DatabaseBootstrap.DEMO_EMPLOYEE_1);
     }
 
-    private void upsert(UUID id, String login, String password, Role role) {
+    private void upsert(UUID id, String login, String password, Role role, UUID employee) {
         if (password == null || password.isBlank()) {
             log.warn("demo user skipped: empty password login={}", login);
             return;
@@ -60,13 +61,13 @@ class DemoUsersSeeder implements ApplicationRunner {
                         INSERT INTO users (id, login, password_hash, role, employee_id, active)
                         VALUES (:id, :login, :hash, :role, :employee, true)
                         ON CONFLICT (login) DO UPDATE
-                           SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, active = true
+                           SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, employee_id = EXCLUDED.employee_id, active = true
                         """)
                 .param("id", id)
                 .param("login", login)
                 .param("hash", passwordEncoder.encode(password))
                 .param("role", role.name())
-                .param("employee", DEMO_EMPLOYEE)
+                .param("employee", employee)
                 .update();
         log.info("demo user ready login={} role={}", login, role);
     }

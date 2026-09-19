@@ -103,6 +103,98 @@ public class TicketRepository {
                 """, Map.of("branch",branch,"service",service,"window",window,"now",Timestamp.from(now)), MAPPER).stream().findFirst();
     }
 
+    public Ticket byId(String branch, UUID id, boolean lock) {
+        return jdbc.query("SELECT * FROM tickets WHERE branch_id=:branch AND id=:id" + (lock ? " FOR UPDATE" : ""),
+                Map.of("branch",branch,"id",id), MAPPER).stream().findFirst()
+                .orElseThrow(() -> new DomainException("TICKET_NOT_FOUND", "Талон не найден"));
+    }
+
+    /** Активный (called/serving) талон окна; не больше одного — гарантирует ux_one_active_ticket_per_window. */
+    public Optional<Ticket> activeForWindow(UUID window, boolean lock) {
+        return jdbc.query("SELECT * FROM tickets WHERE window_id=:w AND status IN ('called','serving')" + (lock ? " FOR UPDATE" : ""),
+                Map.of("w", window), MAPPER).stream().findFirst();
+    }
+
+    /**
+     * Применяет изменение с оптимистической проверкой версии. Строка к этому моменту уже заблокирована
+     * командой, поэтому несовпадение версии означает только устаревший {@code expected_version} клиента.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Ticket apply(TicketChange c, Instant now) {
+        var p = new MapSqlParameterSource()
+                .addValue("id", c.base().id()).addValue("version", c.base().version())
+                .addValue("status", c.status().name()).addValue("service", c.serviceId())
+                .addValue("window", c.windowId()).addValue("employee", c.employeeId())
+                .addValue("target", c.targetWindowId())
+                .addValue("eligible", timestamp(c.eligibleFrom())).addValue("due", timestamp(c.dueAt()))
+                .addValue("called", timestamp(c.calledAt())).addValue("checkedIn", timestamp(c.checkedInAt()))
+                .addValue("serving", timestamp(c.servingStartedAt())).addValue("completed", timestamp(c.completedAt()))
+                .addValue("callCount", c.callCount()).addValue("postponeCount", c.postponeCount())
+                .addValue("reason", c.closeReason()).addValue("now", Timestamp.from(now));
+        return jdbc.query("""
+                UPDATE tickets SET status=:status, service_id=:service, window_id=:window, employee_id=:employee,
+                       target_window_id=:target, eligible_from=:eligible, due_at=:due, called_at=:called,
+                       checked_in_at=:checkedIn, serving_started_at=:serving, completed_at=:completed,
+                       call_count=:callCount, postpone_count=:postponeCount,
+                       close_reason=COALESCE(:reason, close_reason), updated_at=:now, version=version+1
+                 WHERE id=:id AND version=:version RETURNING *
+                """, p, MAPPER).stream().findFirst()
+                .orElseThrow(() -> new DomainException("STALE_STATE", "Талон изменился, обновите данные"));
+    }
+
+    /** Сколько ожидающих талонов той же услуги стоит перед данным в порядке EDF. */
+    public int aheadOf(Ticket t) {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM tickets WHERE branch_id=:b AND service_id=:s AND status='waiting'
+                   AND (due_at, seq) < (:due, :seq)
+                """, Map.of("b", t.branchId(), "s", t.serviceId(), "due", Timestamp.from(t.dueAt()), "seq", t.seq()), Integer.class);
+    }
+
+    /** Ожидающие талоны, адресованные окну (S4: при закрытии окна адрес сбрасывается). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public java.util.List<Ticket> lockTargetedTo(UUID window) {
+        return jdbc.query("SELECT * FROM tickets WHERE target_window_id=:w AND status='waiting' ORDER BY seq FOR UPDATE",
+                Map.of("w", window), MAPPER);
+    }
+
+    /** Очередь отделения в порядке EDF (для АРМ, табло и ETA). */
+    public java.util.List<Ticket> waiting(String branch) {
+        return jdbc.query("SELECT * FROM tickets WHERE branch_id=:b AND status='waiting' ORDER BY due_at, seq",
+                Map.of("b", branch), MAPPER);
+    }
+
+    /** Талоны в указанных (активных) статусах. */
+    public java.util.List<Ticket> byStatuses(String branch, java.util.Collection<String> statuses) {
+        return jdbc.query("SELECT * FROM tickets WHERE branch_id=:b AND status IN (:st) ORDER BY seq",
+                new MapSqlParameterSource().addValue("b", branch).addValue("st", statuses), MAPPER);
+    }
+
+    /** Последние вызовы (для табло). */
+    public java.util.List<Ticket> recentCalls(String branch, int limit) {
+        return jdbc.query("""
+                SELECT * FROM tickets WHERE branch_id=:b AND called_at IS NOT NULL AND status IN ('called','serving')
+                 ORDER BY called_at DESC LIMIT :limit
+                """, Map.of("b", branch, "limit", limit), MAPPER);
+    }
+
+    /** Вызванные дольше таймаута — для планировщика повторного вызова (S5). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public java.util.List<Ticket> lockCallTimedOut(String branch, Instant threshold, int limit) {
+        return jdbc.query("""
+                SELECT * FROM tickets WHERE branch_id=:b AND status='called' AND called_at < :t
+                 ORDER BY called_at LIMIT :limit FOR UPDATE SKIP LOCKED
+                """, Map.of("b", branch, "t", Timestamp.from(threshold), "limit", limit), MAPPER);
+    }
+
+    /** Записи без check-in после порога — для планировщика истечения (S8). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public java.util.List<Ticket> lockBookedBefore(String branch, Instant threshold, int limit) {
+        return jdbc.query("""
+                SELECT * FROM tickets WHERE branch_id=:b AND status='booked' AND slot_start < :t
+                 ORDER BY slot_start LIMIT :limit FOR UPDATE SKIP LOCKED
+                """, Map.of("b", branch, "t", Timestamp.from(threshold), "limit", limit), MAPPER);
+    }
+
     @Transactional(propagation = Propagation.MANDATORY)
     public Ticket cancel(Ticket ticket, Instant now) {
         return jdbc.queryForObject("""

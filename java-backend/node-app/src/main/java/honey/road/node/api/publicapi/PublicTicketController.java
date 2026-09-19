@@ -1,15 +1,17 @@
 package honey.road.node.api.publicapi;
 
 import honey.road.contracts.dto.TicketView;
-import honey.road.node.config.NodeProperties;
+import honey.road.node.queue.application.BoardQueries;
 import honey.road.node.queue.application.CancelTicket;
+import honey.road.node.queue.application.TicketCommands;
 import honey.road.node.queue.application.IssueTicket;
 import honey.road.node.queue.application.IssueTicketCommand;
 import honey.road.node.queue.application.TicketQueries;
-import honey.road.node.queue.domain.DomainException;
 import honey.road.node.queue.domain.TicketSource;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
@@ -39,13 +41,18 @@ public class PublicTicketController {
     private final IssueTicket issue;
     private final TicketQueries queries;
     private final CancelTicket cancel;
-    private final NodeProperties node;
+    private final TicketCommands commands;
+    private final BoardQueries board;
+    private final QrCodes qr;
 
-    public PublicTicketController(IssueTicket issue, TicketQueries queries, CancelTicket cancel, NodeProperties node) {
+    public PublicTicketController(IssueTicket issue, TicketQueries queries, CancelTicket cancel,
+                                  TicketCommands commands, BoardQueries board, QrCodes qr) {
         this.issue = issue;
         this.queries = queries;
         this.cancel = cancel;
-        this.node = node;
+        this.commands = commands;
+        this.board = board;
+        this.qr = qr;
     }
 
     @GetMapping("/branch")
@@ -69,10 +76,7 @@ public class PublicTicketController {
     @PostMapping("/qr-tickets")
     @ResponseStatus(HttpStatus.CREATED)
     public TicketView qr(@RequestHeader("Idempotency-Key") String key, @Valid @RequestBody QrRequest request) {
-        // Демонстрационный код обозначает отделение; подпись и ротация (13.4) — позже, адаптер B.
-        if (!node.demoData() || !("demo:" + node.branchId()).equals(request.qrCode())) {
-            throw new DomainException("QR_CODE_INVALID", "Демонстрационный QR-код недействителен");
-        }
+        qr.verify(request.qrCode());
         return issue.execute(new IssueTicketCommand(TicketSource.qr, request.serviceId(), null,
                 request.clientCategory(), request.deviceId(), null), key);
     }
@@ -85,6 +89,29 @@ public class PublicTicketController {
     @PostMapping("/tickets/{token}/cancel")
     public TicketView cancel(@PathVariable UUID token) {
         return cancel.execute(token);
+    }
+
+    /** Подтверждение прихода по записи: QR в отделении доказывает, что клиент на месте. */
+    @PostMapping("/tickets/{token}/check-in")
+    public TicketView checkIn(@PathVariable UUID token, @Valid @RequestBody CheckInRequest request) {
+        qr.verify(request.qrCode());
+        return commands.checkInByToken(token);
+    }
+
+    @PostMapping("/tickets/{token}/postpone")
+    public TicketView postpone(@PathVariable UUID token, @Valid @RequestBody PostponeRequest request) {
+        return commands.postpone(token, request.minutes());
+    }
+
+    @GetMapping("/board")
+    public BoardQueries.Board board() {
+        return board.board(qr.current());
+    }
+
+    public record CheckInRequest(@NotBlank @Size(max = 256) String qrCode) {
+    }
+
+    public record PostponeRequest(@NotNull @Min(1) @Max(120) Integer minutes) {
     }
 
     public record AppointmentRequest(@NotNull UUID serviceId, @NotNull Instant slotStart,

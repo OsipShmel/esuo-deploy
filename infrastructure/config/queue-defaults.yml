@@ -1,18 +1,28 @@
+# Коэффициенты очереди по умолчанию (раздел 6.9). В коде значений нет.
+# config-version повышается при любом изменении файла: нода перечитает его при старте,
+# пока центральная конфигурация не пришла через BRANCH_INBOX.
 queue:
-  config-version: 1
-  target-wait-min:
+  config-version: 2
+  target-wait-min:              # due_at = момент выдачи + значение
     qr: {default: 20, pensioner: 15, svo: 5}
     walkin: {default: 30, pensioner: 20, svo: 5}
-  early-checkin-min: 15
-  grace-late-min: 10
-  late-checkin-retention-min: 60
+  early-checkin-min: 15         # с какого момента до слота запись допускается к вызову
+  grace-late-min: 10            # опоздание без потери приоритета
+  late-policy: convert_to_qr    # convert_to_qr | reject
+  late-checkin-retention-min: 60  # после slot_start + это значение неявившаяся запись → no_show
   slot-duration-min: 15
   slot-capacity: 1
   booking-horizon-days: 30
   opening-time: "09:00"
   closing-time: "18:00"
-  slack-min: 5
-  call-timeout-sec: 90
-  max-recalls: 2
+  slack-min: 5                  # окно, внутри которого действует score
+  call-timeout-sec: 90          # время подойти к окну; потом повторный вызов
+  max-recalls: 2                # повторных вызовов до no_show
   auto-call-on-free: false
-  scoring-strategy: uniform
+  scoring-strategy: uniform     # uniform | heuristic
+  requeue-default-mode: keep_position   # keep_position | to_tail
+  postpone-max-count: 1
+  postpone-max-min: 30
+  default-service-duration-sec: 300     # прогноз обслуживания, пока нет статистики
+  approaching-position-lte: 3           # уведомление «очередь приближается»
+  approaching-eta-lte-min: 5

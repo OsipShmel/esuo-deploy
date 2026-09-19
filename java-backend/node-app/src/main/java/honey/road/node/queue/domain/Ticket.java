@@ -24,6 +24,14 @@ public record Ticket(
                 deviceId, mpAppointmentId, issuedAt, 0, null, 0, null, null, null, 0);
     }
 
+    /** Копия с другим {@code seq} (для тестов и после INSERT). */
+    public Ticket withSeq(long newSeq) {
+        return new Ticket(id, publicToken, branchId, serviceId, source, status, clientCategory, configVersion, newSeq,
+                displayNumber, issuedAt, issuedDay, slotStart, slotEnd, eligibleFrom, dueAt, windowId, employeeId,
+                targetWindowId, deviceId, mpAppointmentId, updatedAt, version, calledAt, callCount, checkedInAt,
+                servingStartedAt, completedAt, postponeCount);
+    }
+
     public boolean active() {
         return status == TicketStatus.called || status == TicketStatus.serving;
     }
