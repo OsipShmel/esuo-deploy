@@ -13,6 +13,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -61,6 +63,7 @@ class SecurityConfig {
                         .requestMatchers("/api/v1/**").hasRole(honey.road.node.security.Role.OPERATOR.name())
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(rs -> rs
+                        .bearerTokenResolver(bearerTokenResolver())
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter))
                         .authenticationEntryPoint(unauthenticated)
                         .accessDeniedHandler(forbidden))
@@ -68,6 +71,18 @@ class SecurityConfig {
                         .authenticationEntryPoint(unauthenticated)
                         .accessDeniedHandler(forbidden))
                 .build();
+    }
+
+    /**
+     * Заголовок {@code Authorization} как обычно; для SSE-путей ({@code .../stream}) дополнительно
+     * {@code ?access_token=} — браузерный EventSource не умеет передавать заголовки.
+     */
+    static BearerTokenResolver bearerTokenResolver() {
+        var header = new DefaultBearerTokenResolver();
+        var query = new DefaultBearerTokenResolver();
+        query.setAllowUriQueryParameter(true);
+        return request -> request.getRequestURI().endsWith("/stream") && request.getParameter("access_token") != null
+                ? query.resolve(request) : header.resolve(request);
     }
 
     /** см. Role comms. or docs section 13.1*/
