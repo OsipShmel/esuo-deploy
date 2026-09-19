@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-/** Реестр отделений центра: заполняется heartbeat-ами, вручную ничего не заводится. */
 @Repository
 public class BranchRegistry {
     private final JdbcClient jdbc;
@@ -19,7 +18,7 @@ public class BranchRegistry {
                             String lastHeartbeat, boolean sourceAttached) {
     }
 
-    /** @return true, если отделение встретилось впервые */
+    /** @return true, if the branch was encountered for the first time*/
     public boolean upsertHeartbeat(String id, String name, String timezone, String heartbeatJson, Instant now) {
         var inserted = jdbc.sql("""
                         INSERT INTO branches(id,name,timezone,first_seen_at,last_heartbeat_at,last_heartbeat)

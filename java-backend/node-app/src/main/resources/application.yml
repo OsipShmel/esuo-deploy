@@ -13,11 +13,11 @@ spring:
     property-naming-strategy: SNAKE_CASE
   threads:
     virtual:
-      enabled: true          # SSE-соединения и блокирующий JDBC на виртуальных потоках
+      enabled: true          # SSE connections and blocking JDBC for virtual threads
   task:
     scheduling:
       pool:
-        size: 4              # outbox, heartbeat, планировщики домена; каждая задача сама по себе однопоточна
+        size: 4              # outbox, heartbeat, domain schedulers, 'cause each task is single-threaded in itself
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
@@ -47,11 +47,11 @@ esuo:
     jwt-secret: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
     jwt-ttl: 12h
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
-  demo-users:                                # работают только при demo-data=true; пустой пароль = пользователь не создаётся
+  demo-users:                                # only with demo-data=true; empty password => user is not created
     operator-password: ${DEMO_OPERATOR_PASSWORD:}
     admin-password: ${DEMO_ADMIN_PASSWORD:}
   nats:
-    url: ${NATS_URL:nats://localhost:4222}   # локальный leaf отделения; адрес центра знает только leaf
+    url: ${NATS_URL:nats://localhost:4222}   # branch leaf; only the leaf knows the center's address
     heartbeat-interval: 10s
     outbox:
       poll-interval: 200ms

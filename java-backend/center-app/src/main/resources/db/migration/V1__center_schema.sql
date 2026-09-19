@@ -1,19 +1,19 @@
--- БД центра (раздел 8.4). Центр хранит производные данные: истина об очереди — в отделениях.
+-- Center db (doc, sect 8.4).
 
--- Реестр отделений: заполняется автоматически по первому heartbeat.
+-- Branch registry: populated automatically upon the first heartbeat.
 CREATE TABLE branches (
   id                 text PRIMARY KEY,
   name               text NOT NULL,
   timezone           text NOT NULL,
   first_seen_at      timestamptz NOT NULL,
   last_heartbeat_at  timestamptz NOT NULL,
-  last_heartbeat     jsonb NOT NULL,          -- последний heartbeat: лаг outbox, окна, очередь, каталог услуг
-  source_attached    boolean NOT NULL DEFAULT false   -- BRANCH_EVT отделения подключён к CENTER_EVT
+  last_heartbeat     jsonb NOT NULL,          -- last heartbeat: outbox lag, windows, queue, service catalog(судя по всему, в реальной почте такого нет)
+  source_attached    boolean NOT NULL DEFAULT false   -- The BRANCH_EVT branch is connected to CENTER_EVT.
 );
 
--- Копия событий отделений. [Предложение] для сети: PARTITION BY RANGE (occurred_at), горячие 30 дней.
+-- Partitioning by event occurrence. (нововведение) for the network: PARTITION BY RANGE (occurred_at), hot 30 days.
 CREATE TABLE events (
-  event_id        uuid PRIMARY KEY,           -- дедупликация повторной доставки
+  event_id        uuid PRIMARY KEY,        
   branch_id       text NOT NULL,
   event_type      text NOT NULL,
   aggregate_type  text,

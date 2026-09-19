@@ -11,8 +11,8 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * Настройки ноды отделения (префикс {@code esuo}). Нода обслуживает ровно одно отделение.
- * Регистрируется в {@link DomainConfiguration}.
+* Branch node settings (prefix {@code esuo}). The node serves exactly one branch.
+* Registered in {@link DomainConfiguration}.
  */
 @Validated
 @ConfigurationProperties("esuo")
@@ -29,7 +29,7 @@ public record NodeProperties(
     }
 
     public record Security(
-            @NotBlank String jwtSecret,        // base64, >= 256 бит; только из env
+            @NotBlank String jwtSecret,        // base64, >= 256 бит;
             Duration jwtTtl,
             List<String> corsOrigins
     ) {
@@ -39,7 +39,6 @@ public record NodeProperties(
         }
     }
 
-    /** Пароли демо-пользователей; пустой пароль — пользователь не создаётся. */
     public record DemoUsers(String operatorPassword, String adminPassword) {
     }
 

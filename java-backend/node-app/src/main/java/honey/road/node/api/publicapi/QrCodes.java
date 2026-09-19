@@ -5,8 +5,8 @@ import honey.road.node.queue.domain.DomainException;
 import org.springframework.stereotype.Component;
 
 /**
- * Проверка QR-кода отделения. Сейчас — демонстрационный статический код {@code demo:<branch>}
- * (только при demo-data). Ротируемый HMAC-код (раздел 13.4) заменит реализацию, не меняя вызовов.
+    * Branch QR code verification. Currently, a static demo code {@code demo:<branch>} is used
+    * (only with demo data). A rotating HMAC code (Section 13.4) will replace the implementation without changing the calls.
  */
 @Component
 public class QrCodes {

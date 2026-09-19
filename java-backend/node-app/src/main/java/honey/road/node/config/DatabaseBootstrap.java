@@ -14,7 +14,7 @@ import java.time.Clock;
 import java.time.ZoneId;
 import java.util.UUID;
 
-/** Первый раннер: отделение, конфиг, демо-справочник. {@code DemoUsersSeeder} идёт после. */
+/** First runner: separation, config, demo reference data. {@code DemoUsersSeeder} follows.*/
 @Order(DatabaseBootstrap.ORDER)
 @Component
 public class DatabaseBootstrap implements ApplicationRunner {
@@ -63,7 +63,6 @@ public class DatabaseBootstrap implements ApplicationRunner {
                     INSERT INTO branch_config(id,central_version,central_config,effective_version,updated_at)
                     VALUES (1,?,CAST(? AS jsonb),?,?) ON CONFLICT DO NOTHING
                     """, policy.configVersion(), policyJson, policy.configVersion(), now);
-            // Файл по умолчанию новее сохранённой версии — применяем (центральная версия придёт позже через BRANCH_INBOX).
             int updated = jdbc.update("""
                     UPDATE branch_config SET central_version=?, central_config=CAST(? AS jsonb),
                            effective_version=GREATEST(effective_version+1, ?), updated_at=?
@@ -79,20 +78,18 @@ public class DatabaseBootstrap implements ApplicationRunner {
     }
 
     private void seedDemo() {
-        // Демонстрационные справочники добавляются только при явном включении режима.
+        // demo-mode only
         service(DEMO_SERVICE_PARCEL, "parcel", "Получение посылки", "П");
         service(DEMO_SERVICE_SEND, "send", "Отправка писем и посылок", "О");
         service(DEMO_SERVICE_FINANCE, "finance", "Платежи и переводы", "Ф");
         employee(DEMO_EMPLOYEE_1, "Демонстрационный оператор 1");
         employee(DEMO_EMPLOYEE_2, "Демонстрационный оператор 2");
-        // Окно 1 открыто с первого старта (как в дне 1), окна 2 и 3 открывает оператор.
         jdbc.update("""
                 INSERT INTO windows(id,branch_id,name,status,current_employee_id,opened_at)
                 VALUES (?,?,'Окно 1','open',?,?) ON CONFLICT DO NOTHING
                 """, DEMO_WINDOW_1, node.branchId(), DEMO_EMPLOYEE_1, Timestamp.from(clock.instant()));
         window(DEMO_WINDOW_2, "Окно 2");
         window(DEMO_WINDOW_3, "Окно 3");
-        // Пересекающиеся наборы услуг — сценарий «два окна вызывают одновременно».
         windowService(DEMO_WINDOW_1, DEMO_SERVICE_PARCEL);
         windowService(DEMO_WINDOW_1, DEMO_SERVICE_SEND);
         windowService(DEMO_WINDOW_2, DEMO_SERVICE_PARCEL);

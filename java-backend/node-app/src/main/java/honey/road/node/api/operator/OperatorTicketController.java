@@ -21,8 +21,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Команды оператора над талоном (раздел 9.3). Все принимают необязательный {@code expected_version}:
- * фронтенд обязан его передавать, чтобы действие по устаревшему экрану получило {@code STALE_STATE}.
+* Operator commands on the voucher (Section 9.3). All accept an optional {@code expected_version}:
+* the frontend must pass it so that an action performed on a stale screen results in {@code STALE_STATE}.
  */
 @RestController
 @RequestMapping("/api/v1")

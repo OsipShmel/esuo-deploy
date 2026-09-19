@@ -17,7 +17,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-/** Подключение центра к NATS hub. Асинхронное, с бесконечным переподключением, как у ноды. */
+/** Connecting the center to the NATS hub.*/
 @Component
 public class CenterNats implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(CenterNats.class);

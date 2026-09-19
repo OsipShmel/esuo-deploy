@@ -12,10 +12,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * SSE-потоки ноды. Публичные — под {@code /api/v1/public/**}; операторский и админский требуют JWT.
- * Браузерный {@code EventSource} не умеет заголовки, поэтому для путей {@code .../stream}
- * токен принимается и из параметра {@code access_token} (см. SecurityConfig).
- */
+* Node SSE streams. Public streams are under {@code /api/v1/public/**}; operator and admin streams require a JWT.
+* Since the browser's {@code EventSource} does not support custom headers, the token
+* is also accepted via the {@code access_token} parameter for {@code .../stream} paths (watch SecurityConfig).
+*/
 @RestController
 public class StreamController {
     private final SseHub hub;

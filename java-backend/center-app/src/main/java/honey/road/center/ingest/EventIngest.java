@@ -25,10 +25,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * {@code analytics-ingest} (раздел 10.5): durable pull-потребитель {@code CENTER_EVT} → таблица {@code events}.
- * Доставка «хотя бы один раз», дедупликация {@code ON CONFLICT (event_id) DO NOTHING}.
- * После рестарта центра чтение продолжается с позиции durable-потребителя.
- */
+* {@code analytics-ingest} (docs, section 10.5): durable pull consumer {@code CENTER_EVT} → {@code events} table.
+* "At-least-once", deduplication via {@code ON CONFLICT (event_id) DO NOTHING}.
+* After a center restart, reading resumes from the durable consumer's position.
+*/
 @Component
 public class EventIngest {
     private static final Logger log = LoggerFactory.getLogger(EventIngest.class);
@@ -51,7 +51,7 @@ public class EventIngest {
     }
 
     synchronized void start(Connection c) {
-        if (consumer != null || !streams.ready()) { return; }       // MessageConsumer сам переживает реконнекты
+        if (consumer != null || !streams.ready()) { return; }
         try {
             c.jetStreamManagement().addOrUpdateConsumer(Subjects.STREAM_CENTER_EVT, ConsumerConfiguration.builder()
                     .durable(CONSUMER)
@@ -100,7 +100,6 @@ public class EventIngest {
         }
     }
 
-    /** Если при подключении стримы ещё не были готовы — дозапуск. */
     @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "PT10S", initialDelayString = "PT10S")
     public void ensureStarted() {
         if (consumer == null) {

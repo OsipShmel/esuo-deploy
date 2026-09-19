@@ -8,7 +8,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.UUID;
 
-/** Кто действует: сотрудник из JWT. Без привязки к сотруднику команды окна недоступны. */
 final class Operators {
     private Operators() {
     }

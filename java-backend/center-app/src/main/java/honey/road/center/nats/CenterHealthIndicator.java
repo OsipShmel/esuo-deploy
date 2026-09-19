@@ -6,7 +6,7 @@ import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.stereotype.Component;
 
-/** {@code /actuator/health} → {@code nats}: связь с hub, стримы, ingest, число SSE-клиентов. */
+/** {@code /actuator/health} → {@code nats}: connection to hub, streams, ingest, number of SSE clients. */
 @Component("nats")
 public class CenterHealthIndicator implements HealthIndicator {
     private final CenterNats nats;

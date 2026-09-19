@@ -15,10 +15,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Публичный API центра для клиентов из интернета (раздел 9.5): мост HTTP → NATS request-reply.
- * Центр не проверяет бизнес-правила — это делает нода-источник истины; статус и ошибка отделения
- * транслируются как есть. Валидация тел — на ноде (те же правила, что и у её REST).
- */
+* Public API of the center for external clients (docs, ection 9.5): HTTP → NATS request-reply bridge.
+* Validation rules for the branch node analogous to its REST API.
+*/
 @RestController
 @RequestMapping("/api/v1/branches/{branch}")
 public class GatewayController {

@@ -36,6 +36,6 @@ logging:
 esuo:
   center:
     nats-url: ${NATS_URL:nats://localhost:4222}
-    rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (11.3)
-    offline-after: 30s                          # нет heartbeat дольше — отделение offline
+    rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
+    offline-after: 30s
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}

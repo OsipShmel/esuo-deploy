@@ -32,8 +32,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Клиент и табло: без аутентификации, доступ к талону — по секретному токену.
- * Всё под /api/v1/public/** — SecurityConfig открывает только этот префикс.
+    * Client and display: no authentication; access to the ticket via a secret token.
  */
 @RestController
 @RequestMapping("/api/v1/public")
@@ -91,7 +90,7 @@ public class PublicTicketController {
         return cancel.execute(token);
     }
 
-    /** Подтверждение прихода по записи: QR в отделении доказывает, что клиент на месте. */
+    /** Confirmation of scheduled arrival: a QR code at the branch proves the client is on-site(стоит пересмотреть) */
     @PostMapping("/tickets/{token}/check-in")
     public TicketView checkIn(@PathVariable UUID token, @Valid @RequestBody CheckInRequest request) {
         qr.verify(request.qrCode());

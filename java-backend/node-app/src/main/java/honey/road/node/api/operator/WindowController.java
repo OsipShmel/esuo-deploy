@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-/** Окна и вызов (раздел 9.3, оператор). Роль OPERATOR и выше — проверяет SecurityConfig. */
+/** Windows and calls (Section 9.3, operator) */
 @RestController
 @RequestMapping("/api/v1/windows")
 public class WindowController {

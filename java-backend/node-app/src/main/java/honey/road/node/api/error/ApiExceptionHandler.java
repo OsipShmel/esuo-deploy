@@ -28,7 +28,6 @@ import java.util.List;
 /**
  * application/problem+json. Cur fields: code, request_id, errors (docs section 9.2).
  * {@link #createResponseEntity} extends ProblemDetail with our fields.
- * Скрывает стандартный Spring MVC,
  */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
@@ -40,10 +39,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(ex.code(), ex.getMessage(), ex.violations(), request);
     }
 
-    /**
-     * Мост к доменным ошибкам A: строковый код → {@link ErrorCode}.
-     * Неизвестный код — баг (опечатка), наружу 500, в лог — сам код.
-     */
+
     @ExceptionHandler(DomainException.class)
     ResponseEntity<Object> handleDomain(DomainException ex, WebRequest request) {
         ErrorCode code;
@@ -79,7 +75,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         var violations = ex.getBindingResult().getFieldErrors().stream()
                 .map(e -> new FieldViolation(e.getField(), e.getDefaultMessage()))
                 .toList();
-        return problem(ErrorCode.VALIDATION_ERROR, "Проверьте поля запроса", violations, request);
+        return problem(ErrorCode.VALIDATION_ERROR, "Check the request fields.", violations, request);
     }
 
     @Override
@@ -105,7 +101,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setType(URI.create(code.typeUri()));
         pd.setTitle(code.title());
 
-        // Не путь запроса: в пути бывает токен талона (идея A).
         pd.setInstance(URI.create("urn:esuo:request:" + (requestId == null ? "unknown" : requestId)));
         pd.setProperty("code", code.name());
         pd.setProperty("request_id", requestId);

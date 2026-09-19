@@ -6,7 +6,6 @@ import honey.road.node.queue.domain.DomainException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Любая ошибка → {@link EsuoException} с кодом раздела 9.2. Общая точка для REST и RPC. */
 public final class Problems {
     private static final Logger log = LoggerFactory.getLogger(Problems.class);
 

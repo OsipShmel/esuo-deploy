@@ -20,9 +20,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Автоподключение отделений: heartbeat {@code branch.*.hb} → реестр → source в {@code CENTER_EVT}.
- * Новому отделению достаточно знать адрес центра и пароль leaf; в центре ничего не настраивается.
- * Периодическая сверка добирает отделения, у которых подключение source не удалось с первого раза.
+    * Heartbeat {@code branch.*.hb} → registry → source in {@code CENTER_EVT}.
+    * A new branch only needs to know the center's address and the leaf password; no configuration is required at the center.
+    * Periodic reconciliation picks up branches where the source connection failed on the first attempt.
  */
 @Component
 public class HeartbeatListener {
@@ -69,7 +69,7 @@ public class HeartbeatListener {
         }
     }
 
-    /** Сверка: отделения без source (центр рестартовал, NATS был недоступен и т.п.). */
+    /** Reconciliation: branches without a source (center restarted, NATS unavailable, etc.). */
     @Scheduled(fixedDelayString = "PT15S", initialDelayString = "PT5S")
     public void reconcile() {
         if (!streams.ready()) { return; }

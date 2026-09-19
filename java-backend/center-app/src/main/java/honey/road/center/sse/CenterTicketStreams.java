@@ -28,15 +28,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * SSE-поток талона для клиента из интернета (9.5, 10.5 {@code center-sse}).
- * <ul>
- *   <li>Снапшот — через RPC {@code ticket.get} к отделению (источник истины).</li>
- *   <li>Живые изменения — core-подписка {@code branch.*.evt.ticket.>} по leaf-соединению; талон клиента
- *       находится по {@code token_hash} — сам токен из отделения не уходит.</li>
- *   <li>Любое изменение очереди отделения обновляет снапшоты подписчиков этого отделения (позиция/ETA).</li>
- *   <li>Отделение недоступно — событие {@code branch_unavailable}; при восстановлении клиент получает снапшот.
- *       Повторная доставка не нужна: снапшот заменяет пропущенные события (9.6).</li>
- * </ul>
+* SSE stream for a client ticket originating from the internet (docs, sections 9.5, 10.5 {@code center-sse}).
+* <ul>
+*   <li>Snapshot — via RPC {@code ticket.get} to the branch.</li>
+*   <li>Live updates — core subscription {@code branch.*.evt.ticket.>} via a leaf connection; the client ticket
+*       is identified by {@code token_hash}.</li>
+*   <li>Any change to the branch queue updates the snapshots for that branch's subscribers (position/ETA).</li>
+*   <li>Branch unavailable — {@code branch_unavailable} event; upon recovery, the client receives a snapshot.
+*       No redelivery occurs—the snapshot replaces missed events (docs, sect 9.6).</li>
+* </ul>
  */
 @Component
 public class CenterTicketStreams {
@@ -46,7 +46,7 @@ public class CenterTicketStreams {
     record Subscription(String branchId, UUID token, String tokenHash, SseEmitter emitter) {
     }
 
-    /** branch → подписки */
+    /** branch → subscribers */
     private final Map<String, Set<Subscription>> byBranch = new ConcurrentHashMap<>();
     private final ExecutorService fanout = Executors.newVirtualThreadPerTaskExecutor();
     private final CenterNats nats;
@@ -66,7 +66,7 @@ public class CenterTicketStreams {
     synchronized void subscribe(Connection c) {
         if (dispatcher != null && dispatcher.isActive()) { return; }
         dispatcher = c.createDispatcher(msg -> fanout.execute(() -> onEvent(msg)));
-        // Только события талонов и окон: они меняют позиции в очереди.
+        // Only ticket and window events: they change positions in the queue.
         dispatcher.subscribe("branch.*.evt.ticket.>");
         dispatcher.subscribe("branch.*.evt.window.>");
     }
@@ -144,7 +144,7 @@ public class CenterTicketStreams {
         return byBranch.values().stream().mapToInt(Set::size).sum();
     }
 
-    /** Отделение ответило ошибкой на снапшот (например, TICKET_NOT_FOUND) — отдаём её как обычный ответ. */
+    /** return a branches errors as a standard response. */
     public static class TicketStreamRejected extends RuntimeException {
         private final transient BranchRpcClient.RpcResult result;
 

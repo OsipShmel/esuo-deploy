@@ -27,16 +27,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * SSE внутри ноды (раздел 9.6). Источник — {@link DomainEventCommitted} после коммита транзакции.
- * <ul>
- *   <li>{@code ticket}: подписчики своего талона. При любом изменении очереди отделения каждый ожидающий
- *       получает новый {@code snapshot} (позиция и ETA пересчитаны), при изменении своего талона —
- *       ещё и само событие.</li>
- *   <li>{@code board}: табло — снапшот табло при вызовах.</li>
- *   <li>{@code operator}: АРМ и админка — все события отделения как есть (конверт 10.2).</li>
- * </ul>
- * Каждое сообщение: {@code id} = event_id, {@code event} = event_type. Первое сообщение — {@code snapshot},
- * каждые 15 с — {@code heartbeat}. Переподключение с {@code Last-Event-ID} = новый снапшот.
+    * SSE within a node (section 9.6). Source - {@link DomainEventCommitted} after transaction commit.
+    * <ul>
+    * <li>{@code ticket}: subscribers of your ticket. If there is any change in the department queue, each person waiting
+    * receives a new {@code snapshot} (position and ETA recalculated), when changing his ticket -
+    * also the event itself.</li>
+    * <li>{@code board}: scoreboard - snapshot of the scoreboard during calls.</li>
+    * <li>{@code operator}: AWS and admin panel - all department events as is (envelope 10.2).</li>
+    * </ul>
+    * Each message: {@code id} = event_id, {@code event} = event_type. First message - {@code snapshot},
+    * every 15 s - {@code heartbeat}. Reconnect with {@code Last-Event-ID} = new snapshot.
  */
 @Component
 public class SseHub {
@@ -50,7 +50,6 @@ public class SseHub {
     private final Map<UUID, Set<SseEmitter>> tickets = new ConcurrentHashMap<>();
     private final Set<SseEmitter> boards = ConcurrentHashMap.newKeySet();
     private final Set<SseEmitter> operators = ConcurrentHashMap.newKeySet();
-    /** Рассылка не блокирует поток, закоммитивший транзакцию. */
     private final ExecutorService fanout = Executors.newVirtualThreadPerTaskExecutor();
 
     private final TicketQueries ticketQueries;
@@ -63,7 +62,7 @@ public class SseHub {
         this.qr = qr;
     }
 
-    // ------------------------------------------------------------------ подписка
+    // --------------- подписка
 
     public SseEmitter subscribeTicket(UUID token) {
         var snapshot = ticketQueries.get(token);                 // 404 до открытия потока
@@ -94,7 +93,7 @@ public class SseHub {
         return emitter;
     }
 
-    // ------------------------------------------------------------------ рассылка
+    // --------------- рассылка
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onCommitted(DomainEventCommitted event) {
@@ -127,7 +126,6 @@ public class SseHub {
         }
     }
 
-    /** Клиенту — без служебных данных скоринга. */
     private static Map<String, Object> publicEvent(EventEnvelope e) {
         var data = e.data();
         return Map.of("event_id", e.eventId(), "event_type", e.eventType(), "occurred_at", e.occurredAt(),
@@ -144,7 +142,6 @@ public class SseHub {
         tickets.values().removeIf(Set::isEmpty);
     }
 
-    /** Корректное завершение (раздел 12): клиентам — {@code reconnect}, чтобы переподключились к новой ноде. */
     @EventListener(ContextClosedEvent.class)
     public void onShutdown() {
         tickets.values().forEach(g -> g.forEach(e -> close(e)));
@@ -157,7 +154,7 @@ public class SseHub {
         return tickets.values().stream().mapToInt(Set::size).sum() + boards.size() + operators.size();
     }
 
-    // ------------------------------------------------------------------ низкий уровень
+    // --------------- низкий уровень
 
     private static void close(SseEmitter e) {
         try {
@@ -185,7 +182,7 @@ public class SseHub {
         try {
             var event = SseEmitter.event().name(name).data(data, MediaType.APPLICATION_JSON);
             if (id != null) { event.id(id); }
-            synchronized (e) {                       // SseEmitter не потокобезопасен для параллельной отправки
+            synchronized (e) {
                 e.send(event);
             }
             return true;

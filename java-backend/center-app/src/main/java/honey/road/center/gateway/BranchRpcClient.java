@@ -23,12 +23,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Синхронный запрос к отделению через NATS request-reply (разделы 4.1, 10.3). Порт {@code BranchRpcClient} (11.1).
- * <ul>
- *   <li>Нет подписчиков на {@code branch.{b}.rpc.>} (отделение offline) — отказ сразу, без ожидания таймаута.</li>
- *   <li>Нет ответа за {@code rpc-timeout} — {@code 503 BRANCH_UNAVAILABLE}.</li>
- *   <li>{@code X-Deadline} сообщает ноде, когда ответ уже никому не нужен.</li>
- * </ul>
+* Sync request to the branch via NATS request-reply (docs, sections 4.1, 10.3). {@code BranchRpcClient} port (11.1).
+* <ul>
+*   <li>No subscribers for {@code branch.{b}.rpc.>} (branch offline) — immediate rejection, without waiting for the timeout.</li>
+*   <li>No response within {@code rpc-timeout} — {@code 503 BRANCH_UNAVAILABLE}.</li>
+*   <li>{@code X-Deadline} informs the node when the response is no longer needed.</li>
+* </ul>
  */
 @Component
 public class BranchRpcClient {
@@ -43,7 +43,7 @@ public class BranchRpcClient {
         this.nats = nats; this.props = props; this.json = json; this.clock = clock;
     }
 
-    /** Ответ отделения: HTTP-статус и тело конверта ({@code data} или {@code problem}). */
+    /** Branch response: HTTP status and envelope body ({@code data} or {@code problem}). */
     public record RpcResult(boolean ok, int status, JsonNode data, JsonNode problem) {
     }
 
@@ -86,6 +86,6 @@ public class BranchRpcClient {
     private EsuoException unavailable(String branchId, String reason) {
         log.warn("branch rpc unavailable branch={} reason={}", branchId, reason);
         return new EsuoException(ErrorCode.BRANCH_UNAVAILABLE,
-                "Отделение " + branchId + " сейчас недоступно. Повторите позже — повтор с тем же Idempotency-Key безопасен");
+                "Branch " + branchId + " is currently unavailable. Please try again later.");
     }
 }

@@ -15,9 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Обзор сети (раздел 14, сетевой мониторинг) [MVP-демо]: online/offline по heartbeat, очередь, лаг outbox,
- * аномалия «ожидание растёт, а талонов мало» (слайд мониторинга). Роль NETWORK_MONITOR — [TODO] после
- * безопасности центра; данные без персональной информации.
+* Network overview (Section 14, network monitoring) [MVP demo]: online/offline status via heartbeat, queue, outbox lag,
+* "waiting time rising while tickets are scarce" anomaly (monitoring slide).
+* Role of NETWORK_MONITOR — TODO! after the hub security component;
  */
 @RestController
 public class NetworkController {
@@ -30,7 +30,8 @@ public class NetworkController {
         this.registry = registry; this.props = props; this.json = json; this.clock = clock;
     }
 
-    /** Публичный список отделений для выбора клиентом (с каталогом услуг из heartbeat). */
+    /** Публичный список отделений для выбора клиентом
+     * (с каталогом услуг из heartbeat – вот бы хоть раз сходит на почту и узнать, как она работает). */
     @GetMapping("/api/v1/branches")
     public List<Map<String, Object>> branches() {
         var now = clock.instant();

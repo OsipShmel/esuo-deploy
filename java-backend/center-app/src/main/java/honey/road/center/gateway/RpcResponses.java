@@ -11,7 +11,7 @@ import java.net.URI;
 
 import static honey.road.contracts.http.EsuoHeaders.MDC_REQUEST_ID;
 
-/** Ответ RPC → HTTP: {@code status} и {@code data} как есть, ошибка — ProblemDetail с кодом отделения (10.3). */
+/** RPC → HTTP response: {@code status} and {@code data}; error — ProblemDetail with the branch code (10.3). */
 @Component
 public class RpcResponses {
 

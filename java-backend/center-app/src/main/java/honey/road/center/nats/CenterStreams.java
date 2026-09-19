@@ -18,11 +18,10 @@ import java.time.Duration;
 import java.util.function.UnaryOperator;
 
 /**
- * Стримы домена {@code center} (раздел 10.4) и подключение отделений к {@code CENTER_EVT}.
- * <p>{@code CENTER_EVT} не имеет собственных subjects из {@code branch.>}: события попадают только через sources,
- * иначе при живой связи каждое событие пришло бы дважды. Source отделения добавляется автоматически
- * при первом heartbeat ({@link #attachBranch}) — проверено на стенде NATS: после обрыва/рестарта
- * центра докачка выполняется самим JetStream.
+* Streams from the {@code center} domain (docs, section 10.4) and the connection of branches to {@code CENTER_EVT}.
+* <p>{@code CENTER_EVT} does not have its own subjects from {@code branch}: events arrive only via sources;
+* otherwise, with an active connection, each event would be received twice. A branch source is added automatically
+* upon the first heartbeat ({@link #attachBranch}).
  */
 @Component
 public class CenterStreams {
@@ -66,8 +65,8 @@ public class CenterStreams {
     }
 
     /**
-     * Подключает {@code BRANCH_EVT} отделения к {@code CENTER_EVT}. Идемпотентно.
-     * @return true, если source есть (добавлен сейчас или раньше)
+    * Connects the {@code BRANCH_EVT} branch to {@code CENTER_EVT}. Idempotent.
+    * @return true if the source exists (was added now or previously)
      */
     public synchronized boolean attachBranch(String branchId) {
         var connection = nats.connection();
