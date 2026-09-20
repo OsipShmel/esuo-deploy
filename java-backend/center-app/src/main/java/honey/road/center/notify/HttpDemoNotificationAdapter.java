@@ -18,7 +18,7 @@ class HttpDemoNotificationAdapter implements NotificationGateway {
     private final HttpClient http;
 
     HttpDemoNotificationAdapter(CenterProperties props, JsonMapper json) {
-        this.props = props.notify();
+        this.props = props.notification();
         this.json = json;
         this.http = HttpClient.newBuilder().connectTimeout(this.props.connectTimeout()).build();
     }

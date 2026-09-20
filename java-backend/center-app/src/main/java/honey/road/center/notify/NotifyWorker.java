@@ -33,7 +33,7 @@ class NotifyWorker extends DurableWorker {
     NotifyWorker(CenterNats nats, CenterStreams streams, NotificationSender sender, DeadLetters dlq, CenterProperties props,
                  JsonMapper json, Clock clock) {
         super(nats, streams, "notify-worker", "branch.*.evt." + EventTypes.NOTIFICATION_REQUESTED);
-        this.sender = sender; this.dlq = dlq; this.props = props.notify(); this.json = json; this.clock = clock;
+        this.sender = sender; this.dlq = dlq; this.props = props.notification(); this.json = json; this.clock = clock;
     }
 
     @Override

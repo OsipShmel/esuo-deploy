@@ -40,7 +40,7 @@ public class NotificationSender implements DeadLetterRetrier {
 
     NotificationSender(NotificationGateway gateway, NotificationLog log, BranchRegistry registry, CenterProperties props,
                        JsonMapper json, Clock clock) {
-        this.gateway = gateway; this.log = log; this.registry = registry; this.props = props.notify();
+        this.gateway = gateway; this.log = log; this.registry = registry; this.props = props.notification();
         this.json = json; this.clock = clock;
         this.breaker = Breakers.of("notify", this.props.circuitBreaker());
     }
