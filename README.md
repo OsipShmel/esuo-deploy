@@ -7,16 +7,21 @@
 ## Запуск на одной машине (центр + b01 + b02)
 
 ```bash
-cp .env.example .env          # задать DB_PASSWORD, JWT_SECRET (openssl rand -base64 32), LEAF_PASSWORD
+cp .env.example .env          # задать DB_PASSWORD, JWT_SECRET (openssl rand -base64 32), LEAF_PASSWORD, MP_WEBHOOK_SECRET
 docker compose up -d --build
 ./scripts/smoke/day1.sh       # выдача талонов, идемпотентность, ошибки
 ./scripts/smoke/day3.sh       # вызов, 2 окна, закрытие окна, перенаправление, центр, RPC, 503
+./scripts/smoke/day4-center.sh  # конфигурация из центра, пользователи, запись из МП с callback
+./scripts/chaos/notify-down.sh  # проверка №8: отказ уведомлений, circuit breaker, DLQ (~5 мин)
 ```
 
 | Что | Адрес |
 |---|---|
 | Нода b01 / b02 | http://localhost:8080 / http://localhost:8090 |
-| Центр | http://localhost:8081 (`/api/v1/network/overview`, `/api/v1/branches`) |
+| Центр | http://localhost:8081 (`/network`, `/api/v1/network/overview`, `/api/v1/config`) |
+| Swagger UI | http://localhost:8080/swagger-ui.html (нода), http://localhost:8081/swagger-ui.html (центр) |
+| notify-mock | http://localhost:8095 (`/chaos`, `/messages`) |
+| mp-simulator | http://localhost:8096 (`POST /send`, `/callbacks`) |
 | NATS hub мониторинг | http://localhost:8222/leafz, `/jsz?streams=true` |
 
 Демо-пользователи ноды: `operator`, `operator2` (пароль `DEMO_OPERATOR_PASSWORD`), `admin` (`DEMO_ADMIN_PASSWORD`).
@@ -41,9 +46,12 @@ java-backend/
   shared-contracts/   honey.road.contracts — ошибки, конверт события, subjects NATS, RPC, DTO
   node-app/           honey.road.node      — очередь, API, SSE, outbox, RPC-обработчики, heartbeat
   center-app/         honey.road.center    — шлюз HTTP→RPC, реестр сети, ingest, SSE для интернета
+frontend/             client, board, operator, admin, network — одна сборка, раздаётся нодой и центром
+tools/                load-generator, notify-mock, mp-simulator
+docs/                 openapi/ (выгрузка springdoc), demo/results.md
 infrastructure/       NATS-конфиги (параметры из env), queue-defaults.yml
 deploy/               compose для центра и отделения по отдельности
-scripts/              smoke-проверки, chaos
+scripts/              smoke-проверки, chaos, openapi/export.sh
 ```
 
 ## Заметки A для B (день 1; пакеты с тех пор — honey.road.node.*, DTO — shared-contracts/dto)
