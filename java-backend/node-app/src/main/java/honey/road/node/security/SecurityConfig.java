@@ -36,7 +36,7 @@ import java.util.List;
 class SecurityConfig {
 
     private static final String[] PUBLIC_API = {"/api/v1/public/**", "/api/v1/auth/login"};
-    private static final String[] PUBLIC_TECH = {"/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**"};
+    private static final String[] PUBLIC_TECH = {"/actuator/health/**", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**", "/swagger-ui.html"};
 
     @Bean
     SecurityFilterChain apiSecurity(
