@@ -1,5 +1,6 @@
 package honey.road.center.network;
 
+import honey.road.center.centralconfig.ConfigPublisher;
 import honey.road.center.nats.CenterNats;
 import honey.road.center.nats.CenterStreams;
 import honey.road.contracts.event.Subjects;
@@ -20,9 +21,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
-    * Heartbeat {@code branch.*.hb} → registry → source in {@code CENTER_EVT}.
-    * A new branch only needs to know the center's address and the leaf password; no configuration is required at the center.
-    * Periodic reconciliation picks up branches where the source connection failed on the first attempt.
+ * Heartbeat {@code branch.*.hb} → registry → source in {@code CENTER_EVT} and the first config version.
+ * A new branch only needs the center address and the leaf password; nothing is set up by hand at the center.
+ * Periodic reconciliation picks up branches whose source could not be attached on the first attempt.
  */
 @Component
 public class HeartbeatListener {
@@ -31,13 +32,16 @@ public class HeartbeatListener {
     private final CenterNats nats;
     private final CenterStreams streams;
     private final BranchRegistry registry;
+    private final ConfigPublisher config;
     private final JsonMapper json;
     private final Clock clock;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private volatile Dispatcher dispatcher;
 
-    public HeartbeatListener(CenterNats nats, CenterStreams streams, BranchRegistry registry, JsonMapper json, Clock clock) {
-        this.nats = nats; this.streams = streams; this.registry = registry; this.json = json; this.clock = clock;
+    public HeartbeatListener(CenterNats nats, CenterStreams streams, BranchRegistry registry, ConfigPublisher config,
+                             JsonMapper json, Clock clock) {
+        this.nats = nats; this.streams = streams; this.registry = registry; this.config = config;
+        this.json = json; this.clock = clock;
     }
 
     @PostConstruct
@@ -63,6 +67,7 @@ public class HeartbeatListener {
             if (isNew) {
                 log.info("new branch registered id={} name={}", branchId, hb.path("name").asString(""));
                 attach(branchId);
+                config.publishTo(branchId, "system");         // new branch gets its users and rules right away
             }
         } catch (RuntimeException e) {
             log.warn("bad heartbeat from {}: {}", branchId, e.toString());

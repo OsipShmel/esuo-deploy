@@ -27,6 +27,9 @@ public enum ErrorCode {
     SLOT_UNAVAILABLE(409, "Слот недоступен"),
     SLOT_EXPIRED(409, "Время слота прошло"),
     ACTIVE_TICKET_EXISTS(409, "У устройства уже есть активный талон"),
+    /** Booking for this hour is closed by the load quota (sect 6.10) [MVP-demo]. */
+    BOOKING_LIMITED(409, "Запись на это время закрыта из-за высокой нагрузки"),
+    LOGIN_TAKEN(409, "Логин уже занят"),
 
     IDEMPOTENCY_CONFLICT(422, "Ключ идемпотентности использован с другим запросом"),
     QR_CODE_INVALID(422, "QR-код недействителен"),

@@ -98,9 +98,9 @@ public abstract class AbstractNodeIT {
     }
 
     /**
-     * {@code windows.open} заменяет набор услуг окна насовсем, поэтому тесты, открывавшие окно с другими услугами,
-     * меняли демо-справочник для всех следующих. Возвращаем исходный набор (DatabaseBootstrap): окно 1 — посылки и
-     * отправка, окно 2 — посылки и финансы, окно 3 — отправка и финансы.
+     * Fixed test mapping, independent of the demo seed (where every window serves every service) and restored before
+     * each test since {@code windows.open} replaces window services: window 1 parcels+send, window 2 parcels+finance,
+     * window 3 send+finance.
      */
     private void restoreDemoWindowServices() {
         jdbc.update("DELETE FROM window_services WHERE window_id IN (?,?,?)", W1, W2, W3);
@@ -119,7 +119,7 @@ public abstract class AbstractNodeIT {
             return;
         }
         jdbc.update("""
-                UPDATE branch_config SET central_version=?, central_config=CAST(? AS jsonb), local_overrides='{}', bounds='{}',
+                UPDATE branch_config SET central_version=?, central_config=CAST(? AS jsonb), local_overrides='{}', bounds='{}', planning='{}',
                        effective_version=? WHERE id=1
                 """, configSnapshot.get("central_version"), configSnapshot.get("c"), configSnapshot.get("effective_version"));
     }

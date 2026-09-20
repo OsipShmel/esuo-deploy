@@ -20,7 +20,6 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
-import java.util.Set;
 import java.util.UUID;
 import java.util.Map;
 
@@ -35,8 +34,6 @@ import java.util.Map;
  */
 @Service
 public class BranchConfigService {
-    private static final Set<String> ROLES = Set.of("OPERATOR", "BRANCH_ADMIN");
-
     private final JdbcTemplate jdbc;
     private final JsonCodec json;
     private final PolicyRepository policies;
@@ -52,24 +49,27 @@ public class BranchConfigService {
 
     /** Config state for the admin ({@code GET /admin/config}). */
     public record View(int centralVersion, int effectiveVersion, JsonNode central, JsonNode localOverrides,
-                       JsonNode bounds, QueuePolicy effective) {
+                       JsonNode bounds, JsonNode planning, QueuePolicy effective) {
     }
 
-    private record Row(int centralVersion, int effectiveVersion, JsonNode central, JsonNode overrides, JsonNode bounds) {
+    private record Row(int centralVersion, int effectiveVersion, JsonNode central, JsonNode overrides, JsonNode bounds,
+                       JsonNode planning) {
     }
 
     private Row load(boolean lock) {
         return jdbc.queryForObject("""
-                SELECT central_version, effective_version, central_config::text AS c, local_overrides::text AS o, bounds::text AS b
+                SELECT central_version, effective_version, central_config::text AS c, local_overrides::text AS o, bounds::text AS b,
+                       planning::text AS p
                   FROM branch_config WHERE id=1""" + (lock ? " FOR UPDATE" : ""),
                 (rs, n) -> new Row(rs.getInt("central_version"), rs.getInt("effective_version"),
-                        json.readTree(rs.getString("c")), json.readTree(rs.getString("o")), json.readTree(rs.getString("b"))));
+                        json.readTree(rs.getString("c")), json.readTree(rs.getString("o")), json.readTree(rs.getString("b")),
+                        json.readTree(rs.getString("p"))));
     }
 
     @Transactional(readOnly = true)
     public View view() {
         var r = load(false);
-        return new View(r.centralVersion, r.effectiveVersion, r.central, r.overrides, r.bounds,
+        return new View(r.centralVersion, r.effectiveVersion, r.central, r.overrides, r.bounds, r.planning,
                 policies.current());
     }
 
@@ -87,6 +87,7 @@ public class BranchConfigService {
 
         var central = ConfigRules.merge(row.central, m.queue() == null ? null : json.toTree(m.queue()));
         JsonNode bounds = m.bounds() == null ? row.bounds : json.toTree(m.bounds());
+        JsonNode planning = m.planning() == null ? row.planning : json.toTree(m.planning());
         var overrides = ConfigRules.pruneOutOfBounds(row.overrides, bounds);
         int effective = row.effectiveVersion + 1;
         try {
@@ -97,8 +98,9 @@ public class BranchConfigService {
 
         jdbc.update("""
                 UPDATE branch_config SET central_version=?, central_config=CAST(? AS jsonb), bounds=CAST(? AS jsonb),
-                       local_overrides=CAST(? AS jsonb), effective_version=?, updated_at=? WHERE id=1
-                """, m.version(), central.toString(), bounds.toString(), overrides.toString(), effective, Timestamp.from(now));
+                       planning=CAST(? AS jsonb), local_overrides=CAST(? AS jsonb), effective_version=?, updated_at=? WHERE id=1
+                """, m.version(), central.toString(), bounds.toString(), planning.toString(), overrides.toString(), effective,
+                Timestamp.from(now));
         syncPeople(m);
 
         var data = new LinkedHashMap<String, Object>();
@@ -147,7 +149,7 @@ public class BranchConfigService {
         if (m.users() != null) {
             for (var u : m.users()) {
                 if (u.id() == null || u.login() == null || u.login().isBlank() || u.passwordHash() == null
-                        || !ROLES.contains(u.role())) {
+                        || !ConfigMessage.ROLES.contains(u.role())) {
                     throw DomainException.validation("Пользователь: id, login, password_hash и role (OPERATOR | BRANCH_ADMIN) обязательны");
                 }
                 jdbc.update("""

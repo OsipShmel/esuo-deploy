@@ -12,6 +12,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 
 /** First runner: separation, config, demo reference data. {@code DemoUsersSeeder} follows.*/
@@ -90,12 +91,12 @@ public class DatabaseBootstrap implements ApplicationRunner {
                 """, DEMO_WINDOW_1, node.branchId(), DEMO_EMPLOYEE_1, Timestamp.from(clock.instant()));
         window(DEMO_WINDOW_2, "Окно 2");
         window(DEMO_WINDOW_3, "Окно 3");
-        windowService(DEMO_WINDOW_1, DEMO_SERVICE_PARCEL);
-        windowService(DEMO_WINDOW_1, DEMO_SERVICE_SEND);
-        windowService(DEMO_WINDOW_2, DEMO_SERVICE_PARCEL);
-        windowService(DEMO_WINDOW_2, DEMO_SERVICE_FINANCE);
-        windowService(DEMO_WINDOW_3, DEMO_SERVICE_SEND);
-        windowService(DEMO_WINDOW_3, DEMO_SERVICE_FINANCE);
+        // Every window serves every service: the demo shows the queue algorithm, not routing limits.
+        for (var window : List.of(DEMO_WINDOW_1, DEMO_WINDOW_2, DEMO_WINDOW_3)) {
+            for (var service : List.of(DEMO_SERVICE_PARCEL, DEMO_SERVICE_SEND, DEMO_SERVICE_FINANCE)) {
+                windowService(window, service);
+            }
+        }
     }
 
     private void service(UUID id, String code, String name, String prefix) {
