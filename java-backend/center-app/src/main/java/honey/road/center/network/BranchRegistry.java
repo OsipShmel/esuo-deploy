@@ -1,5 +1,6 @@
 package honey.road.center.network;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -15,7 +16,8 @@ public class BranchRegistry {
     public BranchRegistry(JdbcClient jdbc) { this.jdbc = jdbc; }
 
     public record BranchRow(String id, String name, String timezone, Instant firstSeenAt, Instant lastHeartbeatAt,
-                            String lastHeartbeat, boolean sourceAttached) {
+                            String lastHeartbeat, boolean sourceAttached, @Nullable Integer configPublishedVersion,
+                            @Nullable Instant configPublishedAt, @Nullable Integer configAppliedVersion) {
     }
 
     /** @return true, if the branch was encountered for the first time*/
@@ -47,9 +49,13 @@ public class BranchRegistry {
 
     public List<BranchRow> all() {
         return jdbc.sql("SELECT *, last_heartbeat::text AS hb FROM branches ORDER BY id")
-                .query((rs, n) -> new BranchRow(rs.getString("id"), rs.getString("name"), rs.getString("timezone"),
-                        rs.getTimestamp("first_seen_at").toInstant(), rs.getTimestamp("last_heartbeat_at").toInstant(),
-                        rs.getString("hb"), rs.getBoolean("source_attached")))
+                .query((rs, n) -> {
+                    var publishedAt = rs.getTimestamp("config_published_at");
+                    return new BranchRow(rs.getString("id"), rs.getString("name"), rs.getString("timezone"),
+                            rs.getTimestamp("first_seen_at").toInstant(), rs.getTimestamp("last_heartbeat_at").toInstant(),
+                            rs.getString("hb"), rs.getBoolean("source_attached"), (Integer) rs.getObject("config_published_version"),
+                            publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"));
+                })
                 .list();
     }
 

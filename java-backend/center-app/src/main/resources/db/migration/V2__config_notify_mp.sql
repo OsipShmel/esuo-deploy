@@ -3,6 +3,7 @@
 -- ---------------------------------------------------------------- config (sect 4.8)
 ALTER TABLE branches
     ADD COLUMN config_published_version int,
+    ADD COLUMN config_published_at      timestamptz,
     ADD COLUMN config_sent_at           timestamptz,   -- last (re)publish attempt, drives the resend reconciler
     ADD COLUMN config_applied_version   int,
     ADD COLUMN config_applied_at        timestamptz;

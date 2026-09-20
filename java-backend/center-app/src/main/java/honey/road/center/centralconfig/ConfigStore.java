@@ -154,8 +154,8 @@ class ConfigStore {
                         """)
                 .param("v", version).param("b", branchId).param("m", write(message)).param("a", author)
                 .param("now", Timestamp.from(now)).update();
-        jdbc.sql("UPDATE branches SET config_published_version=:v, config_sent_at=NULL WHERE id=:b")
-                .param("v", version).param("b", branchId).update();
+        jdbc.sql("UPDATE branches SET config_published_version=:v, config_published_at=:now, config_sent_at=NULL WHERE id=:b")
+                .param("v", version).param("now", Timestamp.from(now)).param("b", branchId).update();
     }
 
     void markSent(String branchId, int version, Instant now) {

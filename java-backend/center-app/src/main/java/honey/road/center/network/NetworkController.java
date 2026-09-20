@@ -15,12 +15,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
-* Network overview (Section 14, network monitoring) [MVP demo]: online/offline status via heartbeat, queue, outbox lag,
-* "waiting time rising while tickets are scarce" anomaly (monitoring slide).
-* Role of NETWORK_MONITOR — TODO! after the hub security component;
+ * Network overview (sect 9.5, 14): online/offline by heartbeat, queue, outbox lag, config versions and anomalies.
+ * Role of NETWORK_MONITOR — TODO! after the hub security component;
  */
 @RestController
 public class NetworkController {
+    /** Published config not applied for longer than this while online → {@code config_pending} (sect 9.5). */
+    static final Duration CONFIG_PENDING_AFTER = Duration.ofMinutes(2);
+
     private final BranchRegistry registry;
     private final CenterProperties props;
     private final JsonMapper json;
@@ -44,6 +46,7 @@ public class NetworkController {
             m.put("timezone", b.timezone());
             m.put("online", online(b.lastHeartbeatAt(), now));
             m.put("services", hb.path("services"));
+            m.put("load_level", hb.path("load_level").asString(null));
             result.add(m);
         }
         return result;
@@ -67,6 +70,13 @@ public class NetworkController {
             if (overdue > 5) { anomalies.add("overdue_tickets"); }
             if (hb.path("windows_open").asLong(0) == 0 && waiting > 0) { anomalies.add("no_open_windows"); }
             if (hb.path("outbox_lag_sec").asLong(0) > 60) { anomalies.add("outbox_lag"); }
+            int hbConfig = hb.path("config_version").asInt(0);
+            Integer published = b.configPublishedVersion();
+            int applied = Math.max(hbConfig, b.configAppliedVersion() == null ? 0 : b.configAppliedVersion());
+            if (isOnline && published != null && applied < published && b.configPublishedAt() != null
+                    && Duration.between(b.configPublishedAt(), now).compareTo(CONFIG_PENDING_AFTER) > 0) {
+                anomalies.add("config_pending");
+            }
             var m = new LinkedHashMap<String, Object>();
             m.put("id", b.id());
             m.put("name", b.name());
@@ -80,7 +90,14 @@ public class NetworkController {
             m.put("windows_open", hb.path("windows_open").asLong(0));
             m.put("windows_total", hb.path("windows_total").asLong(0));
             m.put("outbox_pending", hb.path("outbox_pending").asLong(0));
-            m.put("config_version", hb.path("config_version").asInt(0));
+            m.put("config_version", hbConfig);
+            m.put("effective_config_version", hb.path("effective_config_version").asInt(0));
+            m.put("config_published_version", published);
+            m.put("config_applied_version", applied == 0 ? null : applied);
+            m.put("load_level", hb.path("load_level").asString(null));
+            m.put("clear_time_min", hb.hasNonNull("clear_time_min") ? hb.path("clear_time_min").asInt() : null);
+            m.put("day_profile", hb.path("day_profile").asString(null));
+            m.put("demo_rate", hb.hasNonNull("demo_rate") ? hb.path("demo_rate").asDouble() : null);
             m.put("anomalies", anomalies);
             branches.add(m);
         }
