@@ -83,7 +83,8 @@ public class HeartbeatPublisher {
         hb.put("outbox_pending", stats.pending());
         hb.put("outbox_lag_sec", stats.oldestAge().toSeconds());
         hb.put("windows_total", allWindows.size());
-        hb.put("windows_open", allWindows.stream().filter(w -> !"closed".equals(w.status())).count());
+        // Только open: окно в closing новых клиентов не принимает.
+        hb.put("windows_open", allWindows.stream().filter(w -> "open".equals(w.status())).count());
         hb.put("waiting", waiting.size());
         hb.put("overdue", waiting.stream().filter(t -> !t.dueAt().isAfter(now)).count());
         hb.put("oldest_wait_sec", waiting.stream().map(t -> java.time.Duration.between(t.issuedAt(), now).toSeconds())

@@ -100,3 +100,4 @@ data/
 .dockerignore
 .env
 .smoke-day1-token
+dev-docs/

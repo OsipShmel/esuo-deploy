@@ -79,4 +79,15 @@ class HeartbeatIT extends AbstractNodeIT {
         assertThat(intOf(hb, "windows_open")).isEqualTo(1);
         assertThat(intOf(hb, "outbox_pending")).isPositive();                                // события ждут связи с NATS
     }
+
+    @Test
+    void closingWindowIsNotCountedAsOpen() {
+        openWindow(W1, E1, PARCEL);
+        qr(PARCEL, "a");
+        callNext.execute(W1, null);
+        windows.close(W1, "graceful", E1);                               // активный талон → окно closing
+
+        var hb = heartbeat.snapshot();
+        assertThat(intOf(hb, "windows_open")).isZero();
+    }
 }

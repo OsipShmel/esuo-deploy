@@ -1,0 +1,62 @@
+/* Токены дизайн-системы (frontend-concept, 3.1). Тёмная тема — те же имена с другими значениями. */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --text: #14171c;
+  --text-muted: #5a6472;
+  --border: #dde2e8;
+  --accent: #1f56d1;
+  --accent-contrast: #ffffff;
+  --ok: #17804f;
+  --warn: #b26b00;
+  --danger: #be3328;
+  --booked: #6b47c9;
+  --shadow: 0 8px 24px rgb(20 23 28 / 16%);
+
+  --radius-card: 10px;
+  --radius-btn: 8px;
+  --font: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --text: #e9edf2;
+    --text-muted: #9ba5b3;
+    --border: #2b313b;
+    --accent: #76a0ff;
+    --accent-contrast: #0e1116;
+    --ok: #4cc38a;
+    --warn: #f0b24a;
+    --danger: #ff7a6e;
+    --booked: #a68bff;
+    --shadow: 0 8px 24px rgb(0 0 0 / 50%);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0e1116;
+  --surface: #161a21;
+  --surface-2: #1e232c;
+  --text: #e9edf2;
+  --text-muted: #9ba5b3;
+  --border: #2b313b;
+  --accent: #76a0ff;
+  --accent-contrast: #0e1116;
+  --ok: #4cc38a;
+  --warn: #f0b24a;
+  --danger: #ff7a6e;
+  --booked: #a68bff;
+  --shadow: 0 8px 24px rgb(0 0 0 / 50%);
+}
+
+/* «Крупный шрифт и высокий контраст» (принцип 6). */
+:root[data-a11y='large'] {
+  --fs: 19px;
+  --text-muted: var(--text);
+  --border: var(--text-muted);
+}

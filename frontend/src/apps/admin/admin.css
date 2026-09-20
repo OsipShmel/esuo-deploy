@@ -1,0 +1,31 @@
+.app-header { display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.app-header h1 { margin: 0; font-size: 1.125rem; }
+.app-header .grow { flex: 1; }
+.tabs { display: flex; gap: 4px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab { padding: 12px 16px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--text-muted); font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected='true'] { color: var(--accent); border-bottom-color: var(--accent); }
+.tab .count { margin-left: 6px; font-size: 0.75rem; }
+main.page { max-width: 1280px; margin: 0 auto; padding: 24px; display: grid; gap: 16px; }
+
+.login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login form { width: min(400px, 100%); display: grid; gap: 12px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 16px; }
+.tile .v { font-size: 1.75rem; font-weight: 700; line-height: 1.2; }
+.tile .l { color: var(--text-muted); font-size: 0.8125rem; }
+
+.window-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.window-card { display: grid; gap: 8px; }
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.row.between { justify-content: space-between; }
+.stack { display: grid; gap: 12px; align-content: start; }
+.toolbar { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+tr.overdue td:first-child { box-shadow: inset 4px 0 0 var(--danger); }
+.form-grid { display: grid; align-content: start; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+.field-error { color: var(--danger); font-size: 0.8125rem; }
+.pill-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.check { display: flex; align-items: center; gap: 8px; min-height: 32px; color: var(--text); }
+.subtabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.subtabs .btn[aria-pressed='true'] { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
