@@ -18,8 +18,9 @@ import java.util.List;
 /**
  * Durable pull consumer on {@code CENTER_EVT} with a subject filter (sect 10.5). Starts on every NATS connect and
  * is re-checked periodically, so the center works while the hub is down and catches up afterwards.
- * <p>Retries are done by JetStream: {@link #retryLater} naks with the delay for the current delivery attempt,
- * the consumer {@code backoff} covers redelivery after a crash (no ack at all).
+ * <p>Retries are done by JetStream: {@link #retryLater} naks with the backoff delay for the current attempt.
+ * The consumer {@code backoff} option is not used on purpose: it replaces {@code ack_wait} with its first step (1 s)
+ * and a slow HTTP call would be redelivered while still running; after a crash the message returns by {@code ack_wait}.
  */
 public abstract class DurableWorker {
     private final Logger log = LoggerFactory.getLogger(getClass());

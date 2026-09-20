@@ -15,7 +15,7 @@ import java.time.Duration;
  *   <li>no published version yet → assemble and publish one (also done right on the first heartbeat);</li>
  *   <li>heartbeat {@code config_version} counts as applied (as {@code config.applied} does);</li>
  *   <li>published but not applied for {@code resend-after} since the last send → resend with a new {@code Nats-Msg-Id};</li>
- *   <li>node reports a version above the published one (center DB was reset) → move the sequence past it and publish.</li>
+ *   <li>node reports a version above the published one → move the sequence past it so the next change wins.</li>
  * </ul>
  * Offline branches are skipped: the message waits in {@code CONFIG} and is sourced when the link is back.
  */
@@ -46,11 +46,9 @@ class ConfigReconciler {
                     continue;
                 }
                 if (s.heartbeatConfigVersion() > s.published()) {
-                    log.warn("branch {} has config v{} above published v{}: republishing", s.id(),
-                            s.heartbeatConfigVersion(), s.published());
+                    // Center DB was reset or someone published to CONFIG directly (smoke scripts): the next center
+                    // change must get a higher number, the node's current config is left alone.
                     store.advanceVersionPast(s.heartbeatConfigVersion());
-                    publisher.publishTo(s.id(), "system");
-                    continue;
                 }
                 if (s.heartbeatConfigVersion() >= s.published()) {
                     store.markApplied(s.id(), s.heartbeatConfigVersion(), now);

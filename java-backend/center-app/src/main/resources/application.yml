@@ -39,3 +39,24 @@ esuo:
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
+    notify:                                     # sect 11.3
+      url: ${NOTIFY_URL:http://notify-mock:8090/notify}
+      connect-timeout: 2s
+      request-timeout: 5s
+      message-ttl: 15m                          # a late notification does harm
+      max-deliver: 6
+      backoff: [1s, 2s, 5s, 15s, 30s]
+      circuit-breaker:
+        failure-rate-threshold: 50              # %
+        sliding-window-size: 10
+        minimum-calls: 5
+        wait-in-open-state: 30s
+        permitted-calls-in-half-open: 2
+    mp:                                         # sect 4.6, 13.2
+      webhook-secret: ${MP_WEBHOOK_SECRET:}
+      callback-url: ${MP_CALLBACK_URL:http://mp-simulator:8091/callback}
+      public-url: ${CENTER_PUBLIC_URL:http://localhost:8081}
+      timestamp-tolerance: 5m
+      request-timeout: 5s
+      max-deliver: 10
+      backoff: [1s, 2s, 5s, 15s, 30s, 60s]
