@@ -75,10 +75,33 @@ services:
       NATS_URL: nats://nats-hub:4222
       JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      NOTIFY_URL: http://notify-mock:8090/notify
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:?Задайте MP_WEBHOOK_SECRET в .env}
+      MP_CALLBACK_URL: http://mp-simulator:8091/callback
+      CENTER_PUBLIC_URL: ${CENTER_PUBLIC_URL:-http://localhost:8081}
     ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}
       nats-hub: {condition: service_started}
+    networks: [center]
+    restart: unless-stopped
+
+  # Демо-провайдер уведомлений: POST /chaos {"mode":"error"} — проверка №8 (scripts/chaos/notify-down.sh)
+  notify-mock:
+    build: tools/notify-mock
+    container_name: esuo-notify-mock
+    ports: ["127.0.0.1:${NOTIFY_MOCK_PORT:-8095}:8090"]
+    networks: [center]
+    restart: unless-stopped
+
+  # Симулятор МП: POST /send — подписанный вебхук в центр, /callbacks — принятые callback'и
+  mp-simulator:
+    build: tools/mp-simulator
+    container_name: esuo-mp-simulator
+    environment:
+      CENTER_URL: http://center-app:8080
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET}
+    ports: ["127.0.0.1:${MP_SIMULATOR_PORT:-8096}:8091"]
     networks: [center]
     restart: unless-stopped
 

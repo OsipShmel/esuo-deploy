@@ -22,7 +22,8 @@ import java.time.Instant;
 /**
  * MP booking (sect 4.6): creates a {@code booked} ticket via the same {@link IssueTicket} as web booking and
  * writes the result in the same transaction: {@code mp.appointment.confirmed} or {@code mp.appointment.rejected}
- * (reason = domain error code: {@code SLOT_EXPIRED}, {@code SLOT_UNAVAILABLE}, {@code SERVICE_NOT_FOUND}...).
+ * (reason = domain error code: {@code SLOT_EXPIRED}, {@code SLOT_UNAVAILABLE}, {@code BOOKING_LIMITED},
+ * {@code SERVICE_NOT_FOUND}...).
  * Idempotent by {@code mp_appointment_id} (unique): a redelivery returns the same ticket.
  */
 @Service

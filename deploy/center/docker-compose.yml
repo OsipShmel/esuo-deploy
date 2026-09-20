@@ -47,10 +47,27 @@ services:
       NATS_URL: nats://nats-hub:4222
       JWT_SECRET: ${CENTER_JWT_SECRET:?Задайте CENTER_JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      NOTIFY_URL: ${NOTIFY_URL:-http://notify-mock:8090/notify}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:?Задайте MP_WEBHOOK_SECRET}
+      MP_CALLBACK_URL: ${MP_CALLBACK_URL:-http://mp-simulator:8091/callback}
+      CENTER_PUBLIC_URL: ${CENTER_PUBLIC_URL:?Задайте CENTER_PUBLIC_URL=http(s)://<адрес центра>:8081}
     ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}
       nats-hub: {condition: service_started}
+    restart: unless-stopped
+
+  notify-mock:
+    build: ../../tools/notify-mock
+    ports: ["127.0.0.1:${NOTIFY_MOCK_PORT:-8095}:8090"]
+    restart: unless-stopped
+
+  mp-simulator:
+    build: ../../tools/mp-simulator
+    environment:
+      CENTER_URL: http://center-app:8080
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET}
+    ports: ["127.0.0.1:${MP_SIMULATOR_PORT:-8096}:8091"]
     restart: unless-stopped
 
 volumes:

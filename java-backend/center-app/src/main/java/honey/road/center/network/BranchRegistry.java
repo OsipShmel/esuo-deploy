@@ -53,6 +53,10 @@ public class BranchRegistry {
                 .list();
     }
 
+    public boolean exists(String id) {
+        return jdbc.sql("SELECT count(*) FROM branches WHERE id=:id").param("id", id).query(Long.class).single() > 0;
+    }
+
     public Optional<BranchRow> get(String id) {
         return all().stream().filter(b -> b.id().equals(id)).findFirst();
     }
