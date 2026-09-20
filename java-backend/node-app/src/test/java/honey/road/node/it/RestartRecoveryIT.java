@@ -15,8 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Проверка ТЗ №7 (S12): перезапуск ноды посреди вызова. «Рестарт» — второй экземпляр приложения
- * на той же БД: всё состояние должно читаться из PostgreSQL, таймауты считаться по {@code called_at}.
+ * Check #7 (S12): node restart mid-call. The "restart" is a second app instance on the same DB: all state must come
+ * from PostgreSQL, timeouts from {@code called_at}.
  */
 class RestartRecoveryIT extends AbstractNodeIT {
 
@@ -45,17 +45,17 @@ class RestartRecoveryIT extends AbstractNodeIT {
         assertThat(outboxBefore).isPositive();
 
         try (var restarted = restartedNode()) {
-            // Талон остался вызванным в том же окне, окно занято.
+            // The ticket is still called in the same window, the window is busy.
             var read = restarted.getBean(TicketQueries.class).get(view.token());
             assertThat(read.status()).isEqualTo("called");
             assertThat(read.window().id()).isEqualTo(W1);
             assertThatThrownBy(() -> restarted.getBean(CallNext.class).execute(W1, null)).isInstanceOf(DomainException.class)
                     .extracting(e -> ((DomainException) e).code()).isEqualTo("WINDOW_BUSY");
-            // Неотправленные события не потеряны: outbox переживает рестарт.
+            // Unsent events are not lost: the outbox survives the restart.
             assertThat(count("SELECT count(*) FROM outbox WHERE status='pending'")).isEqualTo(outboxBefore);
 
             var timers = restarted.getBean(QueueTimers.class);
-            // Время вышло, пока нода была недоступна: два повторных вызова, затем no_show.
+            // Time ran out while the node was down: two recalls, then no_show.
             expireCall(view.ticketId());
             timers.callTimeouts();
             expireCall(view.ticketId());
@@ -68,7 +68,7 @@ class RestartRecoveryIT extends AbstractNodeIT {
             assertThat(count("SELECT count(*) FROM ticket_events WHERE ticket_id=? AND event_type='ticket.recalled'",
                     view.ticketId())).isEqualTo(2);
 
-            // Окно свободно и продолжает работу с оставшимся клиентом.
+            // The window is free and keeps working with the remaining client.
             assertThat(restarted.getBean(CallNext.class).execute(W1, null).status()).isEqualTo("called");
         }
     }
@@ -85,7 +85,7 @@ class RestartRecoveryIT extends AbstractNodeIT {
         }
     }
 
-    /** Состарить вызов на 10 минут — как будто нода простояла выключенной. */
+    /** Ages the call by 10 minutes, as if the node had been down. */
     private void expireCall(UUID ticket) {
         jdbc.update("UPDATE tickets SET called_at = now() - interval '10 minutes' WHERE id=?", ticket);
     }

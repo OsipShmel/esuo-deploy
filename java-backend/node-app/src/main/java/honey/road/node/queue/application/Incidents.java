@@ -20,8 +20,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Инциденты (раздел 5.1, 9.3): техническая или операционная проблема, зафиксированная оператором;
- * руководитель закрывает её. Открытые инциденты попадают в отклонения аналитики.
+ * Incidents (sect 5.1, 9.3): a problem reported by an operator and closed by the admin; open ones show up in
+ * analytics deviations.
  */
 @Service
 public class Incidents {
@@ -54,7 +54,7 @@ public class Incidents {
         if (description == null || description.isBlank() || description.length() > MAX_DESCRIPTION) {
             throw DomainException.validation("Описание обязательно, до " + MAX_DESCRIPTION + " символов");
         }
-        if (windowId != null) { windows.get(node.branchId(), windowId); }          // 404, если чужое или несуществующее
+        if (windowId != null) { windows.get(node.branchId(), windowId); }          // 404 if foreign or missing
         if (ticketId != null) { tickets.byId(node.branchId(), ticketId, false); }
         var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         var id = ids.next(now);
@@ -76,7 +76,7 @@ public class Incidents {
         return get(id);
     }
 
-    /** Закрытие инцидента руководителем; повторное закрытие идемпотентно. */
+    /** Closes an incident; idempotent. */
     @Transactional
     public IncidentView resolve(UUID id) {
         get(id);

@@ -1,23 +1,23 @@
 package honey.road.contracts.event;
 
 /**
- * Subjects и имена стримов NATS (разделы 10.1, 10.4). Единственное место, где они собираются строкой.
+ * NATS subjects and stream names (sect 10.1, 10.4); the only place they are built as strings.
  */
 public final class Subjects {
     private Subjects() {
     }
 
-    // ---- отделение → центр
+    // ---- branch → center
     public static String branchEvent(String branchId, String eventType) {
         return "branch." + branchId + ".evt." + eventType;
     }
 
-    /** Все события отделения: subjects стрима BRANCH_EVT. */
+    /** All branch events: BRANCH_EVT subjects. */
     public static String branchEventsAll(String branchId) {
         return "branch." + branchId + ".evt.>";
     }
 
-    /** Все события всех отделений (для core-подписки центра). */
+    /** All events of all branches (center core subscription). */
     public static final String ALL_BRANCH_EVENTS = "branch.*.evt.>";
     public static final String ALL_TICKET_EVENTS = "branch.*.evt.ticket.>";
 
@@ -27,7 +27,7 @@ public final class Subjects {
 
     public static final String ALL_HEARTBEATS = "branch.*.hb";
 
-    // ---- центр → отделение, синхронно
+    // ---- center → branch, sync
     public static String rpc(String branchId, String op) {
         return "branch." + branchId + ".rpc." + op;
     }
@@ -36,7 +36,7 @@ public final class Subjects {
         return "branch." + branchId + ".rpc.>";
     }
 
-    // ---- центр → отделение, асинхронно
+    // ---- center → branch, async
     public static final String CONFIG_GLOBAL = "center.config.global";
 
     public static String configBranch(String branchId) {
@@ -47,7 +47,7 @@ public final class Subjects {
         return "center.mp.inbox.branch." + branchId;
     }
 
-    // ---- стримы и домены
+    // ---- streams and domains
     public static final String STREAM_BRANCH_EVT = "BRANCH_EVT";
     public static final String STREAM_BRANCH_INBOX = "BRANCH_INBOX";
     public static final String STREAM_CENTER_EVT = "CENTER_EVT";
@@ -60,12 +60,12 @@ public final class Subjects {
         return "branch-" + branchId;
     }
 
-    /** API JetStream чужого домена — для sources между доменами. */
+    /** JetStream API of another domain, for cross-domain sources. */
     public static String jsApiPrefix(String domain) {
         return "$JS." + domain + ".API";
     }
 
-    /** Имя отделения из subject вида {@code branch.b01.*}. */
+    /** Branch id from a {@code branch.b01.*} subject. */
     public static String branchIdOf(String subject) {
         if (subject == null || !subject.startsWith("branch.")) {
             return null;

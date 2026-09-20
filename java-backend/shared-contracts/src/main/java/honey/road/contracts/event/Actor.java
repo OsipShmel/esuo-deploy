@@ -1,8 +1,8 @@
 package honey.road.contracts.event;
 
 /**
- * Кто вызвал изменение. {@code type} — строка из раздела 8.1 ({@code ticket_events.actor_type}):
- * client | operator | admin | system | scheduler | center. {@code id} = null для клиента/системы.
+ * Who caused the change. {@code type} as in sect 8.1 ({@code ticket_events.actor_type}):
+ * client | operator | admin | system | scheduler | center. {@code id} is null for client/system.
  */
 public record Actor(String type, String id) {
 

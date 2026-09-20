@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Аналитика отделения для руководителя (раздел 9.3). Период — необязательные {@code from} и {@code to}:
- * дата {@code 2026-09-21} (по часовому поясу отделения) или момент ISO-8601; по умолчанию — сегодня до текущего момента.
+ * Branch analytics (sect 9.3). Optional {@code from}/{@code to}: a date {@code 2026-09-21} (branch timezone)
+ * or an ISO-8601 instant; default is today up to now.
  */
 @RestController
 @RequestMapping("/api/v1/admin/analytics")

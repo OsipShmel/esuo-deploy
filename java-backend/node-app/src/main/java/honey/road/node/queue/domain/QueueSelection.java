@@ -7,14 +7,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.ToDoubleFunction;
+import java.util.HashMap;
 
 /**
- * Выбор талона при освобождении окна (раздел 6.4). Чистая функция: результат зависит только от голов
- * очередей услуг окна, {@code now}, {@code slack} и score — поэтому решение воспроизводимо по журналу.
+ * Ticket selection when a window frees up (sect 6.4). Pure function of the window's queue heads, {@code now},
+ * {@code slack} and score, so the decision is reproducible from the journal.
  * <ol>
- *   <li>Есть просроченные ({@code due_at <= now}) — самый ранний дедлайн среди них, score не действует.</li>
- *   <li>Несколько голов в пределах {@code now + slack} — максимальный score, затем (due_at, seq).</li>
- *   <li>Иначе — чистый EDF по (due_at, seq).</li>
+ *   <li>Overdue heads ({@code due_at <= now}): earliest deadline, score ignored.</li>
+ *   <li>Several heads within {@code now + slack}: max score, then (due_at, seq).</li>
+ *   <li>Otherwise plain EDF by (due_at, seq).</li>
  * </ol>
  */
 public final class QueueSelection {
@@ -41,7 +42,7 @@ public final class QueueSelection {
         }
         var inSlack = heads.stream().filter(t -> !t.dueAt().isAfter(now.plus(slack))).toList();
         if (inSlack.size() > 1) {
-            var scores = new java.util.HashMap<UUID, Double>();
+            var scores = new HashMap<UUID, Double>();
             inSlack.forEach(t -> scores.put(t.id(), score.applyAsDouble(t)));
             var chosen = inSlack.stream()
                     .min(Comparator.<Ticket>comparingDouble(t -> -scores.get(t.id())).thenComparing(EDF))

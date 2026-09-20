@@ -21,6 +21,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.Map;
 
 /**
 * Sync request to the branch via NATS request-reply (docs, sections 4.1, 10.3). {@code BranchRpcClient} port (11.1).
@@ -62,7 +63,7 @@ public class BranchRpcClient {
         var message = NatsMessage.builder()
                 .subject(Subjects.rpc(branchId, op))
                 .headers(headers)
-                .data(json.writeValueAsString(body == null ? java.util.Map.of() : body).getBytes(StandardCharsets.UTF_8))
+                .data(json.writeValueAsString(body == null ? Map.of() : body).getBytes(StandardCharsets.UTF_8))
                 .build();
         try {
             var reply = connection.requestWithTimeout(message, props.rpcTimeout())

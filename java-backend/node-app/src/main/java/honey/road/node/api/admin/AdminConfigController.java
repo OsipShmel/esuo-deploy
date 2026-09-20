@@ -12,8 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Конфигурация отделения для руководителя (раздел 9.3): центральная версия, локальные переопределения, границы.
- * Доступ только {@code BRANCH_ADMIN} — правило в {@code SecurityConfig} для {@code /api/v1/admin/**}.
+ * Branch config for the admin (sect 9.3): central version, local overrides, bounds.
  */
 @RestController
 @RequestMapping("/api/v1/admin/config")
@@ -29,7 +28,7 @@ public class AdminConfigController {
         return render(config.view());
     }
 
-    /** Тело — объект переопределений в snake_case, например {@code {"slack_min": 8}}; {@code {}} снимает все. */
+    /** Body: overrides in snake_case, e.g. {@code {"slack_min": 8}}; {@code {}} clears all. */
     @PutMapping
     public Map<String, Object> put(@RequestBody JsonNode overrides) {
         return render(config.putOverrides(overrides));

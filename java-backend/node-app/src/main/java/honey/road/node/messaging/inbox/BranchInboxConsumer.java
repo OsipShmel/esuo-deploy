@@ -22,13 +22,12 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * Потребитель {@code node-inbox} (раздел 10.5): durable pull-консьюмер стрима {@code BRANCH_INBOX}
- * с {@code ack_explicit}, {@code max_deliver=10}, backoff 1 с → 5 мин. Разбор и применение сообщений — в
- * {@link BranchInboxProcessor}.
+ * {@code node-inbox} consumer (sect 10.5): durable pull on {@code BRANCH_INBOX}, {@code ack_explicit},
+ * {@code max_deliver=10}, backoff 1 s → 5 min. Message handling lives in {@link BranchInboxProcessor}.
  * <ul>
- *   <li>Нода работает и без NATS: цикл ждёт подключения и готовности стрима, очередь отделения от него не зависит.</li>
- *   <li>Идентификатор для дедупликации — {@code Nats-Msg-Id}, при его отсутствии — номер сообщения в стриме.</li>
- *   <li>Успех и постоянный отказ — {@code ack}; временная ошибка — {@code nak} с задержкой (повторная доставка).</li>
+ *   <li>Works without NATS: the loop waits for the connection and the stream.</li>
+ *   <li>Dedup id is {@code Nats-Msg-Id}, falling back to the stream sequence.</li>
+ *   <li>Success or permanent failure → {@code ack}; transient failure → delayed {@code nak}.</li>
  * </ul>
  */
 @Component

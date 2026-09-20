@@ -8,9 +8,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Периодический пересчёт «очередь приближается» (4.7). Состояния в памяти нет: после рестарта ноды
- * первый же проход продолжает с флагов {@code notified_approaching_at} в БД. Отключается свойством
- * {@code esuo.notifications.approaching.enabled=false} (интеграционные тесты вызывают {@code scan()} сами).
+ * Periodic "approaching" scan (sect 4.7). Stateless: after a restart the first pass continues from the
+ * {@code notified_approaching_at} flags. Disabled by {@code esuo.notifications.approaching.enabled=false}
+ * (integration tests call {@code scan()} themselves).
  */
 @Component
 @ConditionalOnProperty(name = "esuo.notifications.approaching.enabled", havingValue = "true", matchIfMissing = true)

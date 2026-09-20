@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** Выбор стратегии по {@code queue.scoring-strategy}; неизвестное имя → uniform (с предупреждением). */
+/** Strategy by {@code queue.scoring-strategy}; unknown name → uniform (with a warning). */
 @Component
 public class ScoringStrategies {
     private static final Logger log = LoggerFactory.getLogger(ScoringStrategies.class);

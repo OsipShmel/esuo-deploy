@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/** Снимок строки {@code tickets}. Изменения — только через команды application-слоя. */
+/** Snapshot of a {@code tickets} row; changed only via application-layer commands. */
 public record Ticket(
         UUID id, UUID publicToken, String branchId, UUID serviceId,
         TicketSource source, TicketStatus status, String clientCategory,
@@ -14,7 +14,7 @@ public record Ticket(
         Instant updatedAt, int version, Instant calledAt,
         int callCount, Instant checkedInAt, Instant servingStartedAt, Instant completedAt, int postponeCount) {
 
-    /** Конструктор для нового талона (все счётчики нулевые). */
+    /** New ticket constructor (all counters zero). */
     public static Ticket fresh(UUID id, UUID publicToken, String branchId, UUID serviceId, TicketSource source,
                                TicketStatus status, String clientCategory, int configVersion, String displayNumber,
                                Instant issuedAt, LocalDate issuedDay, Instant slotStart, Instant slotEnd,
@@ -24,7 +24,7 @@ public record Ticket(
                 deviceId, mpAppointmentId, issuedAt, 0, null, 0, null, null, null, 0);
     }
 
-    /** Копия с другим {@code seq} (для тестов и после INSERT). */
+    /** Copy with another {@code seq} (tests, after INSERT). */
     public Ticket withSeq(long newSeq) {
         return new Ticket(id, publicToken, branchId, serviceId, source, status, clientCategory, configVersion, newSeq,
                 displayNumber, issuedAt, issuedDay, slotStart, slotEnd, eligibleFrom, dueAt, windowId, employeeId,

@@ -6,9 +6,8 @@ import honey.road.node.queue.domain.Ticket;
 import java.util.UUID;
 
 /**
- * Оценка выгоды обслуживания талона в данном окне данным сотрудником (раздел 6.5).
- * Используется только для выбора между головами разных услуг внутри окна {@code slack};
- * порядок внутри одной услуги score не меняет. Queue Engine от реализации не зависит.
+ * Benefit of serving a ticket in this window by this employee (sect 6.5). Used only to choose between heads of
+ * different services within {@code slack}; order within one service is unaffected.
  */
 public interface ScoringStrategy {
     String name();

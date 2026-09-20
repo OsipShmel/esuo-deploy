@@ -11,18 +11,19 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.UUID;
+import honey.road.node.queue.application.TicketQueries;
 
 /**
- * RPC-операции (раздел 10.1) — те же публичные сценарии, что и REST ноды: центр лишь транспорт.
+ * RPC operations (sect 10.1): the same public use cases as the node REST API; the center is just transport.
  */
 @Component
 public class RpcOperations {
     private final PublicTicketController api;
-    private final honey.road.node.queue.application.TicketQueries queries;
+    private final TicketQueries queries;
     private final JsonCodec json;
     private final Validator validator;
 
-    public RpcOperations(PublicTicketController api, honey.road.node.queue.application.TicketQueries queries,
+    public RpcOperations(PublicTicketController api, TicketQueries queries,
                          JsonCodec json, Validator validator) {
         this.api = api;
         this.queries = queries;

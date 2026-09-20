@@ -40,32 +40,32 @@ public class IssueTicket {
     private final SlotRepository slots;
     private final TicketRepository tickets;
     private final EventRepository events;
-    private final honey.road.node.queue.application.TicketViews views;
-    private final honey.road.node.queue.application.UuidGenerator ids;
+    private final TicketViews views;
+    private final UuidGenerator ids;
     private final NodeProperties node;
     private final Clock clock;
     private final JsonCodec json;
 
     public IssueTicket(CatalogRepository catalog, PolicyRepository policies, IdempotencyRepository keys,
-                       SlotRepository slots, TicketRepository tickets, EventRepository events, honey.road.node.queue.application.TicketViews views,
-                       honey.road.node.queue.application.UuidGenerator ids, NodeProperties node, Clock clock, JsonCodec json) {
+                       SlotRepository slots, TicketRepository tickets, EventRepository events, TicketViews views,
+                       UuidGenerator ids, NodeProperties node, Clock clock, JsonCodec json) {
         this.catalog=catalog; this.policies=policies; this.keys=keys; this.slots=slots; this.tickets=tickets;
         this.events=events; this.views=views; this.ids=ids; this.node=node; this.clock=clock; this.json=json;
     }
 
     @Transactional
-    public TicketView execute(honey.road.node.queue.application.IssueTicketCommand command, String idempotencyKey) {
+    public TicketView execute(IssueTicketCommand command, String idempotencyKey) {
         return issue(command,idempotencyKey,null);
     }
 
     @Transactional
     public TicketView fromMobileAppointment(String externalId, UUID service, Instant slot, String category) {
-        // Внутренний вход для адаптера B; внешний идентификатор не принимается публичным REST.
+        // Internal entry for the MP adapter; public REST does not accept an external id.
         requireKey(externalId);
-        return issue(new honey.road.node.queue.application.IssueTicketCommand(TicketSource.appointment,service,slot,category,null,null),externalId,externalId);
+        return issue(new IssueTicketCommand(TicketSource.appointment,service,slot,category,null,null),externalId,externalId);
     }
 
-    private TicketView issue(honey.road.node.queue.application.IssueTicketCommand original, String key, String externalId) {
+    private TicketView issue(IssueTicketCommand original, String key, String externalId) {
         var command = normalized(original);
         requireKey(key);
         var now=clock.instant().truncatedTo(ChronoUnit.MILLIS);
@@ -112,7 +112,7 @@ public class IssueTicket {
         return view;
     }
 
-    private static honey.road.node.queue.application.IssueTicketCommand normalized(honey.road.node.queue.application.IssueTicketCommand c) {
+    private static IssueTicketCommand normalized(IssueTicketCommand c) {
         if (c == null || c.source()==null || c.serviceId()==null) { throw DomainException.validation("Источник и услуга обязательны"); }
         String category=c.clientCategory()==null?"default":c.clientCategory().strip();
         if (category.isBlank() || category.length()>64) { throw DomainException.validation("Некорректная категория"); }
@@ -121,7 +121,7 @@ public class IssueTicket {
         if (c.source()==TicketSource.qr) {
             if (c.deviceId()==null || c.deviceId().isBlank() || c.deviceId().length()>128) { throw DomainException.validation("Идентификатор устройства обязателен, до 128 символов"); }
         } else if (c.deviceId()!=null) { throw DomainException.validation("Идентификатор устройства задаётся только для QR"); }
-        return new honey.road.node.queue.application.IssueTicketCommand(c.source(),c.serviceId(),c.slotStart(),category,c.deviceId(),c.windowId());
+        return new IssueTicketCommand(c.source(),c.serviceId(),c.slotStart(),category,c.deviceId(),c.windowId());
     }
 
     private static void requireKey(String key) {

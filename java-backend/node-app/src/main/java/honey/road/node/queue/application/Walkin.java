@@ -11,8 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Живая очередь (4.4): выдача талона оператором и, при {@code call_now}, сразу назначение этому окну.
- * Повтор с тем же {@code Idempotency-Key} возвращает текущее состояние талона, второй вызов не делается.
+ * Walk-in (sect 4.4): the operator issues a ticket and, with {@code call_now}, assigns it to this window right away.
+ * A repeat with the same {@code Idempotency-Key} returns the current ticket state without a second call.
  */
 @Service
 public class Walkin {

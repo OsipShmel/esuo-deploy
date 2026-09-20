@@ -9,46 +9,47 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.ToLongFunction;
+import java.util.Comparator;
 
 /**
- * Упрощённая симуляция очереди для ETA (раздел 6.8). Чистая функция, без БД и времени из окружения.
- * <p>Ожидающие талоны раздаются открытым окнам тем же правилом, что и {@link QueueSelection} при
- * {@code uniform}-скоринге: окно, которое освободится раньше, берёт следующий допущенный талон своих услуг.
- * ETA талона — момент, когда симуляция назначит его окну. Талон, который не достался ни одному окну
- * (нет открытого окна с его услугой, адресное окно закрыто), в результат не попадает — ETA «не определено» (S2).
+ * Simplified queue simulation for ETA (sect 6.8). Pure function, no DB and no ambient time.
+ * <p>Waiting tickets go to open windows by the same rule as {@link QueueSelection} with {@code uniform} scoring:
+ * the window that frees up first takes the next eligible ticket of its services. A ticket's ETA is the moment it
+ * gets a window. Tickets no window can take (no open window for the service, targeted window closed) are absent
+ * from the result: ETA undefined (S2).
  */
 public final class QueueSimulation {
     private QueueSimulation() {
     }
 
     /**
-     * @param windowId  окно
-     * @param services  услуги окна
-     * @param freeAt    когда окно освободится: {@code now} для свободного, конец прогнозного обслуживания для занятого
+     * @param windowId window
+     * @param services window services
+     * @param freeAt   when the window frees up: {@code now} if free, end of the predicted service if busy
      */
     public record WindowState(UUID windowId, Set<UUID> services, Instant freeAt) {
     }
 
-    /** @param eta момент назначения окну для каждого талона, которому нашлось окно */
+    /** @param eta assignment moment for every ticket that got a window */
     public record Result(Map<UUID, Instant> eta) {
     }
 
-    /** Прогноз длительности обслуживания талона в конкретном окне (окно даёт сотрудника), секунд. */
+    /** Predicted service duration of a ticket in a given window (the window defines the employee), seconds. */
     @FunctionalInterface
     public interface DurationModel {
         long seconds(WindowState window, Ticket ticket);
     }
 
-    /** Прогноз по услуге, одинаковый для всех окон. */
+    /** Per-service estimate, same for all windows. */
     public static Result run(Instant now, List<Ticket> waiting, List<WindowState> windows,
                              ToLongFunction<UUID> durationSec, Duration slack) {
         return run(now, waiting, windows, (w, t) -> durationSec.applyAsLong(t.serviceId()), slack);
     }
 
     /**
-     * @param waiting     ожидающие талоны в порядке EDF {@code (due_at, seq)}
-     * @param windows     окна, принимающие новых клиентов (открытые, не {@code closing})
-     * @param duration    прогноз длительности обслуживания талона окном, секунд
+     * @param waiting  waiting tickets in EDF order {@code (due_at, seq)}
+     * @param windows  windows accepting new clients (open, not {@code closing})
+     * @param duration predicted service duration of a ticket in a window, seconds
      */
     public static Result run(Instant now, List<Ticket> waiting, List<WindowState> windows,
                              DurationModel duration, Duration slack) {
@@ -62,7 +63,7 @@ public final class QueueSimulation {
         var eta = new HashMap<UUID, Instant>();
 
         while (!remaining.isEmpty() && !live.isEmpty()) {
-            var window = live.stream().min(java.util.Comparator.comparing((WindowState w) -> free.get(w.windowId()))
+            var window = live.stream().min(Comparator.comparing((WindowState w) -> free.get(w.windowId()))
                     .thenComparing(w -> w.windowId().toString())).orElseThrow();
             var at = free.get(window.windowId());
 
@@ -73,7 +74,7 @@ public final class QueueSimulation {
                         .findFirst().ifPresent(heads::add);
             }
             if (heads.isEmpty()) {
-                // Окно простаивает до ближайшего момента, когда для него появится допущенный талон.
+                // The window idles until an eligible ticket appears for it.
                 var next = remaining.stream()
                         .filter(t -> window.services().contains(t.serviceId()) && servedBy(t, window)
                                 && t.eligibleFrom().isAfter(at))

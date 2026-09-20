@@ -19,8 +19,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Справочники отделения (раздел 9.3, руководитель): услуги, окна, сотрудники. Роль {@code BRANCH_ADMIN} —
- * правило по префиксу {@code /admin} в {@code SecurityConfig}. Удаление мягкое, {@code DELETE} возвращает запись.
+ * Branch catalog (sect 9.3): services, windows, employees. {@code BRANCH_ADMIN} only (the {@code /admin} rule
+ * in {@code SecurityConfig}). Soft delete; {@code DELETE} returns the record.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -44,7 +44,7 @@ public class AdminCatalogController {
     public record EmployeeRequest(String fullName, Boolean active) {
     }
 
-    // ---- услуги
+    // ---- services
     @GetMapping("/services")
     public List<AdminCatalog.ServiceView> services(@RequestParam(name = "include_inactive", defaultValue = "false") boolean all) {
         return catalog.services(all);
@@ -71,7 +71,7 @@ public class AdminCatalogController {
         return catalog.deleteService(id);
     }
 
-    // ---- окна
+    // ---- windows
     @GetMapping("/windows")
     public List<AdminCatalog.WindowAdminView> windows(@RequestParam(name = "include_inactive", defaultValue = "false") boolean all) {
         return catalog.windows(all);
@@ -103,7 +103,7 @@ public class AdminCatalogController {
         return catalog.deleteWindow(id);
     }
 
-    // ---- сотрудники
+    // ---- employees
     @GetMapping("/employees")
     public List<AdminCatalog.EmployeeView> employees(@RequestParam(name = "include_inactive", defaultValue = "false") boolean all) {
         return catalog.employees(all);

@@ -25,13 +25,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Единственная точка записи журнала и outbox (правило 0.3.3): вызывается только внутри транзакции команды.
+ * The only writer of the journal and the outbox (rule 0.3.3); called inside the command transaction only.
  * <ul>
- *   <li>{@code ticket_events}/{@code window_events} — журнал отделения;</li>
- *   <li>{@code outbox} — то, что outbox-воркер опубликует в {@code BRANCH_EVT};</li>
- *   <li>{@link DomainEventCommitted} — Spring-событие, которое SSE-хаб получит только после коммита.</li>
+ *   <li>{@code ticket_events}/{@code window_events}: branch journal;</li>
+ *   <li>{@code outbox}: what the outbox worker publishes to {@code BRANCH_EVT};</li>
+ *   <li>{@link DomainEventCommitted}: delivered to the SSE hub after commit.</li>
  * </ul>
- * Секрет клиента в журнал и outbox не попадает, только {@code token_hash}.
+ * The client secret never reaches the journal or the outbox, only {@code token_hash}.
  */
 @Repository
 public class EventRepository {
@@ -44,7 +44,7 @@ public class EventRepository {
         this.jdbc = jdbc; this.json = json; this.ids = ids; this.publisher = publisher;
     }
 
-    /** Совместимость с кодом дня 1. */
+    /** Day 1 compatibility. */
     @Transactional(propagation = Propagation.MANDATORY)
     public EventEnvelope append(Ticket ticket, String type, String fromStatus, Actor actor) {
         return ticketEvent(ticket, type, fromStatus, actor, Map.of());
@@ -106,7 +106,7 @@ public class EventRepository {
         return envelope;
     }
 
-    /** Событие без журнала талона/окна (результат записи МП, запрос уведомления, config.applied). */
+    /** Event without a ticket/window journal entry (MP result, notification request, config.applied). */
     @Transactional(propagation = Propagation.MANDATORY)
     public EventEnvelope otherEvent(String branchId, String aggregateType, UUID aggregateId, long version,
                                     String type, Actor actor, Instant now, Integer configVersion, Map<String, Object> data) {
@@ -114,8 +114,8 @@ public class EventRepository {
     }
 
     /**
-     * То же, но с токеном владельца талона: SSE-хаб ноды доставит событие именно его странице
-     * (уведомление в браузере работает и при отсутствии центра, 4.7 п.4). Токен в outbox не попадает.
+     * Same, with the ticket owner's token so the node SSE hub delivers it to that page
+     * (browser notification works without the center, sect 4.7). The token is not written to the outbox.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public EventEnvelope otherEvent(String branchId, String aggregateType, UUID aggregateId, long version,

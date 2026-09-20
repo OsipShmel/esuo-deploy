@@ -16,16 +16,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.time.Instant;
 
 /**
- * Обработка одного сообщения {@code BRANCH_INBOX} без зависимости от NATS (границы A/B: транспорт — в
- * {@link BranchInboxConsumer}, здесь только смысл сообщения).
+ * Handles one {@code BRANCH_INBOX} message, transport-agnostic (transport is in {@link BranchInboxConsumer}).
  * <ul>
- *   <li>Дедупликация по {@code inbox_processed} в той же транзакции, что и применение (10.5).</li>
- *   <li>Временная ошибка (БД недоступна) — исключение наружу: сообщение не подтверждается и придёт снова.</li>
- *   <li>Постоянная ошибка (битый JSON, невалидная конфигурация) — сообщение отмечается обработанным и
- *       результат {@link Outcome#REJECTED}: бесконечные повторы бессмысленны.</li>
- *   <li>Отказ по правилам записи МП — не ошибка обработки: результат {@code mp.appointment.rejected} уходит в центр.</li>
+ *   <li>Dedup via {@code inbox_processed} in the same transaction as the apply (sect 10.5).</li>
+ *   <li>Transient error (DB down) is rethrown: the message is not acked and comes again.</li>
+ *   <li>Permanent error (bad JSON, invalid config) marks the message processed with {@link Outcome#REJECTED}.</li>
+ *   <li>An MP booking rejected by the rules is not a processing error: {@code mp.appointment.rejected} goes to the center.</li>
  * </ul>
  */
 @Service
@@ -62,7 +61,7 @@ public class BranchInboxProcessor {
             log.warn("inbox: unknown subject {} id={}", subject, messageId);
             return discard(messageId);
         } catch (DomainException | IllegalStateException e) {
-            // IllegalStateException — битый JSON/невалидные данные из JsonCodec.
+            // IllegalStateException: bad JSON / invalid data from JsonCodec.
             log.warn("inbox: message rejected id={} subject={}: {}", messageId, subject, e.getMessage());
             return discard(messageId);
         }
@@ -90,7 +89,7 @@ public class BranchInboxProcessor {
                 return Outcome.APPLIED;
             });
         } catch (DomainException e) {
-            // Откат снял и отметку «обработано»: фиксируем отказ и отметку одной новой транзакцией.
+            // The rollback also removed the processed mark: record the rejection and the mark in a new transaction.
             return tx.execute(s -> {
                 if (!inbox.markProcessed(messageId, Subjects.STREAM_BRANCH_INBOX, now())) {
                     return Outcome.DUPLICATE;
@@ -106,7 +105,7 @@ public class BranchInboxProcessor {
         return Outcome.REJECTED;
     }
 
-    private java.time.Instant now() {
+    private Instant now() {
         return clock.instant().truncatedTo(ChronoUnit.MILLIS);
     }
 }

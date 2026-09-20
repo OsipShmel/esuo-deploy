@@ -25,12 +25,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Открытие и закрытие окна (раздел 7, S1 и S4).
+ * Window open/close (sect 7, S1, S4).
  * <ul>
- *   <li>{@code graceful}: окно → {@code closing}, новых не вызывает, после {@code complete} закрывается.</li>
- *   <li>{@code force}: активный талон возвращается в {@code waiting} с сохранённым {@code due_at} —
- *       то есть в голову своей очереди; окно закрывается сразу.</li>
- *   <li>Адресованные окну ожидающие талоны при закрытии теряют адрес ({@code target_window_id = null}).</li>
+ *   <li>{@code graceful}: window → {@code closing}, calls nobody new, closes after {@code complete}.</li>
+ *   <li>{@code force}: the active ticket goes back to {@code waiting} with its {@code due_at}, i.e. to the head
+ *       of its queue; the window closes immediately.</li>
+ *   <li>Waiting tickets targeted at the window lose the target ({@code target_window_id = null}).</li>
  * </ul>
  */
 @Service
@@ -88,7 +88,7 @@ public class WindowCommands {
         }
         var window = windows.lock(node.branchId(), windowId);
         if (WindowStatus.CLOSED.equals(window.status())) {
-            return views.of(window);                                     // идемпотентно
+            return views.of(window);                                     // idempotent
         }
         var active = tickets.activeForWindow(windowId, true);
         if (active.isEmpty()) {
@@ -110,7 +110,7 @@ public class WindowCommands {
         return views.of(finishClose(window, actor(employeeId), now, "force"));
     }
 
-    /** Закрытие окна без активного талона; вызывается и из {@code complete} для окна в {@code closing}. */
+    /** Closes a window without an active ticket; also called from {@code complete} for a {@code closing} window. */
     @Transactional
     public ServiceWindow finishClose(ServiceWindow window, Actor actor, Instant now, String reason) {
         for (var t : tickets.lockTargetedTo(window.id())) {

@@ -22,11 +22,11 @@ import java.util.UUID;
 public class CancelTicket {
     private final TicketRepository tickets;
     private final SlotRepository slots;
-    private final honey.road.node.queue.application.TicketViews views;
+    private final TicketViews views;
     private final EventRepository events;
     private final NodeProperties node;
     private final Clock clock;
-    public CancelTicket(TicketRepository tickets, SlotRepository slots, honey.road.node.queue.application.TicketViews views,
+    public CancelTicket(TicketRepository tickets, SlotRepository slots, TicketViews views,
                         EventRepository events, NodeProperties node, Clock clock) {
         this.tickets=tickets;this.slots=slots; this.views=views;this.events=events;this.node=node;this.clock=clock;
     }
@@ -34,7 +34,7 @@ public class CancelTicket {
     @Transactional
     public TicketView execute(UUID token) {
         var snapshot=tickets.byToken(node.branchId(),token,false);
-        // Порядок блокировок совпадает с бронированием: сначала слот, затем талон.
+        // Lock order matches booking: slot first, then ticket.
         if (snapshot.source()== TicketSource.appointment) { slots.lock(snapshot.serviceId(),snapshot.slotStart()); }
         Ticket ticket=tickets.byToken(node.branchId(),token,true);
         if (ticket.status()== TicketStatus.cancelled) { return views.of(ticket); }

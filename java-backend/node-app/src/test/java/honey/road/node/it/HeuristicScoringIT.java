@@ -9,8 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import honey.road.contracts.event.Actor;
+import honey.road.node.queue.scoring.ScoreResult;
 
-/** {@code HeuristicScoringStrategy} (раздел 16.2): каскад уточнений, выбор в пределах slack, дедлайн как ограничитель. */
+/** {@code HeuristicScoringStrategy} (sect 16.2): cascade, choice within slack, deadline as the bound. */
 class HeuristicScoringIT extends AbstractNodeIT {
     @Autowired HeuristicScoringStrategy heuristic;
     @Autowired TicketRepository ticketRepo;
@@ -27,12 +29,12 @@ class HeuristicScoringIT extends AbstractNodeIT {
         jdbc.update("UPDATE branch_config SET central_config = jsonb_set(central_config, '{scoring_strategy}', '\"heuristic\"') WHERE id=1");
     }
 
-    private honey.road.node.queue.scoring.ScoreResult score(UUID ticketId, UUID employee) {
+    private ScoreResult score(UUID ticketId, UUID employee) {
         var ticket = ticketRepo.byId("b01", ticketId, false);
         return heuristic.score(ticket, windowRepo.get("b01", W1), employee);
     }
 
-    // ------------------------------------------------------------------ каскад
+    // ------------------------------------------------------------------ cascade
 
     @Test
     void noStatisticsFallsBackToDefaultDuration() {
@@ -46,8 +48,8 @@ class HeuristicScoringIT extends AbstractNodeIT {
 
     @Test
     void cascadeUsesTheMostSpecificLevelWithEnoughSamples() {
-        stats(PARCEL, null, "default", 300, 20);          // услуга + категория, все сотрудники
-        stats(PARCEL, E1, "default", 100, 6);              // сотрудник + услуга + категория
+        stats(PARCEL, null, "default", 300, 20);          // service + category, all employees
+        stats(PARCEL, E1, "default", 100, 6);              // employee + service + category
         var ordinary = qr(PARCEL, "a", "default");
         var pensioner = qr(PARCEL, "b", "pensioner");
 
@@ -56,23 +58,23 @@ class HeuristicScoringIT extends AbstractNodeIT {
         assertThat(level1.predictedDuration().toSeconds()).isEqualTo(100);
         assertThat(level1.samples()).isEqualTo(6);
 
-        var level2 = score(pensioner, E1);                 // нет своей категории у сотрудника → сотрудник + услуга
+        var level2 = score(pensioner, E1);                 // employee lacks the category → employee + service
         assertThat(level2.basis()).isEqualTo("employee_service");
         assertThat(level2.predictedDuration().toSeconds()).isEqualTo(100);
 
-        var level3 = score(ordinary, E2);                  // у E2 статистики нет → услуга + категория
+        var level3 = score(ordinary, E2);                  // no stats for E2 → service + category
         assertThat(level3.basis()).isEqualTo("service_category");
         assertThat(level3.predictedDuration().toSeconds()).isEqualTo(300);
         assertThat(level3.samples()).isEqualTo(20);
 
-        var level4 = score(pensioner, E2);                 // у категории нет данных → услуга целиком
+        var level4 = score(pensioner, E2);                 // no data for the category → whole service
         assertThat(level4.basis()).isEqualTo("service");
         assertThat(level4.predictedDuration().toSeconds()).isEqualTo(300);
     }
 
     @Test
     void levelBelowMinSamplesIsSkipped() {
-        stats(PARCEL, E1, "default", 50, 4);               // 4 < 5 наблюдений
+        stats(PARCEL, E1, "default", 50, 4);               // 4 < 5 samples
         stats(PARCEL, null, "default", 400, 5);
         var r = score(qr(PARCEL, "a"), E1);
         assertThat(r.basis()).isEqualTo("service_category");
@@ -82,7 +84,7 @@ class HeuristicScoringIT extends AbstractNodeIT {
     @Test
     void employeeLevelAveragesAcrossCategoriesWeightedBySamples() {
         stats(PARCEL, E1, "default", 100, 5);
-        stats(PARCEL, E1, "svo", 400, 5);                  // средневзвешенное: (100·5 + 400·5) / 10 = 250
+        stats(PARCEL, E1, "svo", 400, 5);                  // weighted: (100·5 + 400·5) / 10 = 250
         var r = score(qr(PARCEL, "a", "pensioner"), E1);
         assertThat(r.basis()).isEqualTo("employee_service");
         assertThat(r.predictedDuration().toSeconds()).isEqualTo(250);
@@ -95,9 +97,9 @@ class HeuristicScoringIT extends AbstractNodeIT {
         for (int i = 0; i < 5; i++) {
             var id = qr(PARCEL, "learn-" + i);
             callNext.execute(W1, null);
-            // Статистика копит целые секунды: «обслуживали» 2 минуты.
+            // Stats keep whole seconds: "served" for 2 minutes.
             jdbc.update("UPDATE tickets SET called_at = now() - interval '2 minutes' WHERE id=?", id);
-            tickets.complete(id, null, honey.road.contracts.event.Actor.operator(E1.toString()));
+            tickets.complete(id, null, Actor.operator(E1.toString()));
         }
         var r = score(qr(PARCEL, "after"), E1);
         assertThat(r.basis()).isEqualTo("employee_service_category");
@@ -105,15 +107,15 @@ class HeuristicScoringIT extends AbstractNodeIT {
         assertThat(r.predictedDuration().toSeconds()).isBetween(119L, 125L);
     }
 
-    // ------------------------------------------------------------------ выбор
+    // ------------------------------------------------------------------ selection
 
     private UUID[] twoHeadsInsideSlack() {
         openWindow(W1, E1, PARCEL, SEND);
-        stats(PARCEL, null, "default", 600, 10);           // посылки — долго
-        stats(SEND, null, "default", 120, 10);             // отправка — быстро
+        stats(PARCEL, null, "default", 600, 10);           // parcels: long
+        stats(SEND, null, "default", 120, 10);             // send: short
         var parcel = qr(PARCEL, "p");
         var send = qr(SEND, "s");
-        // Обе головы допущены и в пределах slack (5 мин), посылка по дедлайну раньше.
+        // Both heads eligible and within slack (5 min); the parcel's deadline is earlier.
         jdbc.update("UPDATE tickets SET due_at = now() + interval '2 minutes' WHERE id=?", parcel);
         jdbc.update("UPDATE tickets SET due_at = now() + interval '4 minutes' WHERE id=?", send);
         return new UUID[]{parcel, send};
@@ -127,7 +129,7 @@ class HeuristicScoringIT extends AbstractNodeIT {
     @Test
     void uniformPicksByDeadlineAndHeuristicPicksTheShorterServiceInsideSlack() {
         var t = twoHeadsInsideSlack();
-        assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(t[0]);         // uniform: EDF — посылка
+        assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(t[0]);         // uniform: EDF picks the parcel
         assertThat(eventField(t[0], "scoring_strategy")).isEqualTo("uniform");
     }
 
@@ -138,7 +140,7 @@ class HeuristicScoringIT extends AbstractNodeIT {
 
         var called = callNext.execute(W1, null);
 
-        assertThat(called.ticketId()).isEqualTo(t[1]);                              // короткая «Отправка»
+        assertThat(called.ticketId()).isEqualTo(t[1]);                              // short send
         assertThat(eventField(t[1], "reason")).isEqualTo("score_in_slack");
         assertThat(eventField(t[1], "scoring_strategy")).isEqualTo("heuristic");
         assertThat(eventField(t[1], "model_version")).isEqualTo("handling_stats-v1");
@@ -151,7 +153,7 @@ class HeuristicScoringIT extends AbstractNodeIT {
     void overdueTicketBeatsAShorterOneEvenUnderHeuristic() {
         useHeuristic();
         var t = twoHeadsInsideSlack();
-        jdbc.update("UPDATE tickets SET due_at = now() - interval '1 minute' WHERE id=?", t[0]);   // посылка просрочена
+        jdbc.update("UPDATE tickets SET due_at = now() - interval '1 minute' WHERE id=?", t[0]);   // parcel overdue
 
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(t[0]);
         assertThat(eventField(t[0], "reason")).isEqualTo("overdue_edf");
@@ -166,7 +168,7 @@ class HeuristicScoringIT extends AbstractNodeIT {
         var parcel = qr(PARCEL, "p");
         var send = qr(SEND, "s");
         jdbc.update("UPDATE tickets SET due_at = now() + interval '2 minutes' WHERE id=?", parcel);
-        jdbc.update("UPDATE tickets SET due_at = now() + interval '30 minutes' WHERE id=?", send);   // далеко за slack
+        jdbc.update("UPDATE tickets SET due_at = now() + interval '30 minutes' WHERE id=?", send);   // far beyond slack
 
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(parcel);
         assertThat(eventField(parcel, "reason")).isEqualTo("edf");

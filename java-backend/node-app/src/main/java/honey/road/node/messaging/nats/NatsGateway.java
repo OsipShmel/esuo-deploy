@@ -19,14 +19,14 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.time.Duration;
 
 /**
- * Подключение ноды к локальному NATS leaf.
+ * Node connection to the local NATS leaf.
  * <ul>
- *   <li>Старт ноды не ждёт NATS: подключение асинхронное, с бесконечными попытками. Очередь отделения
- *       работает без брокера (раздел 12), события копятся в outbox.</li>
- *   <li>После каждого (пере)подключения вызываются {@link #onConnected} слушатели — там идемпотентно
- *       создаются стримы и подписки. Так восстановление после рестарта NATS не требует ручных действий.</li>
+ *   <li>Startup does not wait for NATS: async connect with infinite retries; the queue works without the broker
+ *       (sect 12), events pile up in the outbox.</li>
+ *   <li>{@link #onConnected} listeners run after every (re)connect and create streams and subscriptions idempotently.</li>
  * </ul>
  */
 @Component
@@ -46,7 +46,7 @@ public class NatsGateway implements SmartLifecycle {
         this.node = node;
     }
 
-    /** Регистрирует действие, выполняемое при каждом установлении связи (и сразу, если связь уже есть). */
+    /** Runs the action on every connect (and right away if already connected). */
     public void onConnected(Consumer<Connection> action) {
         onConnected.add(action);
         var current = connection.get();
@@ -100,7 +100,7 @@ public class NatsGateway implements SmartLifecycle {
                 .build();
         try {
             setState("CONNECTING");
-            // true = повторять первичное подключение, пока сервер не появится.
+            // true = keep retrying the initial connect until the server shows up.
             Nats.connectAsynchronously(options, true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -113,7 +113,7 @@ public class NatsGateway implements SmartLifecycle {
         var c = connection.getAndSet(null);
         if (c != null) {
             try {
-                c.drain(java.time.Duration.ofSeconds(5));
+                c.drain(Duration.ofSeconds(5));
             } catch (Exception e) {
                 log.debug("nats drain failed", e);
                 try { c.close(); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
@@ -124,7 +124,7 @@ public class NatsGateway implements SmartLifecycle {
     @Override
     public boolean isRunning() { return running; }
 
-    /** Позже остальных компонентов при старте, раньше при остановке. */
+    /** Starts after and stops before the other components. */
     @Override
     public int getPhase() { return Integer.MAX_VALUE - 100; }
 

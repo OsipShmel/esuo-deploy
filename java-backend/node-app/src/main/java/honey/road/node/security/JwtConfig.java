@@ -21,7 +21,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 
-/** HS256-key; Issuance and validation of JWTs without an external IdP (решение D11, возможен пересмотр). */
+/** HS256 key; JWT issuance and validation without an external IdP (D11, возможен пересмотр). */
 @Configuration(proxyBeanMethods = false)
 class JwtConfig {
 
@@ -46,19 +46,19 @@ class JwtConfig {
         var decoder = NimbusJwtDecoder.withSecretKey(jwtSigningKey).macAlgorithm(MacAlgorithm.HS256).build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(props.jwtIssuer()),     // exp/nbf + iss
-                new JwtClaimValidator<String>(honey.road.node.security.JwtClaims.BRANCH_ID, props.branchId()::equals)));
+                new JwtClaimValidator<String>(JwtClaims.BRANCH_ID, props.branchId()::equals)));
         return decoder;
     }
 
-    /** role → ROLE_x; name principal'а = login (отправляем в логи секуры, вместо UUID). */
+    /** role → ROLE_x; principal name = login (used in security logs instead of the UUID). */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         var converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            var role = honey.road.node.security.Role.valueOf(Objects.requireNonNull(jwt.getClaimAsString(honey.road.node.security.JwtClaims.ROLE)));
+            var role = Role.valueOf(Objects.requireNonNull(jwt.getClaimAsString(JwtClaims.ROLE)));
             return List.of(new SimpleGrantedAuthority(role.authority()));
         });
-        converter.setPrincipalClaimName(honey.road.node.security.JwtClaims.LOGIN);
+        converter.setPrincipalClaimName(JwtClaims.LOGIN);
         return converter;
     }
 }

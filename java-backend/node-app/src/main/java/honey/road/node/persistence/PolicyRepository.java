@@ -8,9 +8,8 @@ import org.springframework.stereotype.Repository;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Действующие правила очереди = центральная версия + локальные переопределения руководителя (раздел 4.8).
- * {@code config_version} действующей политики — {@code effective_version}: она растёт при любом изменении
- * и фиксируется в каждом новом талоне.
+ * Effective queue rules = central version + local admin overrides (sect 4.8). Its {@code config_version} is
+ * {@code effective_version}: grows on any change and is stamped into every new ticket.
  */
 @Repository
 public class PolicyRepository {
@@ -29,7 +28,7 @@ public class PolicyRepository {
                 """, (rs, n) -> compose(json.readTree(rs.getString("c")), json.readTree(rs.getString("o")), rs.getInt("v")));
     }
 
-    /** Версии конфигурации отделения: центральная (та, что опубликовал центр) и действующая (с локальными изменениями). */
+    /** Branch config versions: central (published by the center) and effective (with local overrides). */
     public record Versions(int central, int effective) {
     }
 
@@ -38,7 +37,7 @@ public class PolicyRepository {
                 (rs, n) -> new Versions(rs.getInt("central_version"), rs.getInt("effective_version")));
     }
 
-    /** Собирает политику из центральной конфигурации и переопределений; невалидная комбинация — исключение. */
+    /** Builds the policy from central config and overrides; throws on an invalid combination. */
     public QueuePolicy compose(JsonNode central, JsonNode overrides, int effectiveVersion) {
         var merged = ConfigRules.merge(central, overrides);
         merged.put("config_version", effectiveVersion);

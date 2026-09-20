@@ -29,7 +29,7 @@ public record NodeProperties(
     }
 
     public record Security(
-            @NotBlank String jwtSecret,        // base64, >= 256 бит;
+            @NotBlank String jwtSecret,        // base64, >= 256 bits
             Duration jwtTtl,
             List<String> corsOrigins
     ) {

@@ -15,23 +15,23 @@ class LoginService {
 
     private static final Logger log = LoggerFactory.getLogger(LoginService.class);
 
-    private final honey.road.node.security.auth.UserCredentialsRepository users;
+    private final UserCredentialsRepository users;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokens;
-    /** Сверяем пароль даже для несуществующего логина — время ответа не выдаёт, есть ли пользователь. */
+    /** Password is checked even for an unknown login so response time does not reveal whether the user exists. */
     private final String dummyHash;
 
-    LoginService(honey.road.node.security.auth.UserCredentialsRepository users, PasswordEncoder passwordEncoder, TokenService tokens) {
+    LoginService(UserCredentialsRepository users, PasswordEncoder passwordEncoder, TokenService tokens) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.tokens = tokens;
         this.dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
-    honey.road.node.security.auth.LoginResponse login(honey.road.node.security.auth.LoginRequest request) {
+    LoginResponse login(LoginRequest request) {
         var user = users.findActiveByLogin(request.login());
         var matches = passwordEncoder.matches(request.password(),
-                user.map(honey.road.node.security.auth.UserCredentials::passwordHash).orElse(dummyHash));
+                user.map(UserCredentials::passwordHash).orElse(dummyHash));
 
         if (user.isEmpty() || !matches) {
             log.info("login failed login={}", request.login());
@@ -41,6 +41,6 @@ class LoginService {
         var u = user.get();
         var token = tokens.issue(u);
         log.info("login ok login={} role={}", u.login(), u.role());
-        return new honey.road.node.security.auth.LoginResponse(token.value(), "Bearer", token.expiresAt(), u.role(), u.employeeId());
+        return new LoginResponse(token.value(), "Bearer", token.expiresAt(), u.role(), u.employeeId());
     }
 }

@@ -10,7 +10,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Проверка ТЗ №6: перенаправление на другую услугу (S3) и в конкретное окно (S4). */
+/** Check #6: redirect to another service (S3) and to a specific window (S4). */
 class RedirectIT extends AbstractNodeIT {
     private final Actor operator = Actor.operator(E1.toString());
 

@@ -19,7 +19,7 @@ public class IdempotencyRepository {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public Optional<TicketView> reserve(String scope, String key, String hash, Instant now) {
-        // Конкурентный INSERT ждёт завершения первой транзакции с тем же ключом.
+        // A concurrent INSERT waits for the first transaction with the same key.
         jdbc.update("""
                 INSERT INTO idempotency_keys(scope,key,request_hash,created_at)
                 VALUES (?,?,?,?) ON CONFLICT (scope,key) DO NOTHING

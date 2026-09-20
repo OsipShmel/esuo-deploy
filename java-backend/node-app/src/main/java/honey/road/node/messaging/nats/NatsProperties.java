@@ -5,8 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * Связь ноды с локальным NATS leaf ({@code esuo.nats}). Адрес hub-а ноде не нужен: с центром
- * связан leaf-сервер, нода общается только со своим leaf.
+ * Node link to the local NATS leaf ({@code esuo.nats}). Only the leaf knows the hub address.
  */
 @ConfigurationProperties("esuo.nats")
 public record NatsProperties(
@@ -29,10 +28,10 @@ public record NatsProperties(
     }
 
     /**
-     * @param pollInterval пауза между проходами воркера
-     * @param batchSize    строк за проход
-     * @param maxBackoff   потолок экспоненциальной задержки после ошибки публикации
-     * @param sentRetention сколько хранить отправленные строки
+     * @param pollInterval  pause between worker passes
+     * @param batchSize     rows per pass
+     * @param maxBackoff    cap of the exponential delay after a publish error
+     * @param sentRetention how long sent rows are kept
      */
     public record Outbox(Duration pollInterval, int batchSize, Duration maxBackoff, Duration sentRetention) {
         public Outbox {

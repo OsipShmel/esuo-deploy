@@ -5,8 +5,8 @@ import honey.road.contracts.event.EventEnvelope;
 import java.util.UUID;
 
 /**
- * Spring-событие «в транзакции записано доменное событие». Слушатели подписываются через
- * {@code @TransactionalEventListener(phase = AFTER_COMMIT)} и получают его только после коммита.
+ * Spring event "a domain event was written in the transaction"; delivered to
+ * {@code @TransactionalEventListener(phase = AFTER_COMMIT)} listeners.
  */
 public record DomainEventCommitted(EventEnvelope envelope, UUID publicToken) {
 }

@@ -11,9 +11,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Проверка ТЗ №8, часть отделения: при недоступности уведомлений очередь работает (раздел 12, S11).
- * В тестовой среде NATS недоступен, поэтому outbox-воркер ничего не публикует — ровно то состояние, в котором
- * отделение оказывается при обрыве связи. Доставку, ретраи, circuit breaker и DLQ проверяет центр (notify worker).
+ * Check #8, branch side: the queue works while notifications are unavailable (sect 12, S11).
+ * There is no NATS in tests, so the outbox worker publishes nothing, exactly the state of a branch that lost the link.
+ * Delivery, retries, circuit breaker and DLQ are checked on the center (notify worker).
  */
 class NotificationOutageIT extends AbstractNodeIT {
     private final Actor operator = Actor.operator(E1.toString());
@@ -29,9 +29,9 @@ class NotificationOutageIT extends AbstractNodeIT {
         openWindow(W1, E1, PARCEL);
         var ids = new ArrayList<UUID>();
         for (int i = 0; i < 6; i++) ids.add(qr(PARCEL, "c" + i));
-        assertThat(notifier.scan()).isEqualTo(4);                                       // запросы уведомлений созданы
+        assertThat(notifier.scan()).isEqualTo(4);                                       // notification requests created
 
-        // Полный цикл обслуживания идёт как обычно, никаких ошибок из-за недоступной доставки.
+        // The full service cycle runs as usual, no errors from the unavailable delivery.
         for (var id : ids) {
             assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(id);
             tickets.start(id, null, operator);
@@ -39,7 +39,7 @@ class NotificationOutageIT extends AbstractNodeIT {
         }
         assertThat(count("SELECT count(*) FROM tickets WHERE status='done'")).isEqualTo(6);
 
-        // События не потеряны и ждут восстановления связи: ни одно не помечено отправленным и не «сгорело» повторами.
+        // Events are not lost and wait for the link: none marked sent or burned by retries.
         assertThat(pending("notification.requested")).isEqualTo(4);
         assertThat(count("SELECT count(*) FROM outbox WHERE status <> 'pending'")).isZero();
         assertThat(count("SELECT count(*) FROM outbox WHERE attempts <> 0")).isZero();
@@ -51,7 +51,7 @@ class NotificationOutageIT extends AbstractNodeIT {
         for (int i = 0; i < 3; i++) qr(PARCEL, "d" + i);
 
         notifier.scan();
-        notifier.scan();                                                                // повторный проход — никаких дублей
+        notifier.scan();                                                                // a repeated pass adds no duplicates
         notifier.scan();
 
         assertThat(pending("notification.requested")).isEqualTo(3);

@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Instant;
 
-/** {@code inbox_processed}: дедупликация входящих сообщений центра (раздел 10.5). */
+/** {@code inbox_processed}: dedup of center messages (sect 10.5). */
 @Repository
 public class InboxRepository {
     private final JdbcTemplate jdbc;
@@ -18,9 +18,8 @@ public class InboxRepository {
     }
 
     /**
-     * Отмечает сообщение обработанным. {@code false} — уже обрабатывалось. Вызывается в той же транзакции,
-     * что и применение: откат применения откатывает и отметку, и сообщение будет доставлено снова.
-     * Параллельная вставка того же ключа ждёт коммита первой (PRIMARY KEY).
+     * Marks the message processed; {@code false} if it already was. Called in the apply transaction, so a rollback
+     * removes the mark and the message is redelivered.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean markProcessed(String messageId, String stream, Instant now) {

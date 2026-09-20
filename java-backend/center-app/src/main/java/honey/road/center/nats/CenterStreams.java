@@ -44,7 +44,7 @@ public class CenterStreams {
         try {
             var jsm = c.jetStreamManagement();
             createIfAbsent(jsm, Subjects.STREAM_CENTER_EVT, b -> b
-                    .subjects("center.evt.local")               // заглушка вместо subject по умолчанию; branch.> не трогаем
+                    .subjects("center.evt.local")               // placeholder instead of the default subject; branch.> stays untouched
                     .storageType(StorageType.File)
                     .maxAge(Duration.ofDays(30))
                     .duplicateWindow(Duration.ofHours(1)));

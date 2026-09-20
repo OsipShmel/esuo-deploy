@@ -7,9 +7,7 @@ import honey.road.node.security.Role;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Чтение таблицы users (раздел 8.1).
- * При текущем плане пишет в неё потребитель CONFIG/сид
- * */
+/** Reads the users table (sect 8.1); written by the CONFIG consumer and the demo seeder. */
 @Repository
 class UserCredentialsRepository {
 
@@ -19,14 +17,14 @@ class UserCredentialsRepository {
         this.jdbc = jdbc;
     }
 
-    Optional<honey.road.node.security.auth.UserCredentials> findActiveByLogin(String login) {
+    Optional<UserCredentials> findActiveByLogin(String login) {
         return jdbc.sql("""
                         SELECT id, login, password_hash, role, employee_id
                           FROM users
                          WHERE login = :login AND active
                         """)
                 .param("login", login)
-                .query((rs, _) -> new honey.road.node.security.auth.UserCredentials(
+                .query((rs, _) -> new UserCredentials(
                         rs.getObject("id", UUID.class),
                         rs.getString("login"),
                         rs.getString("password_hash"),

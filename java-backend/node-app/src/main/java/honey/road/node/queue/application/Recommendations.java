@@ -21,14 +21,13 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Рекомендация открыть окно (раздел 6.8) [MVP-демо]. Услуга попадает в рекомендацию, если выполнено хотя бы одно:
+ * Window-opening recommendation (sect 6.8) [MVP-demo]. A service is included if any holds:
  * <ul>
- *   <li>{@code eta_overrun}: ETA хотя бы одного её талона позже дедлайна больше чем на {@code recommend-overdue-min};</li>
- *   <li>{@code overdue_count}: просроченных талонов услуги больше {@code recommend-overdue-count};</li>
- *   <li>{@code no_open_window}: есть ожидающие, а открытого окна с этой услугой нет (S2).</li>
+ *   <li>{@code eta_overrun}: some ticket's ETA exceeds its deadline by more than {@code recommend-overdue-min};</li>
+ *   <li>{@code overdue_count}: more than {@code recommend-overdue-count} overdue tickets;</li>
+ *   <li>{@code no_open_window}: waiting tickets but no open window for the service (S2).</li>
  * </ul>
- * В ответе — услуги, где растёт очередь, причины и закрытые окна, которые могли бы её обслужить.
- * Решение об открытии принимает руководитель; система окно сама не открывает.
+ * Returns the services, reasons and closed windows that could serve them. The admin decides; nothing opens automatically.
  */
 @Service
 public class Recommendations {

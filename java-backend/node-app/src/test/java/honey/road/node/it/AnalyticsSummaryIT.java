@@ -18,8 +18,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import org.assertj.core.groups.Tuple;
 
-/** Проверка ТЗ №10: аналитика руководителя (summary, windows, deviations, unfinished). */
+/** Check #10: admin analytics (summary, windows, deviations, unfinished). */
 class AnalyticsSummaryIT extends AbstractNodeIT {
     private static final ZoneId ZONE = ZoneId.of("Europe/Moscow");
     private final Actor operator = Actor.operator(E1.toString());
@@ -46,7 +49,7 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
 
     // ------------------------------------------------------------------ summary
 
-    /** A, B — QR на посылки (обслужены), C — отменён, D — живая очередь на отправку (ждёт), E — запись на переводы. */
+    /** A, B: QR parcels (served); C: cancelled; D: walk-in send (waiting); E: finance booking. */
     private void scenario() {
         openWindow(W1, E1, PARCEL, SEND);
         var a = qr(PARCEL, "a");
@@ -72,33 +75,33 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
         assertThat(s.totals().served()).isEqualTo(2);
         assertThat(s.totals().cancelled()).isEqualTo(1);
         assertThat(s.totals().noShow()).isZero();
-        assertThat(s.totals().active()).isEqualTo(2);                        // D ждёт, E записан
+        assertThat(s.totals().active()).isEqualTo(2);                        // D waits, E booked
         assertThat(s.totals().avgWaitSec()).isNotNull().isGreaterThanOrEqualTo(0);
         assertThat(s.totals().maxWaitSec()).isGreaterThanOrEqualTo(s.totals().avgWaitSec());
 
         assertThat(s.bySource()).extracting(AnalyticsQueries.SourceStat::source, AnalyticsQueries.SourceStat::issued,
                         AnalyticsQueries.SourceStat::served)
                 .containsExactlyInAnyOrder(
-                        org.assertj.core.groups.Tuple.tuple("qr", 3, 2),
-                        org.assertj.core.groups.Tuple.tuple("walkin", 1, 0),
-                        org.assertj.core.groups.Tuple.tuple("appointment", 1, 0));
+                        Tuple.tuple("qr", 3, 2),
+                        Tuple.tuple("walkin", 1, 0),
+                        Tuple.tuple("appointment", 1, 0));
         assertThat(s.byService()).extracting(AnalyticsQueries.ServiceStat::serviceId, AnalyticsQueries.ServiceStat::issued,
                         AnalyticsQueries.ServiceStat::served)
                 .containsExactlyInAnyOrder(
-                        org.assertj.core.groups.Tuple.tuple(PARCEL, 3, 2),
-                        org.assertj.core.groups.Tuple.tuple(SEND, 1, 0),
-                        org.assertj.core.groups.Tuple.tuple(FINANCE, 1, 0));
+                        Tuple.tuple(PARCEL, 3, 2),
+                        Tuple.tuple(SEND, 1, 0),
+                        Tuple.tuple(FINANCE, 1, 0));
     }
 
     @Test
     void waitIsMeasuredToTheFirstCallNotToTheLastRecall() {
         openWindow(W1, E1, PARCEL);
         var view = qrView(PARCEL, "slow");
-        // Клиент ждал 10 минут: сдвигаем выдачу в прошлое, затем вызываем.
+        // Client waited 10 minutes: shift issue time back, then call.
         jdbc.update("UPDATE tickets SET issued_at = now() - interval '10 minutes', eligible_from = now() - interval '10 minutes' WHERE id=?",
                 view.ticketId());
         callNext.execute(W1, null);
-        // Повторный вызов обновляет called_at, но ожидание считается по первому ticket.called.
+        // A recall updates called_at, but the wait counts to the first ticket.called.
         tickets.recall(view.ticketId(), null, operator);
         tickets.complete(view.ticketId(), null, operator);
 
@@ -111,7 +114,7 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
     void periodAcceptsDatesAndInstantsAndRejectsGarbage() {
         var p = analytics.period("2026-09-01", "2026-09-01");
         assertThat(p.from()).isEqualTo(LocalDate.parse("2026-09-01").atStartOfDay(ZONE).toInstant());
-        assertThat(p.to()).isEqualTo(LocalDate.parse("2026-09-02").atStartOfDay(ZONE).toInstant());   // дата в to — весь день
+        assertThat(p.to()).isEqualTo(LocalDate.parse("2026-09-02").atStartOfDay(ZONE).toInstant());   // a date in `to` means the whole day
         assertThat(analytics.period("2026-09-01T00:00:00Z", "2026-09-01T12:00:00Z").to()).isEqualTo(Instant.parse("2026-09-01T12:00:00Z"));
 
         assertThatThrownBy(() -> analytics.period("yesterday", null)).isInstanceOf(DomainException.class);
@@ -132,28 +135,28 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
 
     @Test
     void windowOpenTimeComesFromTheWindowJournalAndIsClippedToThePeriod() {
-        // W2 работало с -3 ч до -1 ч; W3 открыто с -30 мин и всё ещё открыто.
+        // W2 worked from -3 h to -1 h; W3 open since -30 min and still open.
         jdbc.update("INSERT INTO window_events(id, window_id, event_type, actor_id, payload, occurred_at) VALUES (?,?,?,?,CAST(? AS jsonb), now() - interval '3 hours')",
-                java.util.UUID.randomUUID(), W2, "window.opened", null, "{\"reopened\": false}");
+                UUID.randomUUID(), W2, "window.opened", null, "{\"reopened\": false}");
         jdbc.update("INSERT INTO window_events(id, window_id, event_type, actor_id, payload, occurred_at) VALUES (?,?,?,?,CAST(? AS jsonb), now() - interval '1 hour')",
-                java.util.UUID.randomUUID(), W2, "window.closed", null, "{}");
+                UUID.randomUUID(), W2, "window.closed", null, "{}");
         jdbc.update("INSERT INTO window_events(id, window_id, event_type, actor_id, payload, occurred_at) VALUES (?,?,?,?,CAST(? AS jsonb), now() - interval '30 minutes')",
-                java.util.UUID.randomUUID(), W3, "window.opened", null, "{\"reopened\": false}");
+                UUID.randomUUID(), W3, "window.opened", null, "{\"reopened\": false}");
         jdbc.update("UPDATE windows SET status='open', opened_at = now() - interval '30 minutes' WHERE id=?", W3);
 
         var now = Instant.now();
         var stats = analytics.windows(new AnalyticsQueries.Period(now.minusSeconds(6 * 3600), now)).stream()
-                .collect(java.util.stream.Collectors.toMap(AnalyticsQueries.WindowStat::windowId, w -> w));
+                .collect(Collectors.toMap(AnalyticsQueries.WindowStat::windowId, w -> w));
 
-        assertThat(stats.get(W2).openSec()).isBetween(7195L, 7210L);          // 2 часа
-        assertThat(stats.get(W3).openSec()).isBetween(1795L, 1815L);          // 30 минут, окно ещё открыто
-        assertThat(stats.get(W2).idleSec()).isEqualTo(stats.get(W2).openSec());   // никого не обслужило
+        assertThat(stats.get(W2).openSec()).isBetween(7195L, 7210L);          // 2 hours
+        assertThat(stats.get(W3).openSec()).isBetween(1795L, 1815L);          // 30 minutes, window still open
+        assertThat(stats.get(W2).idleSec()).isEqualTo(stats.get(W2).openSec());   // served nobody
         assertThat(stats.get(W2).utilization()).isZero();
 
-        // Период короче работы окна: считается только пересечение.
+        // Period shorter than the window's work: only the intersection counts.
         var narrow = analytics.windows(new AnalyticsQueries.Period(now.minusSeconds(2 * 3600), now.minusSeconds(3600 + 1800))).stream()
                 .filter(w -> w.windowId().equals(W2)).findFirst().orElseThrow();
-        assertThat(narrow.openSec()).isBetween(1795L, 1805L);                  // с -2 ч до -1,5 ч
+        assertThat(narrow.openSec()).isBetween(1795L, 1805L);                  // from -2 h to -1.5 h
     }
 
     @Test
@@ -186,7 +189,7 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
         tickets.noShow(absent, null, operator);
         callNext.execute(W1, null);
         tickets.start(slow, null, operator);
-        jdbc.update("UPDATE tickets SET serving_started_at = now() - interval '40 minutes' WHERE id=?", slow);   // порог 20 мин
+        jdbc.update("UPDATE tickets SET serving_started_at = now() - interval '40 minutes' WHERE id=?", slow);   // threshold 20 min
         tickets.complete(slow, null, operator);
 
         var d = analytics.deviations(today());
@@ -195,12 +198,12 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
         assertThat(((Number) items(d, "long_service").getFirst().get("duration_sec")).longValue()).isBetween(2395L, 2410L);
     }
 
-    /** 16.3: окно, чьё среднее обслуживание в 1.5 раза и более выше нормы по тем же услугам, попадает в отклонения. */
+    /** Sect 16.3: a window whose average service is ≥ 1.5× the norm for the same services is a deviation. */
     @Test
     void slowWindowIsReportedAgainstBranchNorm() {
         openWindow(W1, E1, PARCEL);
         openWindow(W2, E2, PARCEL);
-        for (int i = 0; i < 5; i++) {                                  // порог выборки — 5 обслуживаний на окно
+        for (int i = 0; i < 5; i++) {                                  // sample threshold: 5 services per window
             serve(W1, "fast" + i, 60);
             serve(W2, "slow" + i, 240);
         }
@@ -231,8 +234,8 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
         assertThat(deviations(analytics.deviations(today()), "slow_window")).isZero();
     }
 
-    /** Обслужить один талон в окне; длительность задаётся сдвигом {@code serving_started_at} назад. */
-    private void serve(java.util.UUID window, String device, int seconds) {
+    /** Serves one ticket in the window; duration is set by shifting {@code serving_started_at} back. */
+    private void serve(UUID window, String device, int seconds) {
         var id = qr(PARCEL, device);
         callNext.execute(window, null);
         tickets.start(id, null, operator);
@@ -242,7 +245,7 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
 
     @Test
     void openWindowWithoutActivityIsIdleButBusyOrFreshOneIsNot() {
-        // W3 «открыто» час назад без единого события и клиентов (S14); W1 только что открыто.
+        // W3 "opened" an hour ago with no events and no clients (S14); W1 just opened.
         jdbc.update("UPDATE windows SET status='open', opened_at = now() - interval '1 hour', current_employee_id=? WHERE id=?", E2, W3);
         openWindow(W1, E1, PARCEL);
 
@@ -254,10 +257,10 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
 
     @Test
     void serviceWithWaitingClientsButNoOpenWindowIsReported() {
-        openWindow(W1, E1, PARCEL);                                         // окна для «Отправки» нет
+        openWindow(W1, E1, PARCEL);                                         // no window for send
         qr(SEND, "s1");
         qr(SEND, "s2");
-        qr(PARCEL, "p1");                                                   // а на посылки окно есть
+        qr(PARCEL, "p1");                                                   // parcels do have a window
 
         var d = analytics.deviations(today());
         var missing = items(d, "service_without_window");
@@ -265,7 +268,7 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
         assertThat(missing.getFirst().get("service_id")).isEqualTo(SEND);
         assertThat(((Number) missing.getFirst().get("waiting")).intValue()).isEqualTo(2);
 
-        openWindow(W3, E2, SEND);                                           // руководитель открыл окно — отклонение ушло
+        openWindow(W3, E2, SEND);                                           // the admin opened a window, deviation gone
         assertThat(deviations(analytics.deviations(today()), "service_without_window")).isZero();
     }
 

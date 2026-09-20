@@ -1,6 +1,6 @@
 package honey.road.node.security;
 
-/** Это роли только пользователей ноды из раздела 13.1. BRANCH_ADMIN включает права OPERATOR. */
+/** Node user roles (sect 13.1). BRANCH_ADMIN includes OPERATOR. */
 public enum Role {
     OPERATOR,
     BRANCH_ADMIN;

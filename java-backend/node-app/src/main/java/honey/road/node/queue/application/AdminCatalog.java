@@ -12,13 +12,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 /**
- * Справочники отделения для руководителя (раздел 9.3): услуги, окна, сотрудники. Удаление — мягкое:
- * запись остаётся ради истории талонов и уходит из выдачи. Нельзя убрать то, чем сейчас пользуются
- * (талоны в работе, открытое окно) — руководитель сначала завершает работу.
- * <p>Значения по умолчанию для новых услуг ({@code slot_duration_min}, {@code slot_capacity}) берутся из
- * действующей конфигурации очереди.
+ * Branch catalog (sect 9.3): services, windows, employees. Soft delete keeps history; anything in use
+ * (tickets in progress, an open window) cannot be removed.
+ * Defaults for new services ({@code slot_duration_min}, {@code slot_capacity}) come from the effective queue config.
  */
 @Service
 public class AdminCatalog {
@@ -45,7 +45,7 @@ public class AdminCatalog {
         this.jdbc = jdbc; this.node = node; this.policies = policies; this.ids = ids; this.clock = clock;
     }
 
-    // ------------------------------------------------------------------ услуги
+    // ------------------------------------------------------------------ services
 
     public List<ServiceView> services(boolean includeInactive) {
         return jdbc.sql("SELECT * FROM services WHERE branch_id=:b" + (includeInactive ? "" : " AND active") + " ORDER BY code")
@@ -97,7 +97,7 @@ public class AdminCatalog {
         return service(id);
     }
 
-    /** Мягкое удаление: услуга скрывается из выдачи; нельзя, пока по ней есть талоны в работе. */
+    /** Soft delete; not allowed while the service has tickets in progress. */
     @Transactional
     public ServiceView deleteService(UUID id) {
         var current = service(id);
@@ -136,12 +136,12 @@ public class AdminCatalog {
         if (capacity < 1 || capacity > 100) { throw DomainException.validation("slot_capacity: 1–100"); }
     }
 
-    private static ServiceView service(java.sql.ResultSet rs) throws java.sql.SQLException {
+    private static ServiceView service(ResultSet rs) throws SQLException {
         return new ServiceView(rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("name"),
                 rs.getString("number_prefix"), rs.getInt("slot_duration_min"), rs.getInt("slot_capacity"), rs.getBoolean("active"));
     }
 
-    // ------------------------------------------------------------------ окна
+    // ------------------------------------------------------------------ windows
 
     public List<WindowAdminView> windows(boolean includeInactive) {
         return jdbc.sql("SELECT id FROM windows WHERE branch_id=:b" + (includeInactive ? "" : " AND active") + " ORDER BY name")
@@ -180,7 +180,7 @@ public class AdminCatalog {
         return window(id);
     }
 
-    /** Перечень услуг окна ({@code PUT /admin/windows/{id}/services}); услуги должны быть активными услугами отделения. */
+    /** Window services ({@code PUT /admin/windows/{id}/services}); must be active branch services. */
     @Transactional
     public WindowAdminView replaceServices(UUID id, List<UUID> serviceIds) {
         requireActiveWindow(id);
@@ -200,12 +200,12 @@ public class AdminCatalog {
         return window(id);
     }
 
-    /** Мягкое удаление окна: только закрытого. */
+    /** Soft delete; closed windows only. */
     @Transactional
     public WindowAdminView deleteWindow(UUID id) {
         var w = window(id);
         if (!w.active()) { return w; }
-        // Блокировка строки окна — та же точка сериализации, что у команд окна.
+        // Window row lock: same serialization point as the window commands.
         jdbc.sql("SELECT id FROM windows WHERE id=:id FOR UPDATE").param("id", id).query(UUID.class).single();
         if (!"closed".equals(window(id).status())) {
             throw new DomainException("INVALID_STATE_TRANSITION", "Сначала закройте окно");
@@ -225,7 +225,7 @@ public class AdminCatalog {
         }
     }
 
-    // ------------------------------------------------------------------ сотрудники
+    // ------------------------------------------------------------------ employees
 
     public List<EmployeeView> employees(boolean includeInactive) {
         return jdbc.sql("SELECT * FROM employees WHERE branch_id=:b" + (includeInactive ? "" : " AND active") + " ORDER BY full_name")
@@ -281,7 +281,7 @@ public class AdminCatalog {
         }
     }
 
-    private static EmployeeView employee(java.sql.ResultSet rs) throws java.sql.SQLException {
+    private static EmployeeView employee(ResultSet rs) throws SQLException {
         return new EmployeeView(rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getBoolean("active"));
     }
 }

@@ -12,14 +12,14 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Справочники руководителя (9.3): услуги, окна, сотрудники; мягкое удаление; защита того, чем пользуются. */
+/** Admin catalog (sect 9.3): services, windows, employees; soft delete; protection of what is in use. */
 class AdminCatalogIT extends AbstractNodeIT {
     @Autowired AdminCatalog catalog;
 
     @AfterEach
     void cleanCreated() {
-        // Созданное тестами не должно попасть в другие классы (общая БД); демо-справочник не трогаем.
-        resetState();                                                        // сначала талоны и журналы: на услуги ссылаются внешние ключи
+        // Test-created data must not leak into other classes (shared DB); the demo catalog stays.
+        resetState();                                                        // tickets and journals first: services are referenced by FKs
         jdbc.update("DELETE FROM window_services WHERE service_id IN (SELECT id FROM services WHERE code LIKE 'ci-%')");
         jdbc.update("DELETE FROM window_services WHERE window_id IN (SELECT id FROM windows WHERE name LIKE 'CI %')");
         jdbc.update("DELETE FROM windows WHERE name LIKE 'CI %'");
@@ -34,17 +34,17 @@ class AdminCatalogIT extends AbstractNodeIT {
         return e.code();
     }
 
-    // ------------------------------------------------------------------ услуги
+    // ------------------------------------------------------------------ services
 
     @Test
     void serviceIsCreatedWithDefaultsFromConfigurationAndAppearsInTheBranchCatalog() {
         var s = catalog.createService("ci-passport", "CI Паспорта", "Ц", null, null);
 
         assertThat(s.active()).isTrue();
-        assertThat(s.slotDurationMin()).isEqualTo(15);                       // из queue-defaults
+        assertThat(s.slotDurationMin()).isEqualTo(15);                       // from queue-defaults
         assertThat(s.slotCapacity()).isEqualTo(1);
         assertThat(queries.branch().get("services").toString()).contains("CI Паспорта");
-        // Новая услуга сразу пригодна для выдачи талона.
+        // A new service can issue tickets right away.
         assertThat(qrView(s.id(), "phone").displayNumber()).startsWith("Ц-");
     }
 
@@ -83,11 +83,11 @@ class AdminCatalogIT extends AbstractNodeIT {
         assertThat(deleted.active()).isFalse();
         assertThat(catalog.services(false)).extracting(AdminCatalog.ServiceView::id).doesNotContain(s.id());
         assertThat(catalog.services(true)).extracting(AdminCatalog.ServiceView::id).contains(s.id());
-        assertThat(count("SELECT count(*) FROM services WHERE id=?", s.id())).isEqualTo(1);     // запись сохранена
-        assertThat(code(catchDomain(() -> qrView(s.id(), "again")))).isEqualTo("SERVICE_NOT_FOUND");   // выдача закрыта
+        assertThat(count("SELECT count(*) FROM services WHERE id=?", s.id())).isEqualTo(1);     // record kept
+        assertThat(code(catchDomain(() -> qrView(s.id(), "again")))).isEqualTo("SERVICE_NOT_FOUND");   // issuing closed
     }
 
-    // ------------------------------------------------------------------ окна
+    // ------------------------------------------------------------------ windows
 
     @Test
     void windowIsCreatedClosedWithServicesAndServiceListCanBeReplaced() {
@@ -96,7 +96,7 @@ class AdminCatalogIT extends AbstractNodeIT {
         assertThat(w.serviceIds()).containsExactly(PARCEL);
 
         var replaced = catalog.replaceServices(w.id(), List.of(SEND, FINANCE, SEND));
-        assertThat(replaced.serviceIds()).containsExactlyInAnyOrder(SEND, FINANCE);        // дубли схлопнуты
+        assertThat(replaced.serviceIds()).containsExactlyInAnyOrder(SEND, FINANCE);        // duplicates collapsed
 
         assertThat(code(catchDomain(() -> catalog.replaceServices(w.id(), List.of())))).isEqualTo("VALIDATION_ERROR");
         assertThat(code(catchDomain(() -> catalog.replaceServices(w.id(), List.of(UUID.randomUUID()))))).isEqualTo("SERVICE_NOT_FOUND");
@@ -121,13 +121,13 @@ class AdminCatalogIT extends AbstractNodeIT {
         assertThat(deleted.active()).isFalse();
         assertThat(catalog.windows(false)).extracting(AdminCatalog.WindowAdminView::id).doesNotContain(w.id());
         assertThat(catalog.windows(true)).extracting(AdminCatalog.WindowAdminView::id).contains(w.id());
-        // Удалённое окно нельзя открыть, а в АРМ и аналитике его нет.
+        // A deleted window cannot be opened and is gone from operator and analytics.
         assertThat(code(catchDomain(() -> windows.open(w.id(), List.of(PARCEL), E1)))).isEqualTo("WINDOW_NOT_FOUND");
         assertThat(code(catchDomain(() -> catalog.renameWindow(w.id(), "CI Новое")))).isEqualTo("WINDOW_NOT_FOUND");
-        assertThat(catalog.deleteWindow(w.id()).active()).isFalse();                        // повтор идемпотентен
+        assertThat(catalog.deleteWindow(w.id()).active()).isFalse();                        // repeat is idempotent
     }
 
-    // ------------------------------------------------------------------ сотрудники
+    // ------------------------------------------------------------------ employees
 
     @Test
     void employeeLifecycleAndProtectionOfOpenWindows() {

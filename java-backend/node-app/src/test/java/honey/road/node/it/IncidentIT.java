@@ -11,7 +11,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Инциденты оператора (раздел 9.3): создание, событие в outbox, закрытие руководителем. */
+/** Operator incidents (sect 9.3): creation, outbox event, closing by the admin. */
 class IncidentIT extends AbstractNodeIT {
     private final Actor operator = Actor.operator(E1.toString());
 
@@ -44,7 +44,7 @@ class IncidentIT extends AbstractNodeIT {
                 .isInstanceOf(DomainException.class).extracting(e -> ((DomainException) e).code()).isEqualTo("WINDOW_NOT_FOUND");
         assertThatThrownBy(() -> incidents.create("technical", "x", null, UUID.randomUUID(), E1, operator))
                 .isInstanceOf(DomainException.class).extracting(e -> ((DomainException) e).code()).isEqualTo("TICKET_NOT_FOUND");
-        assertThat(count("SELECT count(*) FROM incidents")).isZero();                 // ничего не записано
+        assertThat(count("SELECT count(*) FROM incidents")).isZero();                 // nothing written
     }
 
     @Test

@@ -27,18 +27,21 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.TreeMap;
 
 /**
- * Аналитика отделения (разделы 9.3 и 6.8) по локальной БД: работает при полной потере связи с центром.
- * <p>Определения (фиксируем, чтобы цифры на экране можно было объяснить):
+ * Branch analytics (sect 9.3, 6.8) from the local DB; works with the center offline.
+ * <p>Definitions:
  * <ul>
- *   <li><b>Период</b> — по времени выдачи талона {@code issued_at} ∈ [from, to); для окон — пересечение с периодом.</li>
- *   <li><b>Обслужен</b> — статус {@code done}.</li>
- *   <li><b>Ожидание</b> — от {@code checked_in_at} (для записи) или {@code issued_at} до <i>первого</i> события
- *       {@code ticket.called} из журнала; повторные вызовы и возвраты в очередь его не сбрасывают.</li>
- *   <li><b>Длительность обслуживания</b> — {@code completed_at − (serving_started_at | called_at)} у обслуженных.</li>
- *   <li><b>Окно открыто</b> — интервалы между {@code window.opened} (не повторным) и {@code window.closed}
- *       из журнала окна; простой = открыто − обслуживает.</li>
+ *   <li><b>Period</b>: by {@code issued_at} ∈ [from, to); windows are intersected with the period.</li>
+ *   <li><b>Served</b>: status {@code done}.</li>
+ *   <li><b>Wait</b>: from {@code checked_in_at} (bookings) or {@code issued_at} to the <i>first</i>
+ *       {@code ticket.called}; recalls and requeues do not reset it.</li>
+ *   <li><b>Service duration</b>: {@code completed_at − (serving_started_at | called_at)} for served tickets.</li>
+ *   <li><b>Window open</b>: intervals between {@code window.opened} (not repeated) and {@code window.closed};
+ *       idle = open − serving.</li>
  * </ul>
  */
 @Service
@@ -88,11 +91,11 @@ public class AnalyticsQueries {
         this.policies = policies; this.clock = clock;
     }
 
-    // ------------------------------------------------------------------ период
+    // ------------------------------------------------------------------ period
 
     /**
-     * {@code from}/{@code to} — дата ({@code 2026-09-21}, по часовому поясу отделения) или момент ISO-8601.
-     * По умолчанию — с начала сегодняшнего дня до текущего момента. Дата в {@code to} включает весь этот день.
+     * {@code from}/{@code to}: a date ({@code 2026-09-21}, branch timezone) or an ISO-8601 instant.
+     * Default: from the start of today to now. A date in {@code to} includes the whole day.
      */
     public Period period(String from, String to) {
         var zone = ZoneId.of(catalog.branch(node.branchId()).timezone());
@@ -141,7 +144,7 @@ public class AnalyticsQueries {
         var totals = new Totals(rows.size(), count(rows, "done"), count(rows, "cancelled"), count(rows, "no_show"),
                 (int) rows.stream().filter(r -> List.of("booked", "waiting", "called", "serving").contains(r.status())).count(),
                 avg(rows, Row::waitSec), max(rows, Row::waitSec), avg(rows, Row::serviceSec));
-        var bySource = rows.stream().collect(Collectors.groupingBy(Row::source, java.util.TreeMap::new, Collectors.toList()))
+        var bySource = rows.stream().collect(Collectors.groupingBy(Row::source, TreeMap::new, Collectors.toList()))
                 .entrySet().stream()
                 .map(e -> new SourceStat(e.getKey(), e.getValue().size(), count(e.getValue(), "done"),
                         avg(e.getValue(), Row::waitSec), max(e.getValue(), Row::waitSec)))
@@ -155,8 +158,8 @@ public class AnalyticsQueries {
         return new Summary(p.from(), p.to(), totals, bySource, byService);
     }
 
-    /** EXTRACT в PostgreSQL 14+ возвращает numeric, а не double precision — читаем как BigDecimal. */
-    private static Double number(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+    /** EXTRACT returns numeric in PostgreSQL 14+, read as BigDecimal. */
+    private static Double number(ResultSet rs, String column) throws SQLException {
         var v = rs.getBigDecimal(column);
         return v == null ? null : v.doubleValue();
     }
@@ -228,7 +231,7 @@ public class AnalyticsQueries {
             }
             boolean currentlyOpen = "open".equals(w.status()) || "closing".equals(w.status());
             if (start == null && list.isEmpty() && currentlyOpen) {
-                start = opened.getOrDefault(w.id(), Instant.EPOCH);      // окно, открытое без журнала (демо-данные)
+                start = opened.getOrDefault(w.id(), Instant.EPOCH);      // window opened without a journal entry (demo data)
             }
             if (start != null) {
                 open += overlap(start, now, p);
@@ -257,7 +260,7 @@ public class AnalyticsQueries {
         var items = new ArrayList<Map<String, Object>>();
         var branch = node.branchId();
 
-        // Просроченные ожидающие: дедлайн прошёл, клиента ещё не вызвали (текущее состояние).
+        // Overdue waiting: deadline passed, not called yet (current state).
         jdbc.sql("""
                         SELECT id, display_number, service_id, source, due_at FROM tickets
                          WHERE branch_id = :b AND status = 'waiting' AND due_at < :now ORDER BY due_at
@@ -269,7 +272,7 @@ public class AnalyticsQueries {
                             "source", rs.getString("source"), "due_at", dueAt, "overdue_sec", now.getEpochSecond() - dueAt.getEpochSecond());
                 }).list().forEach(items::add);
 
-        // Неявки за период.
+        // No-shows in the period.
         jdbc.sql("""
                         SELECT id, display_number, service_id, source, close_reason, updated_at FROM tickets
                          WHERE branch_id = :b AND status = 'no_show' AND updated_at >= :from AND updated_at < :to ORDER BY updated_at
@@ -280,7 +283,7 @@ public class AnalyticsQueries {
                         "at", rs.getTimestamp("updated_at").toInstant()))
                 .list().forEach(items::add);
 
-        // Долгие обслуживания за период (порог — конфигурация).
+        // Long services in the period (threshold from config).
         jdbc.sql("""
                         SELECT id, display_number, service_id, window_id, employee_id,
                                EXTRACT(EPOCH FROM (completed_at - COALESCE(serving_started_at, called_at))) AS sec
@@ -299,7 +302,7 @@ public class AnalyticsQueries {
         slowWindows(p, policy.heuristicMinSamples(), policy.slowWindowFactor(), items);
         idleWindows(now, policy.idleAlertMin(), items);
 
-        // S2: есть ожидающие, а открытого окна с их услугой нет.
+        // S2: waiting tickets without an open window for their service.
         jdbc.sql("""
                         SELECT s.id, s.name, count(*) AS waiting FROM tickets t JOIN services s ON s.id = t.service_id
                          WHERE t.branch_id = :b AND t.status = 'waiting'
@@ -311,7 +314,7 @@ public class AnalyticsQueries {
                         "service_name", rs.getString("name"), "waiting", rs.getInt("waiting")))
                 .list().forEach(items::add);
 
-        // Открытые инциденты.
+        // Open incidents.
         jdbc.sql("""
                         SELECT id, kind, description, window_id, ticket_id, created_at FROM incidents
                          WHERE status = 'open' ORDER BY created_at
@@ -330,9 +333,8 @@ public class AnalyticsQueries {
     }
 
     /**
-     * Окно обслуживает медленнее нормы (16.3): средняя длительность завершённых за период обслуживаний окна
-     * больше нормы по тем же услугам (среднее по отделению) в {@code slow_window_factor} раз и более.
-     * Окна с числом обслуживаний меньше {@code heuristic_min_samples} не оцениваются.
+     * Slow window (sect 16.3): the window's average duration over the period is at least {@code slow_window_factor}
+     * times the branch average for the same services. Windows with fewer than {@code heuristic_min_samples} are skipped.
      */
     private void slowWindows(Period p, int minSamples, double factor, List<Map<String, Object>> items) {
         var names = windows.all(node.branchId()).stream().collect(Collectors.toMap(ServiceWindow::id, ServiceWindow::name));
@@ -360,7 +362,7 @@ public class AnalyticsQueries {
                 .list().forEach(items::add);
     }
 
-    /** S14: окно {@code open} без активного талона и без действий дольше {@code idle_alert_min}. */
+    /** S14: window {@code open} with no active ticket and no actions for longer than {@code idle_alert_min}. */
     private void idleWindows(Instant now, int idleAlertMin, List<Map<String, Object>> items) {
         var branch = node.branchId();
         var lastWindowEvent = jdbc.sql("SELECT window_id, max(occurred_at) AS at FROM window_events GROUP BY window_id")

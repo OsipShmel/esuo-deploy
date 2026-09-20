@@ -13,7 +13,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Проверка ТЗ №1: предварительная запись (веб) и запись из МП (внутренний вход). */
+/** Check #1: web booking and MP booking (internal entry). */
 class AppointmentCreateIT extends AbstractNodeIT {
     private static final ZoneId ZONE = ZoneId.of("Europe/Moscow");
 
@@ -33,7 +33,7 @@ class AppointmentCreateIT extends AbstractNodeIT {
         assertThat(view.status()).isEqualTo("booked");
         assertThat(view.source()).isEqualTo("appointment");
         assertThat(view.slotStart()).isEqualTo(slot);
-        // До check-in запись не участвует в выборе (4.2).
+        // Before check-in a booking takes no part in selection (sect 4.2).
         openWindow(W1, E1, PARCEL);
         assertThatThrownBy(() -> callNext.execute(W1, null)).isInstanceOf(DomainException.class)
                 .extracting(e -> ((DomainException) e).code()).isEqualTo("QUEUE_EMPTY");

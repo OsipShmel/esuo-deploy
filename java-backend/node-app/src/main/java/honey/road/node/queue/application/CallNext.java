@@ -29,11 +29,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Optional;
 
 /**
- * Вызов следующего клиента (раздел 6.4). Гарантии от двойного назначения:
- * блокировка строки окна; головы очередей {@code FOR UPDATE SKIP LOCKED}; UPDATE с проверкой версии;
- * уникальный индекс «один активный талон на окно» как последний рубеж.
+ * Call next (sect 6.4). Double-assignment guards: window row lock; queue heads {@code FOR UPDATE SKIP LOCKED};
+ * versioned UPDATE; unique index "one active ticket per window" as the last line.
  */
 @Service
 public class CallNext {
@@ -63,9 +63,9 @@ public class CallNext {
     }
 
     /**
-     * Автовызов при {@code auto_call_on_free} (6.4): после {@code open} и {@code complete}. Вызывается внутри
-     * транзакции команды. Не бросает исключений на «нечего вызывать»: иначе транзакция команды стала бы
-     * rollback-only. Окно не {@code open} или уже занятое пропускается молча.
+     * Auto-call on {@code auto_call_on_free} (sect 6.4) after {@code open} and {@code complete}, inside the command
+     * transaction. Never throws on "nothing to call" (would mark the transaction rollback-only); a window that is
+     * not {@code open} or is busy is skipped.
      */
     @Transactional
     public void autoCallIfEnabled(UUID windowId, UUID employeeId) {
@@ -81,7 +81,7 @@ public class CallNext {
         selectAndAssign(window, employee, now);
     }
 
-    private java.util.Optional<Ticket> selectAndAssign(ServiceWindow window, UUID employee, Instant now) {
+    private Optional<Ticket> selectAndAssign(ServiceWindow window, UUID employee, Instant now) {
         var windowId = window.id();
         var policy = policies.current();
 
@@ -90,10 +90,10 @@ public class CallNext {
             tickets.lockHead(node.branchId(), service, windowId, now).ifPresent(heads::add);
         }
         if (heads.isEmpty()) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         var strategy = scoring.get(policy.scoringStrategy());
-        // Оценки считаются один раз на голову и идут в журнал: решение можно переиграть (раздел 6.6).
+        // Scores are computed once per head and journaled so the decision can be replayed (sect 6.6).
         var results = new LinkedHashMap<UUID, ScoreResult>();
         for (var h : heads) {
             results.put(h.id(), strategy.score(h, window, employee));
@@ -120,12 +120,12 @@ public class CallNext {
         extra.put("scoring_strategy", strategy.name());
         extra.put("model_version", results.get(selection.chosen().id()).modelVersion());
         extra.put("candidates", candidates);
-        return java.util.Optional.of(assign(selection.chosen(), window, employee, now, extra));
+        return Optional.of(assign(selection.chosen(), window, employee, now, extra));
     }
 
     /**
-     * Назначение конкретного талона окну (walk-in с {@code call_now}). Талон должен быть {@code waiting}
-     * и относиться к услуге окна.
+     * Assigns a specific ticket to the window (walk-in with {@code call_now}). The ticket must be {@code waiting}
+     * and match a window service.
      */
     @Transactional
     public TicketView callTicket(UUID windowId, UUID ticketId, UUID employeeId) {

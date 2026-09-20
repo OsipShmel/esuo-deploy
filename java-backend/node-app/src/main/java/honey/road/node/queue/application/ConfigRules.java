@@ -3,16 +3,18 @@ package honey.road.node.queue.application;
 import honey.road.node.queue.domain.DomainException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
+import java.util.List;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Чистые правила конфигурации (раздел 4.8): наложение и границы локальных переопределений.
- * Работает над JSON-деревьями с ключами snake_case, как хранится в {@code branch_config}.
+ * Pure config rules (sect 4.8): merging and bounds of local overrides, over snake_case JSON trees as stored in
+ * {@code branch_config}.
  */
 public final class ConfigRules {
     private ConfigRules() {
     }
 
-    /** Глубокое наложение {@code patch} на {@code base}; вложенные объекты сливаются, остальное заменяется. */
+    /** Deep merge of {@code patch} into {@code base}: objects merge, everything else is replaced. */
     public static ObjectNode merge(JsonNode base, JsonNode patch) {
         var result = (ObjectNode) base.deepCopy();
         mergeInto(result, patch);
@@ -34,8 +36,8 @@ public final class ConfigRules {
     }
 
     /**
-     * Переопределение допустимо, только если для ключа заданы границы и каждое числовое значение
-     * (в том числе вложенное, как в {@code target_wait_min}) лежит в {@code [min, max]}.
+     * An override is allowed only if the key has bounds and every numeric value (including nested ones, as in
+     * {@code target_wait_min}) is within {@code [min, max]}.
      */
     public static void checkWithinBounds(JsonNode overrides, JsonNode bounds) {
         if (overrides == null || overrides.isNull() || overrides.isEmpty()) {
@@ -69,10 +71,10 @@ public final class ConfigRules {
         return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
     }
 
-    /** Оставляет только переопределения, которые всё ещё допустимы при новых границах. */
+    /** Keeps only the overrides still allowed by the new bounds. */
     public static ObjectNode pruneOutOfBounds(JsonNode overrides, JsonNode bounds) {
         ObjectNode kept = overrides != null && overrides.isObject() ? (ObjectNode) overrides.deepCopy() : emptyObject();
-        for (var name : java.util.List.copyOf(kept.propertyNames())) {
+        for (var name : List.copyOf(kept.propertyNames())) {
             var single = kept.objectNode();
             single.set(name, kept.get(name));
             try {
@@ -85,6 +87,6 @@ public final class ConfigRules {
     }
 
     private static ObjectNode emptyObject() {
-        return tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode();
+        return JsonMapper.builder().build().createObjectNode();
     }
 }

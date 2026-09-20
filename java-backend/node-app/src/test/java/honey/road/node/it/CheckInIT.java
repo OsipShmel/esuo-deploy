@@ -19,12 +19,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Check-in записи и её истечение (разделы 5.4, 6.3, S6–S8): раньше времени, вовремя, с опозданием
- * (по {@code late_policy}), сверх срока хранения, повтор, истечение планировщиком.
- * <p>Запись создаётся на завтра штатным путём, затем её слот сдвигается в БД относительно «сейчас»: так время
- * не зависит от часов работы отделения. Тесты со сдвигом слота в прошлое не рассчитаны на запуск между 00:00 и
- * 01:30 по Москве: слот уйдёт во «вчера», и check-in ответит «только в день записи».
- * Настройки: early 15 мин, grace 10 мин, retention 60 мин, late_policy=convert_to_qr, цель ожидания QR 20 мин.
+ * Booking check-in and expiry (sect 5.4, 6.3, S6–S8): early, on time, late (per {@code late_policy}), past
+ * retention, repeat, expiry by the scheduler.
+ * <p>The booking is created for tomorrow the normal way, then its slot is shifted in the DB relative to now, so the
+ * test does not depend on branch hours. Tests shifting the slot into the past break between 00:00 and 01:30 Moscow
+ * time (the slot lands on "yesterday" and check-in answers "booking day only").
+ * Settings: early 15 min, grace 10 min, retention 60 min, late_policy=convert_to_qr, QR wait target 20 min.
  */
 class CheckInIT extends AbstractNodeIT {
     private static final ZoneId ZONE = ZoneId.of("Europe/Moscow");
@@ -57,7 +57,7 @@ class CheckInIT extends AbstractNodeIT {
                 String.class, ticket);
     }
 
-    // ------------------------------------------------------------------ S6: раньше времени
+    // ------------------------------------------------------------------ S6: early
 
     @Test
     void earlyCheckInIsAllowedButTheTicketWaitsUntilTheEarlyWindowOpens() {
@@ -67,14 +67,14 @@ class CheckInIT extends AbstractNodeIT {
         var view = tickets.checkIn(id, null, operator);
 
         assertThat(view.status()).isEqualTo("waiting");
-        assertThat(column(id, "due_at")).isEqualTo(slot);                                       // дедлайн = время слота
-        assertThat(column(id, "eligible_from")).isEqualTo(slot.minus(15, ChronoUnit.MINUTES));   // допуск с slot − early
-        // Раньше допуска запись не вызывается, чтобы не вытеснять тех, кто уже ждёт.
+        assertThat(column(id, "due_at")).isEqualTo(slot);                                       // deadline = slot time
+        assertThat(column(id, "eligible_from")).isEqualTo(slot.minus(15, ChronoUnit.MINUTES));   // eligible from slot − early
+        // Not called before eligibility so it does not push out those already waiting.
         openWindow(W1, E1, PARCEL);
         assertThatThrownBy(() -> callNext.execute(W1, null)).isInstanceOf(DomainException.class)
                 .satisfies(e -> assertThat(code(e)).isEqualTo("QUEUE_EMPTY"));
 
-        jdbc.update("UPDATE tickets SET eligible_from = now() - interval '1 minute' WHERE id=?", id);   // «время подошло»
+        jdbc.update("UPDATE tickets SET eligible_from = now() - interval '1 minute' WHERE id=?", id);   // "it's time"
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(id);
     }
 
@@ -85,7 +85,7 @@ class CheckInIT extends AbstractNodeIT {
         tickets.checkIn(id, null, operator);
 
         assertThat(column(id, "due_at")).isEqualTo(slot);
-        assertThat(column(id, "eligible_from")).isEqualTo(column(id, "checked_in_at"));         // допуск = момент check-in
+        assertThat(column(id, "eligible_from")).isEqualTo(column(id, "checked_in_at"));         // eligible = check-in moment
         openWindow(W1, E1, PARCEL);
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(id);
     }
@@ -93,38 +93,38 @@ class CheckInIT extends AbstractNodeIT {
     @Test
     void appointmentWithEarlierSlotBeatsAWalkInWhoArrivedEarlier() {
         openWindow(W1, E1, PARCEL);
-        var walkin = qr(PARCEL, "queue-client");                                   // пришёл раньше, дедлайн +20 мин
+        var walkin = qr(PARCEL, "queue-client");                                   // came early, deadline +20 min
         var slot = minutesFromNow(3);
         var appointment = booked("priority", 11, slot);
-        tickets.checkIn(appointment, null, operator);                              // дедлайн = слот через 3 мин
+        tickets.checkIn(appointment, null, operator);                              // deadline = slot in 3 min
 
-        assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(appointment);  // запись на время впереди
+        assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(appointment);  // booking time ahead
         assertThat(status(walkin)).isEqualTo("waiting");
     }
 
-    // ------------------------------------------------------------------ S7: опоздание
+    // ------------------------------------------------------------------ S7: late
 
     @Test
     void lateWithinGraceKeepsThePriorityOfTheSlot() {
-        var slot = minutesFromNow(-5);                                             // опоздал на 5 мин, grace 10
+        var slot = minutesFromNow(-5);                                             // 5 min late, grace 10
         var id = booked("grace", 10, slot);
         tickets.checkIn(id, null, operator);
 
-        assertThat(column(id, "due_at")).isEqualTo(slot);                          // дедлайн — по-прежнему слот
+        assertThat(column(id, "due_at")).isEqualTo(slot);                          // deadline is still the slot
         assertThat(payloadOf(id)).contains("\"late\": false").contains("on_time");
     }
 
     @Test
     void lateBeyondGraceIsConvertedToQrDeadlineFromCheckIn() {
-        var slot = minutesFromNow(-30);                                            // опоздал на 30 мин
+        var slot = minutesFromNow(-30);                                            // 30 min late
         var id = booked("late", 10, slot);
         tickets.checkIn(id, null, operator);
 
         var checkedIn = column(id, "checked_in_at");
-        assertThat(column(id, "due_at")).isEqualTo(checkedIn.plus(20, ChronoUnit.MINUTES));   // как QR-талон от check-in
+        assertThat(column(id, "due_at")).isEqualTo(checkedIn.plus(20, ChronoUnit.MINUTES));   // like a QR ticket from check-in
         assertThat(column(id, "eligible_from")).isEqualTo(checkedIn);
         assertThat(payloadOf(id)).contains("\"late\": true").contains("convert_to_qr");
-        // Клиент не теряет визит, но не обходит тех, кто пришёл вовремя.
+        // The client keeps the visit but does not jump ahead of those on time.
         openWindow(W1, E1, PARCEL);
         var onTime = qr(PARCEL, "punctual");
         jdbc.update("UPDATE tickets SET due_at = now() + interval '10 minutes' WHERE id=?", onTime);
@@ -143,14 +143,14 @@ class CheckInIT extends AbstractNodeIT {
 
     @Test
     void checkInAfterTheRetentionPeriodIsRefused() {
-        var id = booked("expired", 10, minutesFromNow(-90));                       // retention 60 мин
+        var id = booked("expired", 10, minutesFromNow(-90));                       // retention 60 min
 
         assertThatThrownBy(() -> tickets.checkIn(id, null, operator)).isInstanceOf(DomainException.class)
                 .satisfies(e -> assertThat(code(e)).isEqualTo("SLOT_EXPIRED"));
         assertThat(status(id)).isEqualTo("booked");
     }
 
-    // ------------------------------------------------------------------ прочие правила
+    // ------------------------------------------------------------------ other rules
 
     @Test
     void checkInIsOnlyAllowedOnTheDayOfTheAppointment() {
@@ -167,7 +167,7 @@ class CheckInIT extends AbstractNodeIT {
         var id = booked("twice", 10, minutesFromNow(5));
         var first = tickets.checkIn(id, null, operator);
         var second = tickets.checkIn(id, null, operator);
-        assertThat(second.version()).isEqualTo(first.version());                     // повтор ничего не меняет
+        assertThat(second.version()).isEqualTo(first.version());                     // repeat changes nothing
         assertThat(count("SELECT count(*) FROM ticket_events WHERE ticket_id=? AND event_type='ticket.checked_in'", id)).isEqualTo(1);
 
         var walkinTicket = qr(PARCEL, "not-a-booking");
@@ -187,12 +187,12 @@ class CheckInIT extends AbstractNodeIT {
                 .satisfies(e -> assertThat(code(e)).isEqualTo("STALE_STATE"));
     }
 
-    // ------------------------------------------------------------------ S8: истечение записи
+    // ------------------------------------------------------------------ S8: booking expiry
 
     @Test
     void schedulerExpiresOnlyBookingsPastTheRetentionPeriod() {
-        var gone = booked("gone", 10, minutesFromNow(-90));                        // не пришёл, срок хранения вышел
-        var recent = booked("recent", 11, minutesFromNow(-30));                    // опоздал, но ещё может прийти
+        var gone = booked("gone", 10, minutesFromNow(-90));                        // no-show, retention passed
+        var recent = booked("recent", 11, minutesFromNow(-30));                    // late but can still come
         var future = booked("future", 12, minutesFromNow(60));
         var arrived = booked("arrived", 13, minutesFromNow(-2));
         tickets.checkIn(arrived, null, operator);
@@ -204,7 +204,7 @@ class CheckInIT extends AbstractNodeIT {
         assertThat(count("SELECT count(*) FROM ticket_events WHERE ticket_id=? AND event_type='ticket.no_show'", gone)).isEqualTo(1);
         assertThat(status(recent)).isEqualTo("booked");
         assertThat(status(future)).isEqualTo("booked");
-        assertThat(status(arrived)).isEqualTo("waiting");                          // пришедшая запись не истекает
+        assertThat(status(arrived)).isEqualTo("waiting");                          // a checked-in booking does not expire
     }
 
     @Test

@@ -22,9 +22,8 @@ import java.net.URI;
 import java.util.List;
 
 /**
- * application/problem+json. Cur fields: code, request_id, errors (docs section 9.2).
- * {@link #createResponseEntity} extends ProblemDetail with our fields.
- * Скрывает стандартный Spring MVC,
+ * application/problem+json with our fields: code, request_id, errors (sect 9.2).
+ * Replaces the default Spring MVC error body.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
@@ -75,7 +74,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setType(URI.create(code.typeUri()));
         pd.setTitle(code.title());
 
-        // Не путь запроса: в пути бывает токен талона (идея A).
+        // Not the request path: the path may contain a ticket token.
         pd.setInstance(URI.create("urn:esuo:request:" + (requestId == null ? "unknown" : requestId)));
         pd.setProperty("code", code.name());
         pd.setProperty("request_id", requestId);

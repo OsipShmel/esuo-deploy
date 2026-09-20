@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * RPC {@code ticket.by_mp}: центр по {@code mp_appointment_id} получает талон вместе с токеном, чтобы собрать
- * ссылку на статус для callback в МП. В событиях и журнале токена нет — он передаётся только в ответе RPC.
+ * RPC {@code ticket.by_mp}: the center gets the ticket with its token by {@code mp_appointment_id} to build the
+ * status link for the MP callback. Events and the journal carry no token, only the RPC reply does.
  */
 class MpTicketRpcIT extends AbstractNodeIT {
     @Autowired RpcOperations rpc;

@@ -23,6 +23,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.scheduling.annotation.Scheduled;
 
 /**
 * {@code analytics-ingest} (docs, section 10.5): durable pull consumer {@code CENTER_EVT} → {@code events} table.
@@ -100,7 +101,7 @@ public class EventIngest {
         }
     }
 
-    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "PT10S", initialDelayString = "PT10S")
+    @Scheduled(fixedDelayString = "PT10S", initialDelayString = "PT10S")
     public void ensureStarted() {
         if (consumer == null) {
             nats.connection().ifPresent(this::start);

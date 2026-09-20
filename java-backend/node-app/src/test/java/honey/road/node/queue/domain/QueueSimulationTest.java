@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Симуляция ETA (раздел 6.8) на детерминированных данных, без БД. */
+/** ETA simulation (sect 6.8) on deterministic data, no DB. */
 class QueueSimulationTest {
     static final Instant NOW = Instant.parse("2026-09-21T07:00:00Z");
     static final Duration SLACK = Duration.ofMinutes(5);
@@ -76,14 +76,14 @@ class QueueSimulationTest {
 
     @Test
     void windowIdlesUntilTicketBecomesEligible() {
-        var early = ticket(PARCEL, 30, 10, null);          // допуск через 10 минут
+        var early = ticket(PARCEL, 30, 10, null);          // eligible in 10 minutes
         var r = run(List.of(early), window(UUID.randomUUID(), NOW, PARCEL));
         assertEquals(NOW.plusSeconds(600), r.eta().get(early.id()));
     }
 
     @Test
     void notYetEligibleTicketDoesNotBlockLaterOnesThatAreReady() {
-        var later = ticket(PARCEL, 5, 10, null);           // дедлайн раньше, но допуск позже
+        var later = ticket(PARCEL, 5, 10, null);           // earlier deadline but later eligibility
         var ready = ticket(PARCEL, 20);
         var r = run(List.of(later, ready), window(UUID.randomUUID(), NOW, PARCEL));
         assertEquals(NOW, r.eta().get(ready.id()));

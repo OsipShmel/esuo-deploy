@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** Наложение конфигурации и границы локальных переопределений (раздел 4.8) — чистая логика, без БД. */
+/** Config merge and local override bounds (sect 4.8): pure logic, no DB. */
 class ConfigRulesTest {
     private static final JsonMapper M = JsonMapper.builder().build();
 
@@ -29,9 +29,9 @@ class ConfigRulesTest {
 
         assertEquals(2, merged.get("a").asInt());
         assertEquals(25, merged.get("target_wait_min").get("qr").get("default").asInt());
-        assertEquals(5, merged.get("target_wait_min").get("qr").get("svo").asInt());   // соседние ключи сохранены
+        assertEquals(5, merged.get("target_wait_min").get("qr").get("svo").asInt());   // sibling keys kept
         assertEquals(30, merged.get("target_wait_min").get("walkin").get("default").asInt());
-        assertEquals(1, base.get("a").asInt());                                        // вход не изменён
+        assertEquals(1, base.get("a").asInt());                                        // input unchanged
         assertEquals(20, base.get("target_wait_min").get("qr").get("default").asInt());
     }
 
@@ -87,6 +87,6 @@ class ConfigRulesTest {
 
         assertFalse(kept.has("slack_min"));
         assertEquals(60, kept.get("call_timeout_sec").asInt());
-        assertEquals(12, overrides.get("slack_min").asInt());                          // вход не изменён
+        assertEquals(12, overrides.get("slack_min").asInt());                          // input unchanged
     }
 }

@@ -14,8 +14,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Heartbeat (раздел 4.1, 10.1) — контракт для реестра и обзора сети в центре. {@code config_version} — версия, опубликованная
- * центром; {@code effective_config_version} — действующая (растёт и от локальных изменений руководителя).
+ * Heartbeat (sect 4.1, 10.1): contract for the center registry and network overview. {@code config_version} is the
+ * center-published version; {@code effective_config_version} also grows with local admin overrides.
  */
 class HeartbeatIT extends AbstractNodeIT {
     @Autowired HeartbeatPublisher heartbeat;
@@ -35,13 +35,13 @@ class HeartbeatIT extends AbstractNodeIT {
         inbox.process("center.config.branch.b01", "hb-1", "{\"version\":50,\"scope\":\"branch\",\"queue\":{\"slack_min\":7},"
                 + "\"bounds\":{\"slack_min\":{\"min\":0,\"max\":15}}}");
         var applied = heartbeat.snapshot();
-        assertThat(intOf(applied, "config_version")).isEqualTo(50);                        // версия центра, как он её опубликовал
+        assertThat(intOf(applied, "config_version")).isEqualTo(50);                        // center version as published
         int effective = intOf(applied, "effective_config_version");
         assertThat(effective).isGreaterThan(intOf(before, "effective_config_version"));
 
         config.putOverrides(JsonMapper.builder().build().readTree("{\"slack_min\":10}"));
         var local = heartbeat.snapshot();
-        assertThat(intOf(local, "config_version")).isEqualTo(50);                          // локальное изменение центральную версию не трогает
+        assertThat(intOf(local, "config_version")).isEqualTo(50);                          // a local change leaves the central version alone
         assertThat(intOf(local, "effective_config_version")).isGreaterThan(effective);
     }
 
@@ -60,7 +60,7 @@ class HeartbeatIT extends AbstractNodeIT {
         try {
             assertThat((List<?>) heartbeat.snapshot().get("services")).hasSize(4);
             catalog.deleteService(created.id());
-            assertThat((List<?>) heartbeat.snapshot().get("services")).hasSize(3);          // отключённая услуга из каталога ушла
+            assertThat((List<?>) heartbeat.snapshot().get("services")).hasSize(3);          // a disabled service is gone from the catalog
         } finally {
             jdbc.update("DELETE FROM services WHERE code = 'ci-hb'");
         }
@@ -77,7 +77,7 @@ class HeartbeatIT extends AbstractNodeIT {
         assertThat(intOf(hb, "waiting")).isEqualTo(2);
         assertThat(intOf(hb, "overdue")).isEqualTo(1);
         assertThat(intOf(hb, "windows_open")).isEqualTo(1);
-        assertThat(intOf(hb, "outbox_pending")).isPositive();                                // события ждут связи с NATS
+        assertThat(intOf(hb, "outbox_pending")).isPositive();                                // events wait for NATS
     }
 
     @Test
@@ -85,7 +85,7 @@ class HeartbeatIT extends AbstractNodeIT {
         openWindow(W1, E1, PARCEL);
         qr(PARCEL, "a");
         callNext.execute(W1, null);
-        windows.close(W1, "graceful", E1);                               // активный талон → окно closing
+        windows.close(W1, "graceful", E1);                               // active ticket → window closing
 
         var hb = heartbeat.snapshot();
         assertThat(intOf(hb, "windows_open")).isZero();

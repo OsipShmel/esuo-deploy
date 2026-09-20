@@ -2,32 +2,32 @@
 # config-version is incremented whenever the file is modified.
 queue:
   config-version: 4
-  target-wait-min:              # due_at = момент выдачи + значение(стоит пересмотреть)
+  target-wait-min:              # due_at = issued_at + value (стоит пересмотреть)
     qr: {default: 20, pensioner: 15, svo: 5}
     walkin: {default: 30, pensioner: 20, svo: 5}
-  early-checkin-min: 15         # с какого момента до слота запись допускается к вызову
-  grace-late-min: 10            # опоздание без потери приоритета(тоже стоит пересмотреть, как и всю механику очереди)
+  early-checkin-min: 15         # how early before the slot a booking becomes eligible
+  grace-late-min: 10            # lateness without losing priority (тоже стоит пересмотреть, как и всю механику очереди)
   late-policy: convert_to_qr    # convert_to_qr | reject
-  late-checkin-retention-min: 60  # после slot_start + это значение неявившаяся запись → no_show(реализации ручного присвоения статуса еще нет)
+  late-checkin-retention-min: 60  # after slot_start + this a missing booking → no_show (реализации ручного присвоения статуса еще нет)
   slot-duration-min: 15
   slot-capacity: 1
   booking-horizon-days: 30
   opening-time: "09:00"
   closing-time: "18:00"
-  slack-min: 5                  # окно, внутри которого действует score
-  call-timeout-sec: 90          # повторный вызов
-  max-recalls: 2                # повторных вызовов до no_show
+  slack-min: 5                  # window where score applies
+  call-timeout-sec: 90          # recall after
+  max-recalls: 2                # recalls before no_show
   auto-call-on-free: false
   scoring-strategy: uniform     # uniform | heuristic
   requeue-default-mode: keep_position   # keep_position | to_tail
   postpone-max-count: 1
   postpone-max-min: 30
-  default-service-duration-sec: 300     # прогноз обслуживания, затычка
-  approaching-position-lte: 3           # "очередь приближается"
+  default-service-duration-sec: 300     # service estimate fallback
+  approaching-position-lte: 3           # "approaching" notification
   approaching-eta-lte-min: 5
-  idle-alert-min: 15                    # окно open без активности дольше — отклонение S14
-  long-service-min: 20                  # обслуживание дольше — отклонение «долгое обслуживание»
-  heuristic-min-samples: 5              # heuristic: минимум наблюдений, чтобы верить среднему уровня каскада (16.2)
-  recommend-overdue-min: 10             # рекомендация открыть окно: ETA позже дедлайна больше чем на N минут (6.8)
-  recommend-overdue-count: 5            # ...или просроченных талонов услуги больше N
-  slow-window-factor: 1.5               # отклонение «окно обслуживает медленнее нормы» (16.3): среднее окна > нормы по тем же услугам в N раз
+  idle-alert-min: 15                    # open window idle longer → deviation S14
+  long-service-min: 20                  # longer service → "long service" deviation
+  heuristic-min-samples: 5              # heuristic: min samples to trust a cascade level (16.2)
+  recommend-overdue-min: 10             # open-window recommendation: ETA past deadline by more than N min (6.8)
+  recommend-overdue-count: 5            # ...or more than N overdue tickets of the service
+  slow-window-factor: 1.5               # slow window deviation (16.3): window average > N × norm for the same services

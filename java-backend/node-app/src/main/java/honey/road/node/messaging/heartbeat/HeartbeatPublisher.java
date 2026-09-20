@@ -20,12 +20,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.time.Duration;
 
 /**
- * Heartbeat {@code branch.{b}.hb} (core NATS, раздел 10.1) — он же регистрация отделения в центре.
- * Первый heartbeat неизвестного отделения центр превращает в запись реестра и source в {@code CENTER_EVT}:
- * новое отделение подключается к сети без ручных действий в центре.
- * <p>Содержит каталог услуг — центр кеширует его для публичной страницы выбора отделения.
+ * Heartbeat {@code branch.{b}.hb} (core NATS, sect 10.1); also registers the branch in the center: the first heartbeat
+ * of an unknown branch adds it to the registry and as a {@code CENTER_EVT} source.
+ * Carries the service catalog for the public branch picker.
  */
 @Component
 public class HeartbeatPublisher {
@@ -75,19 +75,19 @@ public class HeartbeatPublisher {
         hb.put("name", branch.name());
         hb.put("timezone", branch.timezone());
         hb.put("sent_at", now);
-        // config_version — версия, которую опубликовал центр (по ней центр видит, применена ли его конфигурация);
-        // effective_config_version растёт и от локальных изменений руководителя и записывается в талоны.
+        // config_version: the version published by the center (lets the center see whether it was applied);
+        // effective_config_version also grows with local admin overrides and is stamped into tickets.
         var versions = policies.versions();
         hb.put("config_version", versions.central());
         hb.put("effective_config_version", versions.effective());
         hb.put("outbox_pending", stats.pending());
         hb.put("outbox_lag_sec", stats.oldestAge().toSeconds());
         hb.put("windows_total", allWindows.size());
-        // Только open: окно в closing новых клиентов не принимает.
+        // open only: a closing window accepts no new clients.
         hb.put("windows_open", allWindows.stream().filter(w -> "open".equals(w.status())).count());
         hb.put("waiting", waiting.size());
         hb.put("overdue", waiting.stream().filter(t -> !t.dueAt().isAfter(now)).count());
-        hb.put("oldest_wait_sec", waiting.stream().map(t -> java.time.Duration.between(t.issuedAt(), now).toSeconds())
+        hb.put("oldest_wait_sec", waiting.stream().map(t -> Duration.between(t.issuedAt(), now).toSeconds())
                 .max(Long::compare).orElse(0L));
         hb.put("services", catalog.services(node.branchId()).stream().filter(s -> s.active())
                 .map(s -> Map.of("id", s.id(), "code", s.code(), "name", s.name(), "number_prefix", s.numberPrefix()))

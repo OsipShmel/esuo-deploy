@@ -17,9 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Демо-пользователи ноды: {@code operator} и {@code admin}. Только при {@code esuo.demo-data=true}.
- * Пароли приходят из env и хешируются при старте — в коде и миграциях их нет.
- * В целевой схеме пользователи приходят из центра через CONFIG (раздел 13.2).
+ * Demo node users {@code operator} and {@code admin}, only with {@code esuo.demo-data=true}.
+ * Passwords come from env and are hashed at startup. Target setup: users come from the center via CONFIG (sect 13.2).
  */
 @Component
 @Order(DatabaseBootstrap.ORDER + 10)
@@ -56,7 +55,7 @@ class DemoUsersSeeder implements ApplicationRunner {
             log.warn("demo user skipped: empty password login={}", login);
             return;
         }
-        // DO UPDATE: смена пароля в .env применяется перезапуском.
+        // DO UPDATE: a password change in .env applies on restart.
         jdbc.sql("""
                         INSERT INTO users (id, login, password_hash, role, employee_id, active)
                         VALUES (:id, :login, :hash, :role, :employee, true)

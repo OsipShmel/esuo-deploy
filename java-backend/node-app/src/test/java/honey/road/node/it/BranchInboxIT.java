@@ -19,8 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Входящие сообщения центра (BRANCH_INBOX): конфигурация, пользователи, записи МП.
- * Транспорт (NATS) не участвует: сообщения подаются прямо в {@link BranchInboxProcessor}.
+ * Center messages (BRANCH_INBOX): config, users, MP bookings. No NATS: messages go straight into
+ * {@link BranchInboxProcessor}.
  */
 class BranchInboxIT extends AbstractNodeIT {
     private static final String CONFIG = "center.config.branch.b01";
@@ -57,7 +57,7 @@ class BranchInboxIT extends AbstractNodeIT {
                 + "\",\"client_category\":\"default\",\"client_ref\":\"user-1\"}";
     }
 
-    // ------------------------------------------------------------------ конфигурация
+    // ------------------------------------------------------------------ config
 
     @Test
     void newerCentralVersionIsAppliedAndConfirmed() {
@@ -87,7 +87,7 @@ class BranchInboxIT extends AbstractNodeIT {
         inbox.process(CONFIG, "cfg-1", configMessage(10, "{\"target_wait_min\":{\"qr\":{\"default\":25}}}", BOUNDS));
         var policy = policies.current();
         assertThat(policy.targetWaitMin().get("qr").get("default")).isEqualTo(25);
-        assertThat(policy.targetWaitMin().get("qr").get("svo")).isEqualTo(5);           // остальное не потеряно
+        assertThat(policy.targetWaitMin().get("qr").get("svo")).isEqualTo(5);           // the rest is intact
         assertThat(policy.targetWaitMin().get("walkin").get("default")).isEqualTo(30);
     }
 
@@ -118,7 +118,7 @@ class BranchInboxIT extends AbstractNodeIT {
         assertThat(policies.current().slackMin()).isEqualTo(5);
         assertThat(config.view().effectiveVersion()).isEqualTo(effectiveBefore);
         assertThat(configApplied()).isZero();
-        // Повторная доставка не зацикливается: сообщение уже отмечено обработанным.
+        // Redelivery does not loop: the message is already marked processed.
         assertThat(inbox.process(CONFIG, "bad-1", bad)).isEqualTo(Outcome.DUPLICATE);
     }
 
@@ -143,7 +143,7 @@ class BranchInboxIT extends AbstractNodeIT {
         assertThat(jdbc.queryForObject("SELECT role FROM users WHERE login='ci-operator' AND active", String.class))
                 .isEqualTo("OPERATOR");
 
-        // Следующая версия отключает пользователя флагом active=false; запись не удаляется.
+        // The next version disables the user via active=false; the row stays.
         var off = "{\"version\":11,\"scope\":\"branch\",\"users\":[{\"id\":\"" + UUID.randomUUID()
                 + "\",\"login\":\"ci-operator\",\"password_hash\":\"$2a$10$hash\",\"role\":\"OPERATOR\",\"active\":false}]}";
         assertThat(inbox.process(CONFIG, "people-2", off)).isEqualTo(Outcome.APPLIED);
@@ -155,11 +155,11 @@ class BranchInboxIT extends AbstractNodeIT {
         var body = "{\"version\":10,\"scope\":\"branch\",\"queue\":{\"slack_min\":9},"
                 + "\"users\":[{\"id\":\"" + UUID.randomUUID() + "\",\"login\":\"ci-root\",\"password_hash\":\"x\",\"role\":\"ROOT\"}]}";
         assertThat(inbox.process(CONFIG, "bad-role", body)).isEqualTo(Outcome.REJECTED);
-        assertThat(policies.current().slackMin()).isEqualTo(5);                       // конфигурация тоже не применена
+        assertThat(policies.current().slackMin()).isEqualTo(5);                       // config not applied either
         assertThat(count("SELECT count(*) FROM users WHERE login='ci-root'")).isZero();
     }
 
-    // ------------------------------------------------------------------ локальные переопределения
+    // ------------------------------------------------------------------ local overrides
 
     @Test
     void branchAdminOverridesWithinBoundsAndCentralCanTightenThem() throws Exception {
@@ -169,7 +169,7 @@ class BranchInboxIT extends AbstractNodeIT {
         assertThat(view.effective().slackMin()).isEqualTo(12);
         assertThat(policies.current().slackMin()).isEqualTo(12);
 
-        // Центр сузил границы до 8: локальное значение 12 больше недопустимо и отбрасывается.
+        // The center narrowed the bounds to 8: local 12 is no longer allowed and is dropped.
         inbox.process(CONFIG, "cfg-2", configMessage(11, "{}",
                 "{\"slack_min\":{\"min\":0,\"max\":8},\"call_timeout_sec\":{\"min\":30,\"max\":300}}"));
         assertThat(policies.current().slackMin()).isEqualTo(5);
@@ -198,7 +198,7 @@ class BranchInboxIT extends AbstractNodeIT {
         assertThat(policies.current().slackMin()).isEqualTo(5);
     }
 
-    // ------------------------------------------------------------------ записи МП
+    // ------------------------------------------------------------------ MP bookings
 
     @Test
     void mobileAppointmentBecomesBookedTicketAndConfirmationEvent() {
@@ -228,7 +228,7 @@ class BranchInboxIT extends AbstractNodeIT {
         assertThat(count("SELECT count(*) FROM tickets WHERE mp_appointment_id='mp-102'")).isZero();
         assertThat(jdbc.queryForObject("SELECT payload::text FROM outbox WHERE subject LIKE '%mp.appointment.rejected'", String.class))
                 .contains("SLOT_EXPIRED").contains("mp-102");
-        // Результат отправлен один раз: повтор доставки ничего не добавляет.
+        // Result emitted once: redelivery adds nothing.
         assertThat(inbox.process(MP, "mp-102", mpMessage("mp-102", "parcel", past))).isEqualTo(Outcome.DUPLICATE);
         assertThat(count("SELECT count(*) FROM outbox WHERE subject LIKE '%mp.appointment.rejected'")).isEqualTo(1);
     }

@@ -21,7 +21,7 @@ public class DatabaseBootstrap implements ApplicationRunner {
     public static final int ORDER = 0;
     private static final Logger log = LoggerFactory.getLogger(DatabaseBootstrap.class);
 
-    /** Идентификаторы демо-справочника — фиксированы, на них опираются смоук-скрипты. */
+    /** Fixed demo catalog ids; smoke scripts rely on them. */
     public static final UUID DEMO_SERVICE_PARCEL = UUID.fromString("00000000-0000-4000-8000-000000000001");
     public static final UUID DEMO_EMPLOYEE_1 = UUID.fromString("00000000-0000-4000-8000-000000000002");
     public static final UUID DEMO_WINDOW_1 = UUID.fromString("00000000-0000-4000-8000-000000000003");

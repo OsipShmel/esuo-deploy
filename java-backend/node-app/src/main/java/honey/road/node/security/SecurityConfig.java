@@ -28,7 +28,7 @@ import honey.road.node.config.NodeProperties;
 import java.util.List;
 
 /**
- * Публичное (клиент, табло) — строго под /api/v1/public/**, всё остальное API закрыто.
+ * Public API (client, board) strictly under /api/v1/public/**, the rest is closed.
  * (было решено в обход доков, на сколько помню)
  */
 @Configuration(proxyBeanMethods = false)
@@ -58,9 +58,9 @@ class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_API).permitAll()
                         .requestMatchers(PUBLIC_TECH).permitAll()
-                        .requestMatchers("/actuator/**").hasRole(honey.road.node.security.Role.BRANCH_ADMIN.name())
-                        .requestMatchers("/api/v1/admin/**").hasRole(honey.road.node.security.Role.BRANCH_ADMIN.name())
-                        .requestMatchers("/api/v1/**").hasRole(honey.road.node.security.Role.OPERATOR.name())
+                        .requestMatchers("/actuator/**").hasRole(Role.BRANCH_ADMIN.name())
+                        .requestMatchers("/api/v1/admin/**").hasRole(Role.BRANCH_ADMIN.name())
+                        .requestMatchers("/api/v1/**").hasRole(Role.OPERATOR.name())
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(rs -> rs
                         .bearerTokenResolver(bearerTokenResolver())
@@ -74,8 +74,8 @@ class SecurityConfig {
     }
 
     /**
-     * Заголовок {@code Authorization} как обычно; для SSE-путей ({@code .../stream}) дополнительно
-     * {@code ?access_token=} — браузерный EventSource не умеет передавать заголовки.
+     * {@code Authorization} header; SSE paths ({@code .../stream}) also accept {@code ?access_token=}
+     * since EventSource cannot send headers.
      */
     static BearerTokenResolver bearerTokenResolver() {
         var header = new DefaultBearerTokenResolver();
@@ -85,11 +85,11 @@ class SecurityConfig {
                 ? query.resolve(request) : header.resolve(request);
     }
 
-    /** см. Role comms. or docs section 13.1*/
+    /** See Role or sect 13.1. */
     @Bean
     static RoleHierarchy roleHierarchy() {
         return RoleHierarchyImpl.withDefaultRolePrefix()
-                .role(honey.road.node.security.Role.BRANCH_ADMIN.name()).implies(honey.road.node.security.Role.OPERATOR.name())
+                .role(Role.BRANCH_ADMIN.name()).implies(Role.OPERATOR.name())
                 .build();
     }
 

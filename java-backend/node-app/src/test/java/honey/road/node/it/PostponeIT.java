@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Откладывание талона клиентом (раздел 5.4, 6.3): допуск сдвигается, дедлайн остаётся, лимиты из конфигурации
+ * Client postpone (sect 5.4, 6.3): eligibility moves, deadline stays; limits from config
  * ({@code postpone-max-count: 1}, {@code postpone-max-min: 30}).
  */
 class PostponeIT extends AbstractNodeIT {
@@ -35,7 +35,7 @@ class PostponeIT extends AbstractNodeIT {
         var postponed = tickets.postpone(view.token(), 10);
 
         assertThat(postponed.status()).isEqualTo("waiting");
-        assertThat(column(view.ticketId(), "due_at")).isEqualTo(due);                              // дедлайн без изменений
+        assertThat(column(view.ticketId(), "due_at")).isEqualTo(due);                              // deadline unchanged
         assertThat(Duration.between(Instant.now(), column(view.ticketId(), "eligible_from")).toMinutes()).isBetween(9L, 10L);
         assertThat(count("SELECT postpone_count FROM tickets WHERE id=?", view.ticketId())).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM ticket_events WHERE ticket_id=? AND event_type='ticket.postponed'", view.ticketId())).isEqualTo(1);
@@ -50,10 +50,10 @@ class PostponeIT extends AbstractNodeIT {
         var newer = qr(PARCEL, "newer");
 
         tickets.postpone(older.token(), 5);
-        assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(newer);                        // пока отложен — вызывают другого
+        assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(newer);                        // while postponed, another one is called
         tickets.complete(newer, null, Actor.operator(E1.toString()));
 
-        jdbc.update("UPDATE tickets SET eligible_from = now() - interval '1 minute' WHERE id=?", older.ticketId());   // «время вышло»
+        jdbc.update("UPDATE tickets SET eligible_from = now() - interval '1 minute' WHERE id=?", older.ticketId());   // "time is up"
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(older.ticketId());
     }
 
@@ -77,7 +77,7 @@ class PostponeIT extends AbstractNodeIT {
                 .satisfies(e -> assertThat(code(e)).isEqualTo("VALIDATION_ERROR"));
         assertThatThrownBy(() -> tickets.postpone(view.token(), 31)).isInstanceOf(DomainException.class)
                 .satisfies(e -> assertThat(code(e)).isEqualTo("VALIDATION_ERROR"));
-        tickets.postpone(view.token(), 30);                                                        // граница допустима
+        tickets.postpone(view.token(), 30);                                                        // boundary is allowed
         assertThat(count("SELECT postpone_count FROM tickets WHERE id=?", view.ticketId())).isEqualTo(1);
     }
 
@@ -101,6 +101,6 @@ class PostponeIT extends AbstractNodeIT {
         tickets.postpone(view.token(), 20);
 
         var after = queries.get(view.token()).eta();
-        assertThat(after).isAfter(before.plus(Duration.ofMinutes(15)));                            // ETA не раньше конца отсрочки
+        assertThat(after).isAfter(before.plus(Duration.ofMinutes(15)));                            // ETA not before the postponement ends
     }
 }

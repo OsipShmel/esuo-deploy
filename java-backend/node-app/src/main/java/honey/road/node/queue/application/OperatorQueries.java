@@ -24,7 +24,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** Чтение для АРМ оператора: очередь с источником и дедлайном, журнал талона. */
+/** Operator reads: queue with source and deadline, ticket journal. */
 @Service
 @Transactional(readOnly = true)
 public class OperatorQueries {
@@ -42,7 +42,7 @@ public class OperatorQueries {
         this.tickets = tickets; this.catalog = catalog; this.node = node; this.jdbc = jdbc; this.json = json; this.clock = clock;
     }
 
-    /** Элемент очереди для оператора: без токена клиента, с источником, дедлайном и позицией. */
+    /** Operator queue item: no client token; source, deadline and position. */
     public record QueueItem(UUID ticketId, String displayNumber, UUID serviceId, String serviceName, String source,
                             String clientCategory, String status, Instant issuedAt, Instant slotStart,
                             Instant eligibleFrom, Instant dueAt, boolean overdue, Integer position,
@@ -59,7 +59,7 @@ public class OperatorQueries {
                 .collect(Collectors.toMap(PostalService::id, Function.identity()));
         var now = clock.instant();
         var statuses = status == null ? ACTIVE : Set.of(status);
-        // booked — только записи на сегодня (будущие дни оператору не нужны)
+        // booked: today's bookings only
         var rows = tickets.byStatuses(node.branchId(), statuses).stream()
                 .filter(t -> !"booked".equals(t.status().name()) || t.slotStart().atZone(zone).toLocalDate().equals(today))
                 .toList();
@@ -88,7 +88,7 @@ public class OperatorQueries {
 
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> events(UUID ticketId) {
-        tickets.byId(node.branchId(), ticketId, false);                   // 404 для чужого/неизвестного
+        tickets.byId(node.branchId(), ticketId, false);                   // 404 for foreign/unknown
         return jdbc.sql("""
                         SELECT id, event_type, from_status, to_status, actor_type, actor_id, payload::text AS payload, occurred_at
                           FROM ticket_events WHERE ticket_id=:t ORDER BY occurred_at, id

@@ -1,9 +1,8 @@
 package honey.road.contracts.error;
 
 /**
- * ошибки API (docs, section 9.2).
- * используется доменом, нодой, центром и RPC-конвертом.
- * Фронтенд ориентируется на {@link #name()}.
+ * API error codes (sect 9.2), shared by the domain, node, center and the RPC envelope.
+ * The frontend branches on {@link #name()}.
  */
 public enum ErrorCode {
 
@@ -15,9 +14,9 @@ public enum ErrorCode {
     WINDOW_NOT_FOUND(404, "Окно не найдено"),
     SERVICE_NOT_FOUND(404, "Услуга не найдена"),
     BRANCH_NOT_FOUND(404, "Отделение не найдено"),
-    /** Неизвестный маршрут или RPC-операция. */
+    /** Unknown route or RPC operation. */
     NOT_FOUND(404, "Ресурс не найден"),
-    /** Неподдерживаемый HTTP-метод. */
+    /** Unsupported HTTP method. */
     METHOD_NOT_ALLOWED(405, "Метод не поддерживается"),
 
     INVALID_STATE_TRANSITION(409, "Недопустимый переход статуса"),

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.UUID;
 
-/** {@code value = 1} для всех: выбор сводится к чистому EDF. [MVP] */
+/** {@code value = 1} for all: plain EDF. [MVP] */
 @Component
 public class UniformScoringStrategy implements ScoringStrategy {
     private final PolicyRepository policies;

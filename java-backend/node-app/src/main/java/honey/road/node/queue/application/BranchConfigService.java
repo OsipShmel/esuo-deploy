@@ -22,15 +22,15 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Map;
 
 /**
- * Конфигурация отделения (раздел 4.8): применение версии центра из {@code BRANCH_INBOX} и локальные
- * переопределения руководителя в границах {@code bounds}.
+ * Branch config (sect 4.8): applying center versions from {@code BRANCH_INBOX} and local admin overrides within {@code bounds}.
  * <ul>
- *   <li>Версия центра применяется, только если она выше действующей центральной; иначе сообщение устаревшее.</li>
- *   <li>Новая версия действует для новых талонов; стоящие в очереди сохраняют свою {@code config_version} (6.8).</li>
- *   <li>Переопределения, вышедшие за новые границы, при применении версии отбрасываются.</li>
- *   <li>Сообщение с пользователями и сотрудниками применяется вместе с конфигурацией, атомарно.</li>
+ *   <li>A center version applies only if above the current central one.</li>
+ *   <li>It affects new tickets; queued tickets keep their {@code config_version} (sect 6.8).</li>
+ *   <li>Overrides outside the new bounds are dropped.</li>
+ *   <li>Users and employees are applied atomically with the config.</li>
  * </ul>
  */
 @Service
@@ -50,7 +50,7 @@ public class BranchConfigService {
         this.node = node; this.clock = clock;
     }
 
-    /** Состояние конфигурации для руководителя (раздел 9.3, {@code GET /admin/config}). */
+    /** Config state for the admin ({@code GET /admin/config}). */
     public record View(int centralVersion, int effectiveVersion, JsonNode central, JsonNode localOverrides,
                        JsonNode bounds, QueuePolicy effective) {
     }
@@ -73,7 +73,7 @@ public class BranchConfigService {
                 policies.current());
     }
 
-    /** @return {@code true} — версия применена; {@code false} — устаревшая (не выше действующей), ничего не изменено. */
+    /** @return {@code true} if applied; {@code false} if stale (not above the current one), nothing changed. */
     @Transactional
     public boolean applyCentral(ConfigMessage m) {
         if (m == null || m.version() < 1) {
@@ -90,7 +90,7 @@ public class BranchConfigService {
         var overrides = ConfigRules.pruneOutOfBounds(row.overrides, bounds);
         int effective = row.effectiveVersion + 1;
         try {
-            policies.compose(central, overrides, effective);              // проверка целостности до записи
+            policies.compose(central, overrides, effective);              // integrity check before writing
         } catch (RuntimeException e) {
             throw DomainException.validation("Недопустимая конфигурация центра: " + e.getMessage());
         }
@@ -111,12 +111,12 @@ public class BranchConfigService {
         return true;
     }
 
-    /** Локальные переопределения руководителя ({@code PUT /admin/config}); пустой объект снимает их все. */
+    /** Local admin overrides ({@code PUT /admin/config}); an empty object clears them. */
     @Transactional
     public View putOverrides(JsonNode overrides) {
         var row = load(true);
         var value = overrides != null && overrides.isObject() ? (ObjectNode) overrides.deepCopy()
-                : (ObjectNode) json.toTree(java.util.Map.of());
+                : (ObjectNode) json.toTree(Map.of());
         if (overrides != null && !overrides.isNull() && !overrides.isObject()) {
             throw DomainException.validation("Переопределения должны быть объектом");
         }
@@ -159,7 +159,7 @@ public class BranchConfigService {
         }
     }
 
-    /** Стабильный идентификатор агрегата конфигурации отделения для конверта события. */
+    /** Stable aggregate id of the branch config for the event envelope. */
     private UUID configId() {
         return UUID.nameUUIDFromBytes(("config:" + node.branchId()).getBytes(StandardCharsets.UTF_8));
     }

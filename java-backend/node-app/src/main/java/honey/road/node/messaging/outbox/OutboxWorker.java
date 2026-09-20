@@ -20,15 +20,16 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.io.IOException;
 
 /**
- * Outbox → {@code BRANCH_EVT} (раздел 10.6).
+ * Outbox → {@code BRANCH_EVT} (sect 10.6).
  * <ul>
- *   <li>Один поток публикации: порядок событий отделения сохраняется.</li>
- *   <li>Синхронная публикация с ожиданием PubAck, {@code Nats-Msg-Id = event_id}: повтор после падения
- *       между PubAck и UPDATE отсекается {@code duplicate_window} стрима.</li>
- *   <li>Ошибка — экспоненциальная задержка (до {@code max-backoff}) и остановка прохода.</li>
- *   <li>Нет связи с NATS — воркер не трогает БД, outbox просто копится.</li>
+ *   <li>Single publishing thread keeps event order.</li>
+ *   <li>Sync publish awaiting PubAck, {@code Nats-Msg-Id = event_id}: a resend after a crash between PubAck and
+ *       UPDATE is dropped by the stream {@code duplicate_window}.</li>
+ *   <li>Error: exponential delay (up to {@code max-backoff}) and the pass stops.</li>
+ *   <li>No NATS: the worker leaves the DB alone, the outbox grows.</li>
  * </ul>
  */
 @Component
@@ -59,7 +60,7 @@ public class OutboxWorker {
             return;
         }
         try {
-            // Пока проходы находят полные пачки — продолжаем без паузы (докачка после обрыва).
+            // Keep going without a pause while passes return full batches (catch-up after an outage).
             int published;
             do {
                 published = publishBatch(connection.get());
@@ -69,7 +70,7 @@ public class OutboxWorker {
         }
     }
 
-    /** @return число опубликованных строк; меньше размера пачки — очередь пуста или остановились на ошибке. */
+    /** @return rows published; fewer than the batch size means the queue is empty or a pass stopped on error. */
     int publishBatch(Connection connection) {
         Integer result = tx.execute(status -> {
             var rows = outbox.lockHead(props.outbox().batchSize());
@@ -79,14 +80,14 @@ public class OutboxWorker {
             JetStream js;
             try {
                 js = nats.jetStream(connection);
-            } catch (java.io.IOException e) {
+            } catch (IOException e) {
                 return 0;
             }
             int sent = 0;
             for (var row : rows) {
                 var now = clock.instant();
                 if (row.nextAttemptAt().isAfter(now)) {
-                    break;                                   // голова ждёт повтора — ждём и мы
+                    break;                                   // the head waits for a retry, so do we
                 }
                 try {
                     publish(js, row);
@@ -141,7 +142,7 @@ public class OutboxWorker {
         }
     }
 
-    /** Для health и heartbeat. */
+    /** For health and heartbeat. */
     public OutboxStats stats() {
         return outbox.stats(clock.instant());
     }

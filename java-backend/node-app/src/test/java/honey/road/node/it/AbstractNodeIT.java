@@ -27,11 +27,13 @@ import static honey.road.node.config.DatabaseBootstrap.DEMO_EMPLOYEE_2;
 import static honey.road.node.config.DatabaseBootstrap.DEMO_SERVICE_PARCEL;
 import static honey.road.node.config.DatabaseBootstrap.DEMO_WINDOW_1;
 import static honey.road.node.config.DatabaseBootstrap.DEMO_WINDOW_2;
+import honey.road.contracts.dto.TicketView;
+import java.util.Map;
 
 /**
- * База интеграционных тестов ноды: настоящий PostgreSQL 16 (Testcontainers), полный Spring-контекст.
- * NATS не поднимается — нода стартует без него по дизайну (раздел 12), события остаются в outbox.
- * Планировщики отключены (интервал 1 ч): тесты сами управляют временем и состоянием.
+ * Base of node integration tests: real PostgreSQL 16 (Testcontainers), full Spring context.
+ * No NATS: the node starts without it by design (sect 12), events stay in the outbox.
+ * Schedulers are effectively off (1 h interval): tests control time and state.
  */
 @Testcontainers
 @SpringBootTest(properties = {
@@ -75,11 +77,11 @@ public abstract class AbstractNodeIT {
     protected static final UUID E1 = DEMO_EMPLOYEE_1;
     protected static final UUID E2 = DEMO_EMPLOYEE_2;
 
-    /** Чистое состояние: справочник демо остаётся, все окна закрыты, очередь и журналы пусты. */
+    /** Clean state: demo catalog kept, all windows closed, queue and journals empty. */
     @BeforeEach
     void resetState() {
-        // Журналы защищены триггерами от изменения и очистки (8.3); на время сброса тестовой БД отключаем их
-        // на одном соединении (пользователь Testcontainers — суперпользователь).
+        // Journals are protected by triggers (sect 8.3); disable them on one connection for the reset
+        // (the Testcontainers user is a superuser).
         jdbc.execute((ConnectionCallback<Void>) c -> {
             try (var st = c.createStatement()) {
                 st.execute("SET session_replication_role = replica");
@@ -91,7 +93,7 @@ public abstract class AbstractNodeIT {
         jdbc.update("UPDATE windows SET status='closed', opened_at=NULL, current_employee_id=NULL");
         restoreDemoWindowServices();
         jdbc.update("DELETE FROM inbox_processed");
-        jdbc.update("DELETE FROM handling_stats");            // статистика влияет на ETA и heuristic-скоринг
+        jdbc.update("DELETE FROM handling_stats");            // stats affect ETA and heuristic scoring
         restoreConfig();
     }
 
@@ -108,8 +110,8 @@ public abstract class AbstractNodeIT {
         }
     }
 
-    /** Конфигурация очереди на момент первого теста: тесты BRANCH_INBOX меняют её, остальные не должны это видеть. */
-    private static java.util.Map<String, Object> configSnapshot;
+    /** Queue config as of the first test: BRANCH_INBOX tests change it, others must not see that. */
+    private static Map<String, Object> configSnapshot;
 
     private void restoreConfig() {
         if (configSnapshot == null) {
@@ -126,7 +128,7 @@ public abstract class AbstractNodeIT {
         windows.open(window, List.of(services), employee);
     }
 
-    /** QR-талон с уникальным устройством. */
+    /** QR ticket with a unique device. */
     protected UUID qr(UUID service, String device) {
         return issue.execute(new IssueTicketCommand(TicketSource.qr, service, null, "default", device, null),
                 "qr-" + device + "-" + service).ticketId();
@@ -137,7 +139,7 @@ public abstract class AbstractNodeIT {
                 "qr-" + device + "-" + service).ticketId();
     }
 
-    protected honey.road.contracts.dto.TicketView qrView(UUID service, String device) {
+    protected TicketView qrView(UUID service, String device) {
         return issue.execute(new IssueTicketCommand(TicketSource.qr, service, null, "default", device, null),
                 "qr-" + device + "-" + service);
     }

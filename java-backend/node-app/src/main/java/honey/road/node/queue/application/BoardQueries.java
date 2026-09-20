@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/** Табло зала (раздел 15, board): последние вызовы крупно и длина очереди по услугам. */
+/** Hall board (sect 15): latest calls and queue length per service. */
 @Service
 @Transactional(readOnly = true)
 public class BoardQueries {

@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 class AuthController {
 
-    private final honey.road.node.security.auth.LoginService loginService;
+    private final LoginService loginService;
 
-    AuthController(honey.road.node.security.auth.LoginService loginService) {
+    AuthController(LoginService loginService) {
         this.loginService = loginService;
     }
 
     @PostMapping("/login")
-    honey.road.node.security.auth.LoginResponse login(@Valid @RequestBody honey.road.node.security.auth.LoginRequest request) {
+    LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return loginService.login(request);
     }
 }

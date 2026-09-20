@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * {@code /actuator/health} → компонент {@code nats}. Всегда UP: нода обслуживает клиентов и без брокера
- * (раздел 14), деградация видна в деталях. В readiness-группу не входит.
+ * {@code nats} health component. Always UP: the node serves clients without the broker (sect 14);
+ * degradation shows in details. Not part of readiness.
  */
 @Component("nats")
 public class NatsHealthIndicator implements HealthIndicator {

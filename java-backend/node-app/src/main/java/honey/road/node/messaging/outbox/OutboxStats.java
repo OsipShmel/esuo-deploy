@@ -2,6 +2,6 @@ package honey.road.node.messaging.outbox;
 
 import java.time.Duration;
 
-/** Лаг outbox: сколько событий ждёт публикации и возраст самого старого. */
+/** Outbox lag: pending events and age of the oldest. */
 public record OutboxStats(long pending, Duration oldestAge) {
 }

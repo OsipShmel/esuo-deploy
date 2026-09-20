@@ -7,7 +7,7 @@ import honey.road.node.queue.domain.Ticket;
 import honey.road.node.queue.domain.TicketStatus;
 import org.springframework.stereotype.Component;
 
-/** Ticket → {@link TicketView} (раздел 9.4) с позицией и ETA. */
+/** Ticket → {@link TicketView} (sect 9.4) with position and ETA. */
 @Component
 public class TicketViews {
     private final CatalogRepository catalog;

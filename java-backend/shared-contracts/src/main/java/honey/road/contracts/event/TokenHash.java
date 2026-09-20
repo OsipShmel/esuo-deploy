@@ -7,9 +7,8 @@ import java.util.HexFormat;
 import java.util.UUID;
 
 /**
- * SHA-256 от строкового представления токена талона. Нода кладёт его в события,
- * центр считает тот же хеш от токена клиента и так сопоставляет SSE-поток с событиями,
- * не храня сам секрет.
+ * SHA-256 of the ticket token string. The node puts it into events; the center hashes the client's token the same
+ * way to match SSE streams to events without storing the secret.
  */
 public final class TokenHash {
     private TokenHash() {

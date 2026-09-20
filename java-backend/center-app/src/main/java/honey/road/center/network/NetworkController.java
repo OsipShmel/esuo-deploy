@@ -30,8 +30,8 @@ public class NetworkController {
         this.registry = registry; this.props = props; this.json = json; this.clock = clock;
     }
 
-    /** Публичный список отделений для выбора клиентом
-     * (с каталогом услуг из heartbeat – вот бы хоть раз сходит на почту и узнать, как она работает). */
+    /** Public branch list for the client (with the service catalog from heartbeat –
+     * вот бы хоть раз сходит на почту и узнать, как она работает). */
     @GetMapping("/api/v1/branches")
     public List<Map<String, Object>> branches() {
         var now = clock.instant();

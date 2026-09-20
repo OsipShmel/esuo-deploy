@@ -17,12 +17,13 @@ import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.UUID;
+import java.time.Instant;
 
 /**
- * Запись из МП (раздел 4.6): создаёт талон {@code booked} через тот же {@link IssueTicket}, что и веб-запись,
- * и в той же транзакции пишет результат — {@code mp.appointment.confirmed} или {@code mp.appointment.rejected}
- * (причина — код доменной ошибки: {@code SLOT_EXPIRED}, {@code SLOT_UNAVAILABLE}, {@code SERVICE_NOT_FOUND}...).
- * Идемпотентность — по {@code mp_appointment_id} (уникален в БД): повторная доставка вернёт тот же талон.
+ * MP booking (sect 4.6): creates a {@code booked} ticket via the same {@link IssueTicket} as web booking and
+ * writes the result in the same transaction: {@code mp.appointment.confirmed} or {@code mp.appointment.rejected}
+ * (reason = domain error code: {@code SLOT_EXPIRED}, {@code SLOT_UNAVAILABLE}, {@code SERVICE_NOT_FOUND}...).
+ * Idempotent by {@code mp_appointment_id} (unique): a redelivery returns the same ticket.
  */
 @Service
 public class MpAppointmentHandler {
@@ -40,8 +41,8 @@ public class MpAppointmentHandler {
     }
 
     /**
-     * Создаёт талон и событие «подтверждено». Отказ по правилам — {@link DomainException}: транзакция
-     * откатывается целиком, результат «отказ» записывает {@link #reject}.
+     * Creates the ticket and the "confirmed" event. A rule violation throws {@link DomainException}: everything rolls
+     * back and {@link #reject} records the rejection.
      */
     @Transactional
     public void confirm(MpAppointmentMessage m) {
@@ -60,7 +61,7 @@ public class MpAppointmentHandler {
                 EventTypes.MP_APPOINTMENT_CONFIRMED, Actor.center(), now(), policies.current().configVersion(), data);
     }
 
-    /** Результат «отказ» — в отдельной транзакции после отката {@link #confirm}. */
+    /** Rejection result in a separate transaction after {@link #confirm} rolled back. */
     @Transactional
     public void reject(MpAppointmentMessage m, String code, String detail) {
         var data = base(m);
@@ -90,7 +91,7 @@ public class MpAppointmentHandler {
         return UUID.nameUUIDFromBytes(("mp:" + m.mpAppointmentId()).getBytes(StandardCharsets.UTF_8));
     }
 
-    private java.time.Instant now() {
+    private Instant now() {
         return clock.instant().truncatedTo(ChronoUnit.MILLIS);
     }
 }

@@ -2,11 +2,11 @@ package honey.road.node.queue.domain;
 
 import java.time.LocalTime;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
- * Действующие правила очереди (раздел 6.9). Хранится JSON-снимком в {@code branch_config}.
- * Поля после {@code scoringStrategy} добавлены в версии 2 и имеют безопасные значения по умолчанию,
- * чтобы снимок версии 1 читался без ошибок.
+ * Effective queue rules (sect 6.9), stored as a JSON snapshot in {@code branch_config}.
+ * Fields after {@code scoringStrategy} were added in v2 and have safe defaults so v1 snapshots still load.
  */
 public record QueuePolicy(
         int configVersion, Map<String, Map<String, Integer>> targetWaitMin,
@@ -38,7 +38,7 @@ public record QueuePolicy(
         if (targetWaitMin == null || !targetWaitMin.containsKey("qr") || !targetWaitMin.containsKey("walkin")) {
             throw new IllegalArgumentException("Не заданы целевые времена ожидания");
         }
-        targetWaitMin = targetWaitMin.entrySet().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+        targetWaitMin = targetWaitMin.entrySet().stream().collect(Collectors.toUnmodifiableMap(
                 Map.Entry::getKey, e -> Map.copyOf(e.getValue())));
         if (!targetWaitMin.get("qr").keySet().equals(targetWaitMin.get("walkin").keySet())
                 || !targetWaitMin.get("qr").containsKey("default")

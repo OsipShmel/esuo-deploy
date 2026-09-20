@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.net.URI;
 
 import static honey.road.contracts.http.EsuoHeaders.MDC_REQUEST_ID;
+import java.util.List;
 
 /** RPC → HTTP response: {@code status} and {@code data}; error — ProblemDetail with the branch code (10.3). */
 @Component
@@ -29,7 +30,7 @@ public class RpcResponses {
         pd.setInstance(URI.create("urn:esuo:request:" + (requestId == null ? "unknown" : requestId)));
         pd.setProperty("code", code);
         pd.setProperty("request_id", requestId);
-        pd.setProperty("errors", p == null ? java.util.List.of() : p.path("errors"));
+        pd.setProperty("errors", p == null ? List.of() : p.path("errors"));
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(pd);
     }
 

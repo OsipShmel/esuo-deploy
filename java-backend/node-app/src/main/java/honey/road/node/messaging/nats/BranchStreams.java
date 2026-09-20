@@ -15,10 +15,12 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.function.UnaryOperator;
+import io.nats.client.api.External;
+import io.nats.client.api.Source;
 
 /**
- * Стримы JetStream в домене отделения (раздел 10.4), создаются идемпотентно при каждом подключении.
- * {@code BRANCH_EVT} — буфер событий на время обрыва связи; центр забирает его через source.
+ * JetStream streams in the branch domain (sect 10.4), created idempotently on every connect.
+ * {@code BRANCH_EVT} buffers events while the link is down; the center pulls it as a source.
  */
 @Component
 public class BranchStreams {
@@ -48,18 +50,18 @@ public class BranchStreams {
     public boolean branchInboxReady() { return branchInboxReady; }
 
     /**
-     * Собственный subject у BRANCH_INBOX: без него сервер назначит subject = имени стрима. Локальный subject
-     * пригодится для ручной вставки при отладке; с sources он не пересекается.
+     * Own subject for BRANCH_INBOX: without it the server uses the stream name. Handy for manual inserts while
+     * debugging; does not overlap with the sources.
      */
     private String inboxLocalSubject() {
         return "branch." + node.branchId() + ".inbox.local";
     }
 
-    private static io.nats.client.api.Source source(String stream, String filter, String api) {
-        return io.nats.client.api.Source.builder()
+    private static Source source(String stream, String filter, String api) {
+        return Source.builder()
                 .name(stream)
                 .filterSubject(filter)
-                .external(io.nats.client.api.External.builder().api(api).build())
+                .external(External.builder().api(api).build())
                 .build();
     }
 
@@ -72,8 +74,8 @@ public class BranchStreams {
                     .maxAge(props.eventRetention())
                     .duplicateWindow(Duration.ofHours(1)));
             branchEvtReady = true;
-            // Центр → отделение (раздел 10.4): конфигурация и записи МП копируются из домена центра
-            // и остаются доступны отделению при потере связи.
+            // Center → branch (sect 10.4): config and MP bookings are copied from the center domain
+            // and stay available to the branch when the link is down.
             var center = Subjects.jsApiPrefix(Subjects.CENTER_DOMAIN);
             ensureStream(jsm, Subjects.STREAM_BRANCH_INBOX, b -> b
                     .storageType(StorageType.File)
@@ -91,7 +93,7 @@ public class BranchStreams {
         }
     }
 
-    /** Создаёт стрим или обновляет его конфигурацию. */
+    /** Creates the stream or updates its config. */
     public static void ensureStream(JetStreamManagement jsm, String name,
                                     UnaryOperator<StreamConfiguration.Builder> spec)
             throws IOException, JetStreamApiException {

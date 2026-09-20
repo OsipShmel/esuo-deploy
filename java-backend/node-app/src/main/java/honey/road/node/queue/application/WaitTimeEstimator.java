@@ -19,18 +19,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.function.BiFunction;
+import java.util.function.ToLongFunction;
 
 /**
- * Позиция и ожидаемое время вызова [MVP; раздел 6.8].
+ * Position and expected call time [MVP; sect 6.8].
  * <ul>
- *   <li>Позиция — число ожидающих талонов перед данным в его услуге (порядок EDF).</li>
- *   <li>ETA — момент, когда {@link QueueSimulation} назначит талон открытому окну. Симуляция учитывает
- *       допуск ({@code eligible_from}), адресные окна, оставшееся время текущих обслуживаний и общие услуги окон.</li>
- *   <li>Прогноз длительности: при {@code uniform} — среднее по услуге из {@code handling_stats}; при {@code heuristic} —
- *       каскад со скоростью сотрудника окна (16.2). Пока данных мало — значение из конфигурации.</li>
- *   <li>Нет открытого окна для талона — ETA не определено, {@code confidence = none} (S2).</li>
+ *   <li>Position: waiting tickets ahead in the same service (EDF order).</li>
+ *   <li>ETA: when {@link QueueSimulation} assigns the ticket to an open window; accounts for {@code eligible_from},
+ *       targeted windows, remaining current services and shared window services.</li>
+ *   <li>Duration: {@code uniform} uses the service average from {@code handling_stats}; {@code heuristic} uses the
+ *       cascade with the window employee's speed (sect 16.2). Config default until there is enough data.</li>
+ *   <li>No open window for the ticket: ETA undefined, {@code confidence = none} (S2).</li>
  * </ul>
- * Интерфейс под {@code HeuristicScoringStrategy} не меняется: подменяется только источник {@code durationSec}.
  */
 @Component
 public class WaitTimeEstimator {
@@ -63,7 +65,7 @@ public class WaitTimeEstimator {
         return e != null ? e : new Estimate(tickets.aheadOf(t), null, "none");
     }
 
-    /** Оценки всех ожидающих талонов отделения одной симуляцией (для уведомлений и списков). */
+    /** Estimates for all waiting tickets in one simulation (notifications, lists). */
     public Map<UUID, Estimate> estimateAll() {
         var branch = node.branchId();
         var now = clock.instant();
@@ -72,16 +74,16 @@ public class WaitTimeEstimator {
 
         var durations = new HashMap<UUID, Long>();
         var measured = new HashSet<UUID>();
-        java.util.function.ToLongFunction<UUID> byService = service -> durations.computeIfAbsent(service, s -> {
+        ToLongFunction<UUID> byService = service -> durations.computeIfAbsent(service, s -> {
             var avg = stats.averageForService(s, policy.heuristicMinSamples());
             if (avg.isPresent()) { measured.add(s); }
             return Math.round(avg.orElse((double) policy.defaultServiceDurationSec()));
         });
-        // При heuristic прогноз — тот же каскад, что и у score, с учётом сотрудника окна (разделы 6.8, 16.3);
-        // при uniform — среднее по услуге.
+        // heuristic: same cascade as the score, with the window employee (sect 6.8, 16.3);
+        // uniform: service average.
         boolean perEmployee = "heuristic".equals(policy.scoringStrategy());
         var cascade = new HashMap<String, Long>();
-        java.util.function.BiFunction<UUID, Ticket, Long> forWindow = (employee, t) -> {
+        BiFunction<UUID, Ticket, Long> forWindow = (employee, t) -> {
             if (!perEmployee) { return byService.applyAsLong(t.serviceId()); }
             var key = t.serviceId() + "|" + employee + "|" + t.clientCategory();
             return cascade.computeIfAbsent(key, k -> Math.round(
@@ -96,9 +98,9 @@ public class WaitTimeEstimator {
             if (a.windowId() != null) { activeByWindow.put(a.windowId(), a); }
         }
         var employeeByWindow = new HashMap<UUID, UUID>();
-        var states = new java.util.ArrayList<QueueSimulation.WindowState>();
+        var states = new ArrayList<QueueSimulation.WindowState>();
         for (var w : windows.all(branch)) {
-            if (!WindowStatus.OPEN.equals(w.status())) { continue; }   // closing/closed новых не принимают
+            if (!WindowStatus.OPEN.equals(w.status())) { continue; }   // closing/closed take no new clients
             employeeByWindow.put(w.id(), w.currentEmployeeId());
             var busy = activeByWindow.get(w.id());
             Instant freeAt = now;
@@ -127,7 +129,7 @@ public class WaitTimeEstimator {
             if (eta == null) {
                 out.put(t.id(), new Estimate(position.get(t.id()), null, "none"));
             } else {
-                byService.applyAsLong(t.serviceId());                     // заполняет measured
+                byService.applyAsLong(t.serviceId());                     // fills measured
                 out.put(t.id(), new Estimate(position.get(t.id()), eta, measured.contains(t.serviceId()) ? "medium" : "low"));
             }
         }

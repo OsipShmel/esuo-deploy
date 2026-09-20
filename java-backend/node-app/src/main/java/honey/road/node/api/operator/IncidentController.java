@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import honey.road.node.security.CurrentUser;
 
 /**
- * Инциденты (9.3): {@code POST /incidents} — оператор и руководитель; {@code PATCH /admin/incidents/{id}} —
- * только руководитель (правило по префиксу {@code /admin} в {@code SecurityConfig}).
+ * Incidents (sect 9.3): {@code POST /incidents} for operator and admin; {@code PATCH /admin/incidents/{id}} admin only.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -42,7 +42,7 @@ public class IncidentController {
     @ResponseStatus(HttpStatus.CREATED)
     public Incidents.IncidentView create(@Valid @RequestBody CreateRequest r, @AuthenticationPrincipal Jwt jwt) {
         var actor = Operators.actor(jwt);
-        var employee = honey.road.node.security.CurrentUser.of(jwt).employeeId();
+        var employee = CurrentUser.of(jwt).employeeId();
         return incidents.create(r.kind(), r.description(), r.windowId(), r.ticketId(), employee, actor);
     }
 

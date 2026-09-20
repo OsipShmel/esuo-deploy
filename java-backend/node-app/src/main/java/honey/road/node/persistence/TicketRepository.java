@@ -22,6 +22,10 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Repository
 public class TicketRepository {
@@ -51,7 +55,7 @@ public class TicketRepository {
                 ON CONFLICT (branch_id,service_id,day) DO UPDATE SET last_value=ticket_counters.last_value+1
                 RETURNING last_value
                 """, Map.of("branch", branch, "service", service.id(), "day", day), Long.class);
-        return service.numberPrefix() + "-" + String.format(java.util.Locale.ROOT, "%03d", number);
+        return service.numberPrefix() + "-" + String.format(Locale.ROOT, "%03d", number);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -81,7 +85,7 @@ public class TicketRepository {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    /** Талон записи из МП по внешнему идентификатору (уникален в БД). */
+    /** MP booking ticket by external id (unique). */
     public Ticket byMpAppointmentId(String branch, String mpAppointmentId) {
         return jdbc.query("SELECT * FROM tickets WHERE branch_id=:branch AND mp_appointment_id=:id",
                 Map.of("branch",branch,"id",mpAppointmentId), MAPPER).stream().findFirst()
@@ -89,7 +93,6 @@ public class TicketRepository {
     }
 
     public void lockDevice(String branch, String device) {
-        // Блокировка по устройству даёт понятную ошибку до срабатывания уникального индекса.
         jdbc.getJdbcTemplate().query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
                 rs -> { }, "device:" + branch + ":" + device);
         if (Boolean.TRUE.equals(jdbc.queryForObject("""
@@ -102,7 +105,7 @@ public class TicketRepository {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public Optional<Ticket> lockHead(String branch, UUID service, UUID window, Instant now) {
-        // Метод только блокирует кандидата; назначение выполняет Queue Engine в той же транзакции.
+        // Only locks the candidate; the Queue Engine assigns it in the same transaction.
         return jdbc.query("""
                 SELECT * FROM tickets WHERE branch_id=:branch AND service_id=:service AND status='waiting'
                 AND eligible_from <= :now AND (target_window_id IS NULL OR target_window_id=:window)
@@ -116,15 +119,15 @@ public class TicketRepository {
                 .orElseThrow(() -> new DomainException("TICKET_NOT_FOUND", "Талон не найден"));
     }
 
-    /** Активный (called/serving) талон окна; не больше одного — гарантирует ux_one_active_ticket_per_window. */
+    /** Active (called/serving) ticket of the window; at most one, enforced by ux_one_active_ticket_per_window. */
     public Optional<Ticket> activeForWindow(UUID window, boolean lock) {
         return jdbc.query("SELECT * FROM tickets WHERE window_id=:w AND status IN ('called','serving')" + (lock ? " FOR UPDATE" : ""),
                 Map.of("w", window), MAPPER).stream().findFirst();
     }
 
     /**
-     * Применяет изменение с оптимистической проверкой версии. Строка к этому моменту уже заблокирована
-     * командой, поэтому несовпадение версии означает только устаревший {@code expected_version} клиента.
+     * Applies a change with an optimistic version check. The row is already locked by the command, so a mismatch
+     * only means a stale client {@code expected_version}.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public Ticket apply(TicketChange c, Instant now) {
@@ -149,7 +152,7 @@ public class TicketRepository {
                 .orElseThrow(() -> new DomainException("STALE_STATE", "Талон изменился, обновите данные"));
     }
 
-    /** Сколько ожидающих талонов той же услуги стоит перед данным в порядке EDF. */
+    /** Waiting tickets of the same service ahead of this one in EDF order. */
     public int aheadOf(Ticket t) {
         return jdbc.queryForObject("""
                 SELECT count(*) FROM tickets WHERE branch_id=:b AND service_id=:s AND status='waiting'
@@ -157,16 +160,16 @@ public class TicketRepository {
                 """, Map.of("b", t.branchId(), "s", t.serviceId(), "due", Timestamp.from(t.dueAt()), "seq", t.seq()), Integer.class);
     }
 
-    /** Ожидающие талоны, о приближении очереди которым ещё не сообщали (4.7). */
-    public java.util.Set<UUID> waitingNotNotified(String branch) {
+    /** Waiting tickets not yet notified about the approaching turn (sect 4.7). */
+    public Set<UUID> waitingNotNotified(String branch) {
         return new java.util.HashSet<>(jdbc.queryForList("""
                 SELECT id FROM tickets WHERE branch_id=:b AND status='waiting' AND notified_approaching_at IS NULL
                 """, Map.of("b", branch), UUID.class));
     }
 
     /**
-     * Ставит флаг «о приближении сообщили». Условие {@code IS NULL} — проверка-и-установка: при гонке двух
-     * проходов флаг поставит только один, поэтому событие по талону уходит ровно один раз.
+     * Sets the "approaching notified" flag. {@code IS NULL} makes it check-and-set: of two racing passes only one wins,
+     * so the event is emitted exactly once.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean markApproachingNotified(UUID id, Instant now) {
@@ -176,45 +179,45 @@ public class TicketRepository {
                 """, Map.of("id", id, "now", Timestamp.from(now))) == 1;
     }
 
-    /** Ожидающие талоны, адресованные окну (S4: при закрытии окна адрес сбрасывается). */
+    /** Waiting tickets targeted at the window (S4: the target is reset when the window closes). */
     @Transactional(propagation = Propagation.MANDATORY)
-    public java.util.List<Ticket> lockTargetedTo(UUID window) {
+    public List<Ticket> lockTargetedTo(UUID window) {
         return jdbc.query("SELECT * FROM tickets WHERE target_window_id=:w AND status='waiting' ORDER BY seq FOR UPDATE",
                 Map.of("w", window), MAPPER);
     }
 
-    /** Очередь отделения в порядке EDF (для АРМ, табло и ETA). */
-    public java.util.List<Ticket> waiting(String branch) {
+    /** Branch queue in EDF order (operator, board, ETA). */
+    public List<Ticket> waiting(String branch) {
         return jdbc.query("SELECT * FROM tickets WHERE branch_id=:b AND status='waiting' ORDER BY due_at, seq",
                 Map.of("b", branch), MAPPER);
     }
 
-    /** Талоны в указанных (активных) статусах. */
-    public java.util.List<Ticket> byStatuses(String branch, java.util.Collection<String> statuses) {
+    /** Tickets in the given (active) statuses. */
+    public List<Ticket> byStatuses(String branch, Collection<String> statuses) {
         return jdbc.query("SELECT * FROM tickets WHERE branch_id=:b AND status IN (:st) ORDER BY seq",
                 new MapSqlParameterSource().addValue("b", branch).addValue("st", statuses), MAPPER);
     }
 
-    /** Последние вызовы (для табло). */
-    public java.util.List<Ticket> recentCalls(String branch, int limit) {
+    /** Latest calls (board). */
+    public List<Ticket> recentCalls(String branch, int limit) {
         return jdbc.query("""
                 SELECT * FROM tickets WHERE branch_id=:b AND called_at IS NOT NULL AND status IN ('called','serving')
                  ORDER BY called_at DESC LIMIT :limit
                 """, Map.of("b", branch, "limit", limit), MAPPER);
     }
 
-    /** Вызванные дольше таймаута — для планировщика повторного вызова (S5). */
+    /** Called longer than the timeout, for the recall scheduler (S5). */
     @Transactional(propagation = Propagation.MANDATORY)
-    public java.util.List<Ticket> lockCallTimedOut(String branch, Instant threshold, int limit) {
+    public List<Ticket> lockCallTimedOut(String branch, Instant threshold, int limit) {
         return jdbc.query("""
                 SELECT * FROM tickets WHERE branch_id=:b AND status='called' AND called_at < :t
                  ORDER BY called_at LIMIT :limit FOR UPDATE SKIP LOCKED
                 """, Map.of("b", branch, "t", Timestamp.from(threshold), "limit", limit), MAPPER);
     }
 
-    /** Записи без check-in после порога — для планировщика истечения (S8). */
+    /** Bookings without check-in past the threshold, for the expiry scheduler (S8). */
     @Transactional(propagation = Propagation.MANDATORY)
-    public java.util.List<Ticket> lockBookedBefore(String branch, Instant threshold, int limit) {
+    public List<Ticket> lockBookedBefore(String branch, Instant threshold, int limit) {
         return jdbc.query("""
                 SELECT * FROM tickets WHERE branch_id=:b AND status='booked' AND slot_start < :t
                  ORDER BY slot_start LIMIT :limit FOR UPDATE SKIP LOCKED

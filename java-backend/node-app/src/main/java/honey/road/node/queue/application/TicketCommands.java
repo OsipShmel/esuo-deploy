@@ -34,9 +34,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Команды над талоном (таблица переходов 5.4). Порядок блокировок совпадает с {@link CallNext}:
- * сначала окно активного талона, затем сам талон — взаимных блокировок нет.
- * {@code expectedVersion} (если передан) должен совпасть с текущей версией, иначе {@code STALE_STATE}.
+ * Ticket commands (transition table 5.4). Lock order matches {@link CallNext}: the active ticket's window first,
+ * then the ticket. {@code expectedVersion}, if given, must match or {@code STALE_STATE}.
  */
 @Service
 public class TicketCommands {
@@ -60,7 +59,7 @@ public class TicketCommands {
         this.node = node; this.clock = clock;
     }
 
-    // ------------------------------------------------------------------ оператор
+    // ------------------------------------------------------------------ operator
 
     @Transactional
     public TicketView start(UUID id, Integer expectedVersion, Actor actor) {
@@ -89,14 +88,14 @@ public class TicketCommands {
         return views.of(done);
     }
 
-    /** Повторный вызов; после {@code max_recalls} — {@code no_show} (S5). */
+    /** Recall; after {@code max_recalls} → {@code no_show} (S5). */
     @Transactional
     public TicketView recall(UUID id, Integer expectedVersion, Actor actor) {
         var ctx = lock(id, expectedVersion, EnumSet.of(TicketStatus.called));
         return views.of(recallLocked(ctx.ticket, actor, now()));
     }
 
-    /** Для планировщика: талон уже заблокирован. */
+    /** For the scheduler: the ticket is already locked. */
     @Transactional
     public Ticket recallLocked(Ticket t, Actor actor, Instant now) {
         var policy = policies.current();
@@ -121,7 +120,7 @@ public class TicketCommands {
         return gone;
     }
 
-    /** Возврат в очередь: {@code keep_position} сохраняет due_at (голова очереди), {@code to_tail} пересчитывает. */
+    /** Requeue: {@code keep_position} keeps due_at (queue head), {@code to_tail} recomputes it. */
     @Transactional
     public TicketView requeue(UUID id, String mode, Integer expectedVersion, Actor actor) {
         var ctx = lock(id, expectedVersion, EnumSet.of(TicketStatus.called, TicketStatus.serving));
@@ -141,8 +140,7 @@ public class TicketCommands {
     }
 
     /**
-     * Перенаправление (S3, S4): смена услуги и/или адресное окно. {@code due_at} сохраняется —
-     * клиент уже отстоял своё время.
+     * Redirect (S3, S4): change the service and/or target a window. {@code due_at} is kept: the client has already waited.
      */
     @Transactional
     public TicketView redirect(UUID id, UUID serviceId, UUID targetWindowId, String reason, Integer expectedVersion, Actor actor) {
@@ -178,7 +176,7 @@ public class TicketCommands {
         return views.of(redirected);
     }
 
-    /** Check-in записи оператором (по id талона). */
+    /** Booking check-in by the operator (by ticket id). */
     @Transactional
     public TicketView checkIn(UUID id, Integer expectedVersion, Actor actor) {
         var t = tickets.byId(node.branchId(), id, true);
@@ -186,7 +184,7 @@ public class TicketCommands {
         return views.of(checkInLocked(t, actor));
     }
 
-    // ------------------------------------------------------------------ клиент по токену
+    // ------------------------------------------------------------------ client by token
 
     @Transactional
     public TicketView checkInByToken(UUID token) {
@@ -214,12 +212,12 @@ public class TicketCommands {
         return views.of(postponed);
     }
 
-    // ------------------------------------------------------------------ внутреннее
+    // ------------------------------------------------------------------ internal
 
-    /** Check-in (раздел 6.3, S6, S7): допуск с slot_start − early, дедлайн slot_start; опоздание — по late_policy. */
+    /** Check-in (sect 6.3, S6, S7): eligible from slot_start − early, deadline slot_start; lateness per late_policy. */
     private Ticket checkInLocked(Ticket t, Actor actor) {
         if (t.status() == TicketStatus.waiting && t.source() == TicketSource.appointment && t.checkedInAt() != null) {
-            return t;                                                       // повторный check-in — идемпотентно
+            return t;                                                       // repeated check-in is idempotent
         }
         if (t.status() != TicketStatus.booked) {
             throw new DomainException("INVALID_STATE_TRANSITION", "Check-in возможен только для записи");

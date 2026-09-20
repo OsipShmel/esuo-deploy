@@ -15,13 +15,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 
 /**
- * Уведомление «очередь приближается» (4.7, Q3). Для ожидающего талона, который впервые попал под правило
- * {@code position <= approaching-position-lte} или {@code eta <= approaching-eta-lte-min}, в одной транзакции:
- * ставится флаг {@code notified_approaching_at} и пишется событие {@code notification.requested}
- * с {@code dedup_key = ticket_id:approaching}. Доставку выполняет центр; страница клиента получает то же
- * событие по SSE ноды.
- * <p>Не уведомляются: талоны, ещё не допущенные к вызову (запись раньше времени, отложенные), и талоны без ETA
- * (нет открытого окна с их услугой) — «приближения» там нет.
+ * "Your turn is approaching" (sect 4.7). For a waiting ticket that first matches
+ * {@code position <= approaching-position-lte} or {@code eta <= approaching-eta-lte-min}, in one transaction:
+ * set {@code notified_approaching_at} and write {@code notification.requested} with {@code dedup_key = ticket_id:approaching}.
+ * The center delivers it; the client page gets the same event via node SSE.
+ * <p>Skipped: tickets not yet eligible (early bookings, postponed) and tickets without ETA (no open window).
  */
 @Service
 public class ApproachingNotifier {
@@ -40,7 +38,7 @@ public class ApproachingNotifier {
         this.events = events; this.node = node; this.clock = clock;
     }
 
-    /** Один проход; возвращает число созданных запросов уведомлений. */
+    /** One pass; returns the number of notification requests created. */
     @Transactional
     public int scan() {
         var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);

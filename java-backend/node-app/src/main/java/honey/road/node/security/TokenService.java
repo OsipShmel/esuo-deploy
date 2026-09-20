@@ -36,11 +36,11 @@ public class TokenService {
                 .subject(user.id().toString())
                 .issuedAt(now)
                 .expiresAt(expiresAt)
-                .claim(honey.road.node.security.JwtClaims.LOGIN, user.login())
-                .claim(honey.road.node.security.JwtClaims.ROLE, user.role().name())
-                .claim(honey.road.node.security.JwtClaims.BRANCH_ID, props.branchId());
+                .claim(JwtClaims.LOGIN, user.login())
+                .claim(JwtClaims.ROLE, user.role().name())
+                .claim(JwtClaims.BRANCH_ID, props.branchId());
         if (user.employeeId() != null) {
-            claims.claim(honey.road.node.security.JwtClaims.EMPLOYEE_ID, user.employeeId().toString());
+            claims.claim(JwtClaims.EMPLOYEE_ID, user.employeeId().toString());
         }
         var header = JwsHeader.with(MacAlgorithm.HS256).build();
         var jwt = encoder.encode(JwtEncoderParameters.from(header, claims.build()));

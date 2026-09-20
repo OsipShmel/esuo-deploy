@@ -11,17 +11,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.ToDoubleFunction;
+import java.util.Arrays;
+import java.util.function.Predicate;
 
 /**
- * Детерминированный симулятор очереди для сравнения стратегий (раздел 16.3, 20.1). Использует настоящий
- * {@link QueueSelection}: окно, освободившееся первым, берёт головы очередей своих услуг (допущенные, по
- * {@code (due_at, seq)}) и выбирает по правилам 6.4. Ничего случайного: результат зависит только от входа.
+ * Deterministic queue simulator for comparing strategies (sect 16.3, 20.1). Uses the real {@link QueueSelection}:
+ * the window that frees up first takes its services' queue heads (eligible, by {@code (due_at, seq)}) and picks by
+ * the 6.4 rules. Nothing random: the result depends only on the input.
  */
 final class QueueSimulator {
     static final Instant START = Instant.parse("2026-09-21T06:00:00Z");
     static final LocalDate DAY = LocalDate.of(2026, 9, 21);
 
-    /** Клиент: услуга, приход (секунды от начала), дедлайн (секунды от прихода). */
+    /** Client: service, arrival (seconds from start), deadline (seconds from arrival). */
     record Job(String name, UUID service, long arrivalSec, long dueOffsetSec) {
     }
 
@@ -37,7 +39,7 @@ final class QueueSimulator {
             return waitSec.values().stream().mapToLong(Long::longValue).max().orElse(0);
         }
 
-        long maxWait(java.util.function.Predicate<String> nameFilter) {
+        long maxWait(Predicate<String> nameFilter) {
             return waitSec.entrySet().stream().filter(e -> nameFilter.test(e.getKey())).mapToLong(Map.Entry::getValue).max().orElse(0);
         }
 
@@ -50,9 +52,9 @@ final class QueueSimulator {
     }
 
     /**
-     * @param windows     услуги каждого окна
-     * @param durationSec длительность обслуживания по услуге, секунд
-     * @param score       оценка для выбора внутри slack (uniform: 1; heuristic: 1 / длительность)
+     * @param windows     services of each window
+     * @param durationSec service duration per service, seconds
+     * @param score       score for the choice within slack (uniform: 1; heuristic: 1 / duration)
      */
     static Result run(List<Job> jobs, List<Set<UUID>> windows, Map<UUID, Long> durationSec, ToDoubleFunction<Ticket> score,
                       Duration slack) {
@@ -70,7 +72,7 @@ final class QueueSimulator {
         var waiting = new ArrayList<>(tickets);
         var free = new long[windows.size()];
         var alive = new boolean[windows.size()];
-        java.util.Arrays.fill(alive, true);
+        Arrays.fill(alive, true);
 
         var wait = new HashMap<String, Long>();
         var done = new HashMap<String, Long>();

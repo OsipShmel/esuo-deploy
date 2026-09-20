@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-/** {@code handling_stats}: скользящее среднее длительности обслуживания (раздел 16.1). */
+/** {@code handling_stats}: running average of service duration (sect 16.1). */
 @Repository
 public class HandlingStatsRepository {
     private static final UUID NONE = new UUID(0, 0);
@@ -18,7 +18,7 @@ public class HandlingStatsRepository {
 
     public HandlingStatsRepository(JdbcClient jdbc) { this.jdbc = jdbc; }
 
-    /** Учёт завершённого обслуживания: агрегат по услуге и по сотруднику+услуге. */
+    /** Records a completed service: per service and per employee+service. */
     @Transactional(propagation = Propagation.MANDATORY)
     public void record(UUID service, UUID employee, String category, double seconds, Instant now) {
         if (seconds <= 0) { return; }
@@ -41,7 +41,7 @@ public class HandlingStatsRepository {
                 .param("now", Timestamp.from(now)).update();
     }
 
-    /** Средняя длительность по услуге (все сотрудники и категории), если данных достаточно. */
+    /** Average duration per service (all employees and categories) if there are enough samples. */
     public Optional<Double> averageForService(UUID service, int minSamples) {
         return jdbc.sql("""
                         SELECT sum(avg_duration_sec * sample_count) / NULLIF(sum(sample_count), 0) AS avg, sum(sample_count) AS n
@@ -52,7 +52,7 @@ public class HandlingStatsRepository {
                 .single();
     }
 
-    /** Прогноз длительности и уровень каскада, на котором он получен (раздел 16.2). */
+    /** Duration estimate and the cascade level it came from (sect 16.2). */
     public record Forecast(double seconds, String level, int samples) {
     }
 
@@ -63,9 +63,9 @@ public class HandlingStatsRepository {
     public static final String LEVEL_FALLBACK = "fallback";
 
     /**
-     * Каскад уточнений: на каждом уровне значение берётся, если {@code sample_count >= minSamples}.
-     * 1) сотрудник+услуга+категория, 2) сотрудник+услуга, 3) услуга+категория (все сотрудники), 4) услуга.
-     * Пусто — ни на одном уровне данных достаточно нет, вызывающий берёт {@code fallback_duration_sec}.
+     * Cascade: a level is used when {@code sample_count >= minSamples}.
+     * 1) employee+service+category, 2) employee+service, 3) service+category, 4) service.
+     * Empty: no level has enough data, the caller uses {@code fallback_duration_sec}.
      */
     public Optional<Forecast> forecast(UUID service, UUID employee, String category, int minSamples) {
         if (employee != null) {

@@ -17,10 +17,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Assertions;
 
 /**
- * Проверка ТЗ №4: одновременный вызов из двух окон без двойного назначения.
- * Два окна с общей услугой, по нескольку потоков на окно, стартуют одновременно в каждом раунде.
+ * Check #4: simultaneous calls from two windows without double assignment.
+ * Two windows share a service; several threads per window start together each round.
  */
 class ConcurrentCallNextIT extends AbstractNodeIT {
     private static final int TICKETS = 40;
@@ -66,7 +67,7 @@ class ConcurrentCallNextIT extends AbstractNodeIT {
                 if (winners.isEmpty()) {
                     break;
                 }
-                // В окне не больше одного назначения за раунд, а один талон не достаётся двум окнам.
+                // At most one assignment per window per round, and no ticket goes to two windows.
                 if (winners.size() == 2) {
                     doubleRounds++;
                 }
@@ -81,7 +82,7 @@ class ConcurrentCallNextIT extends AbstractNodeIT {
             pool.shutdownNow();
         }
 
-        // Хвост очереди, где SKIP LOCKED мог дать «пусто» при чужой блокировке, добираем последовательно.
+        // Tail where SKIP LOCKED could return empty under a foreign lock is drained sequentially.
         while (true) {
             var rest = tryCall(W1);
             if (rest == null) {
@@ -91,16 +92,16 @@ class ConcurrentCallNextIT extends AbstractNodeIT {
             tickets.complete(rest.ticketId(), null, Actor.operator(E1.toString()));
         }
 
-        // Тест не вырожденный: в большинстве раундов оба окна действительно получили талон одновременно.
+        // Not degenerate: in most rounds both windows really got a ticket at the same time.
         assertThat(doubleRounds).isGreaterThan(TICKETS / 4);
         assertThat(served).hasSize(TICKETS);
         assertThat(count("SELECT count(*) FROM tickets WHERE status='done'")).isEqualTo(TICKETS);
         assertThat(count("SELECT count(*) FROM tickets WHERE status='waiting'")).isZero();
-        // Каждый талон вызван ровно один раз (журнал — источник истины для аудита).
+        // Every ticket called exactly once (journal is the audit source of truth).
         assertThat(count("SELECT count(*) FROM (SELECT ticket_id FROM ticket_events WHERE event_type='ticket.called' "
                 + "GROUP BY ticket_id HAVING count(*) > 1) d")).isZero();
         assertThat(count("SELECT count(*) FROM ticket_events WHERE event_type='ticket.called'")).isEqualTo(TICKETS);
-        // Последний рубеж: активных талонов в окне не больше одного.
+        // Last line: at most one active ticket per window.
         assertThat(count("SELECT count(*) FROM tickets WHERE status IN ('called','serving')")).isZero();
     }
 
@@ -111,7 +112,7 @@ class ConcurrentCallNextIT extends AbstractNodeIT {
         qr(PARCEL, "b");
         var first = callNext.execute(W1, null);
         assertThat(first.status()).isEqualTo("called");
-        var e = org.junit.jupiter.api.Assertions.assertThrows(DomainException.class, () -> callNext.execute(W1, null));
+        var e = Assertions.assertThrows(DomainException.class, () -> callNext.execute(W1, null));
         assertThat(e.code()).isEqualTo("WINDOW_BUSY");
         assertThat(count("SELECT count(*) FROM tickets WHERE status='called'")).isEqualTo(1);
     }

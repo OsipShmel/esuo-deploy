@@ -5,8 +5,10 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import honey.road.node.queue.application.IssueTicketCommand;
+import honey.road.node.queue.domain.TicketSource;
 
-/** Проверка ТЗ №2: выдача талона по QR — статус, дедлайн по категории, ограничение по устройству. */
+/** Check #2: QR ticket: status, deadline by category, per-device limit. */
 class QrIssueIT extends AbstractNodeIT {
 
     @Test
@@ -30,8 +32,8 @@ class QrIssueIT extends AbstractNodeIT {
     @Test
     void secondActiveTicketFromSameDeviceIsRejectedUntilFirstIsClosed() {
         var first = qrView(PARCEL, "one-phone");
-        assertThatThrownBy(() -> issue.execute(new honey.road.node.queue.application.IssueTicketCommand(
-                honey.road.node.queue.domain.TicketSource.qr, SEND, null, "default", "one-phone", null), "other-key"))
+        assertThatThrownBy(() -> issue.execute(new IssueTicketCommand(
+                TicketSource.qr, SEND, null, "default", "one-phone", null), "other-key"))
                 .isInstanceOf(DomainException.class)
                 .extracting(e -> ((DomainException) e).code()).isEqualTo("ACTIVE_TICKET_EXISTS");
 

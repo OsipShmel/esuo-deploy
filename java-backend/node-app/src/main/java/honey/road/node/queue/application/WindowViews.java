@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class WindowViews {
@@ -32,7 +33,7 @@ public class WindowViews {
     }
 
     @Transactional(readOnly = true)
-    public WindowView get(java.util.UUID id) {
+    public WindowView get(UUID id) {
         return of(windows.get(node.branchId(), id));
     }
 }

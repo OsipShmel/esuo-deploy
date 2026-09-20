@@ -10,7 +10,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/** Алгоритм выбора (раздел 6.4) на детерминированных данных. */
+/** Selection algorithm (sect 6.4) on deterministic data. */
 class QueueSelectionTest {
     static final Instant NOW = Instant.parse("2026-09-21T07:00:00Z");
     static final Duration SLACK = Duration.ofMinutes(5);

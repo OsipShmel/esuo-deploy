@@ -72,7 +72,7 @@ public class CenterTicketStreams {
     }
 
     public SseEmitter subscribe(String branchId, UUID token) {
-        var snapshot = rpc.call(branchId, "ticket.get", Map.of("token", token), null);   // 503/404 — до открытия потока
+        var snapshot = rpc.call(branchId, "ticket.get", Map.of("token", token), null);   // 503/404 before the stream is opened
         if (!snapshot.ok()) {
             throw new TicketStreamRejected(snapshot);
         }

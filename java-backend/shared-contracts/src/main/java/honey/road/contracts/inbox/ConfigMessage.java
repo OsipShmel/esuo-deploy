@@ -26,7 +26,7 @@ public record ConfigMessage(
     public record Employee(UUID id, String fullName, Boolean active) {
     }
 
-    /** {@code passwordHash} — bcrypt; пароль в открытом виде по NATS не передаётся. */
+    /** {@code passwordHash}: bcrypt; plain passwords never travel over NATS. */
     public record User(UUID id, String login, String passwordHash, String role, UUID employeeId, Boolean active) {
     }
 }

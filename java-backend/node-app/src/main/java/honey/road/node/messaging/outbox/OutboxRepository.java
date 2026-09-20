@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Duration;
 
 @Repository
 class OutboxRepository {
@@ -28,8 +29,8 @@ class OutboxRepository {
     }
 
     /**
-     * Голова очереди публикации в порядке {@code seq}, с блокировкой. Отложенные строки не пропускаются:
-     * если голова ещё ждёт повтора, воркер ждёт вместе с ней — иначе нарушится порядок событий.
+     * Head of the publish queue in {@code seq} order, locked. Deferred rows are not skipped:
+     * if the head waits for a retry, the worker waits too, otherwise event order breaks.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     @SuppressWarnings("unchecked")
@@ -64,13 +65,13 @@ class OutboxRepository {
                 .param("t", Timestamp.from(threshold)).update();
     }
 
-    /** Для health: число ожидающих и возраст самой старой. */
+    /** For health: pending count and age of the oldest. */
     OutboxStats stats(Instant now) {
         return jdbc.sql("SELECT count(*) AS n, min(created_at) AS oldest FROM outbox WHERE status='pending'")
                 .query((rs, i) -> {
                     var oldest = rs.getTimestamp("oldest");
                     return new OutboxStats(rs.getLong("n"), Optional.ofNullable(oldest)
-                            .map(t -> java.time.Duration.between(t.toInstant(), now)).orElse(java.time.Duration.ZERO));
+                            .map(t -> Duration.between(t.toInstant(), now)).orElse(Duration.ZERO));
                 }).single();
     }
 

@@ -62,10 +62,10 @@ public class SseHub {
         this.qr = qr;
     }
 
-    // --------------- подписка
+    // --------------- subscription
 
     public SseEmitter subscribeTicket(UUID token) {
-        var snapshot = ticketQueries.get(token);                 // 404 до открытия потока
+        var snapshot = ticketQueries.get(token);                 // 404 before the stream is opened
         var emitter = new SseEmitter(TIMEOUT.toMillis());
         tickets.computeIfAbsent(token, k -> ConcurrentHashMap.newKeySet()).add(emitter);
         emitter.onCompletion(() -> remove(tickets.get(token), emitter));
@@ -93,7 +93,7 @@ public class SseHub {
         return emitter;
     }
 
-    // --------------- рассылка
+    // --------------- broadcast
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onCommitted(DomainEventCommitted event) {
@@ -108,7 +108,7 @@ public class SseHub {
                 && !EventTypes.AGGREGATE_WINDOW.equals(envelope.aggregateType())) {
             return;
         }
-        // Изменился свой талон — событие + снапшот; изменилась очередь — снапшоты всем подписчикам.
+        // Own ticket changed: event + snapshot; queue changed: snapshots to all subscribers.
         tickets.forEach((token, emitters) -> {
             if (emitters.isEmpty()) { return; }
             try {
@@ -154,13 +154,13 @@ public class SseHub {
         return tickets.values().stream().mapToInt(Set::size).sum() + boards.size() + operators.size();
     }
 
-    // --------------- низкий уровень
+    // --------------- low level
 
     private static void close(SseEmitter e) {
         try {
             e.send(SseEmitter.event().name("reconnect").data(Map.of(), MediaType.APPLICATION_JSON));
         } catch (IOException | IllegalStateException ignored) {
-            // клиент уже ушёл
+            // client is gone
         }
         e.complete();
     }

@@ -16,11 +16,11 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Проверка ТЗ №9: конкурентное создание талонов без дублирования. */
+/** Check #9: concurrent ticket creation without duplicates. */
 class ConcurrentIssueIT extends AbstractNodeIT {
     private static final int THREADS = 20;
 
-    /** Результат одной попытки: либо талон, либо код доменной ошибки. */
+    /** Outcome of one attempt: a ticket or a domain error code. */
     private record Outcome(TicketView view, String errorCode) {}
 
     @Test

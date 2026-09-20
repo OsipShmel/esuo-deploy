@@ -3,6 +3,7 @@ package honey.road.node.config;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.JsonNode;
 
 
 @Component
@@ -21,7 +22,7 @@ public class JsonCodec {
         }
     }
 
-    public tools.jackson.databind.JsonNode readTree(String value) {
+    public JsonNode readTree(String value) {
         try {
             return mapper.readTree(value);
         } catch (JacksonException ex) {
@@ -29,11 +30,11 @@ public class JsonCodec {
         }
     }
 
-    public tools.jackson.databind.JsonNode toTree(Object value) {
+    public JsonNode toTree(Object value) {
         return mapper.valueToTree(value);
     }
 
-    public <T> T treeToValue(tools.jackson.databind.JsonNode tree, Class<T> type) {
+    public <T> T treeToValue(JsonNode tree, Class<T> type) {
         try {
             return mapper.treeToValue(tree, type);
         } catch (JacksonException ex) {

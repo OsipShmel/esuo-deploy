@@ -10,11 +10,10 @@ import java.time.Duration;
 import java.util.UUID;
 
 /**
- * {@code score = 1 / predicted_duration_sec} — при равных дедлайнах в пределах {@code slack} окно берёт более
- * короткое обслуживание и обслуживает больше клиентов (раздел 16.2) [MVP-демо].
- * Прогноз — каскад уточнений по {@code handling_stats}; когда данных мало, берётся
- * {@code default-service-duration-sec}. Уровень каскада и число наблюдений попадают в журнал вызова.
- * Дедлайн остаётся ограничителем: просроченные талоны score не учитывает (QueueSelection).
+ * {@code score = 1 / predicted_duration_sec}: among heads within {@code slack} the window takes the shorter service
+ * and serves more clients (sect 16.2) [MVP-demo]. The estimate is the {@code handling_stats} cascade, falling back
+ * to {@code default-service-duration-sec}; cascade level and sample count go to the call journal.
+ * The deadline still bounds it: overdue tickets ignore score (QueueSelection).
  */
 @Component
 public class HeuristicScoringStrategy implements ScoringStrategy {

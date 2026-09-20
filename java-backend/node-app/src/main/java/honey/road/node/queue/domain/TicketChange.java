@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Изменение изменяемых полей талона. Применяется {@code TicketRepository.apply}: один UPDATE с проверкой
- * {@code version} (оптимистическая блокировка) и {@code version+1}.
+ * Change of mutable ticket fields. Applied by {@code TicketRepository.apply}: one UPDATE with a {@code version}
+ * check (optimistic lock) and {@code version+1}.
  */
 public final class TicketChange {
     private final Ticket base;
@@ -43,7 +43,7 @@ public final class TicketChange {
 
     public static TicketChange of(Ticket t) { return new TicketChange(t); }
 
-    /** Талон снова ждёт вызова: окно и сотрудник освобождаются. */
+    /** Ticket waits for a call again: window and employee are released. */
     public TicketChange backToWaiting(Instant eligibleFrom, Instant dueAt) {
         status = TicketStatus.waiting;
         windowId = null;

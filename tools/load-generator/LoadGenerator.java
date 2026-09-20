@@ -23,34 +23,33 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Load-generator ЕСУО (дизайн-док 3.2 и 16.1) — один файл, без зависимостей: {@code java LoadGenerator.java <режим> [опции]}.
+ * ESUO load generator (design doc 3.2, 16.1): single file, no dependencies: {@code java LoadGenerator.java <mode> [options]}.
  *
  * <pre>
- * live     Живой поток на запущенной ноде через её REST: клиенты приходят (QR и живая очередь),
- *          операторы вызывают, обслуживают и завершают. Длительности с закономерностями из 16.1
- *          (услуги разные, pensioner дольше, один быстрый и один медленный сотрудник).
+ * live     Live stream against a running node via REST: clients arrive (QR and walk-in), operators call, serve and
+ *          complete. Durations follow the 16.1 patterns (services differ, pensioner slower, one fast and one slow employee).
  *          --node http://localhost:8080  --operators 2  --minutes 3  --speed 30  --arrivals-per-min 12
  *          --password operator123  --qr demo:b01  --seed 42
- *          --speed ускоряет обслуживание (30 — «5 минут» проходят за 10 секунд); статистика копит целые секунды.
+ *          --speed accelerates service (30: "5 minutes" pass in 10 seconds); stats keep whole seconds.
  *
- * history  Синтетическая история за несколько недель в виде SQL (обслуженные талоны, журнал, окна, handling_stats):
+ * history  Synthetic multi-week history as SQL (served tickets, journal, windows, handling_stats):
  *            java LoadGenerator.java history --days 21 --per-day 60 --out history.sql
  *            docker exec -i esuo-postgres-b01 psql -U esuo -d esuo &lt; history.sql
- *          Идемпотентно: талоны ON CONFLICT DO NOTHING, handling_stats пересобирается из обслуженных талонов.
- *          Нужны демо-справочник узла (DEMO_DATA=true).
+ *          Idempotent: tickets ON CONFLICT DO NOTHING, handling_stats rebuilt from served tickets.
+ *          Requires the node demo catalog (DEMO_DATA=true).
  * </pre>
  */
 public class LoadGenerator {
-    // Демо-справочник узла (DatabaseBootstrap): услуги, окна, сотрудники.
+    // Node demo catalog (DatabaseBootstrap): services, windows, employees.
     static final Map<String, String> SERVICE_IDS = Map.of(
             "parcel", "00000000-0000-4000-8000-000000000001",
             "send", "00000000-0000-4000-8000-000000000004",
             "finance", "00000000-0000-4000-8000-000000000005");
     static final Map<String, String> PREFIX = Map.of("parcel", "П", "send", "О", "finance", "Ф");
-    static final Map<String, Integer> SHARE = Map.of("parcel", 45, "send", 35, "finance", 20);          // доля потока, %
-    static final Map<String, Double> BASE_SEC = Map.of("parcel", 240.0, "send", 420.0, "finance", 600.0);  // выдача посылки быстрее перевода
-    static final String WINDOW_1 = "00000000-0000-4000-8000-000000000003";   // посылки + отправка, сотрудник 1 (быстрый)
-    static final String WINDOW_2 = "00000000-0000-4000-8000-000000000007";   // посылки + финансы, сотрудник 2 (медленный)
+    static final Map<String, Integer> SHARE = Map.of("parcel", 45, "send", 35, "finance", 20);          // share of the stream, %
+    static final Map<String, Double> BASE_SEC = Map.of("parcel", 240.0, "send", 420.0, "finance", 600.0);  // parcel pickup is faster than a transfer
+    static final String WINDOW_1 = "00000000-0000-4000-8000-000000000003";   // parcels + send, employee 1 (fast)
+    static final String WINDOW_2 = "00000000-0000-4000-8000-000000000007";   // parcels + finance, employee 2 (slow)
     static final String EMPLOYEE_1 = "00000000-0000-4000-8000-000000000002";
     static final String EMPLOYEE_2 = "00000000-0000-4000-8000-000000000006";
     static final Map<String, Integer> TARGET_WAIT_QR = Map.of("default", 20, "pensioner", 15, "svo", 5);
@@ -69,7 +68,7 @@ public class LoadGenerator {
         }
     }
 
-    // ------------------------------------------------------------------ общее
+    // ------------------------------------------------------------------ common
 
     record Opts(Map<String, String> values) {
         static Opts parse(String[] args) {
@@ -88,7 +87,7 @@ public class LoadGenerator {
         double dbl(String k, double d) { return Double.parseDouble(values.getOrDefault(k, String.valueOf(d))); }
     }
 
-    /** Множитель длительности по категории клиента (16.1: pensioner обслуживается дольше). */
+    /** Duration multiplier by client category (16.1: pensioner takes longer). */
     static double categoryFactor(String service, String category) {
         return switch (category) {
             case "pensioner" -> service.equals("parcel") ? 1.2 : 1.5;
@@ -97,7 +96,7 @@ public class LoadGenerator {
         };
     }
 
-    /** Лог-нормальный шум вокруг среднего: длительности положительны и «хвостатые». */
+    /** Log-normal noise around the mean: positive, heavy-tailed durations. */
     static double noise(Random rnd) {
         return Math.exp(rnd.nextGaussian() * 0.25 - 0.03125);
     }
@@ -119,7 +118,7 @@ public class LoadGenerator {
         return "default";
     }
 
-    // ------------------------------------------------------------------ минимальный JSON
+    // ------------------------------------------------------------------ minimal JSON
 
     static final class Json {
         private final String s;
@@ -186,7 +185,7 @@ public class LoadGenerator {
 
         private String string() {
             var sb = new StringBuilder();
-            i++;                                                 // открывающая кавычка
+            i++;                                                 // opening quote
             while (s.charAt(i) != '"') {
                 char c = s.charAt(i++);
                 if (c == '\\') {
@@ -280,14 +279,14 @@ public class LoadGenerator {
                 var open = call("POST", "/windows/" + id + "/open", tokens.get(w),
                         "{\"service_ids\":" + JsonOut.list(win.get("service_ids")) + "}", null);
                 if (open.status() != 200) fail("не открылось окно " + id + ": " + open.body());
-                double employeeFactor = w == 0 ? 0.75 : 1.35;                         // быстрый и медленный сотрудник
+                double employeeFactor = w == 0 ? 0.75 : 1.35;                         // fast and slow employee
                 var token = tokens.get(w);
                 var wrnd = new Random(rnd.nextLong());
                 threads.add(Thread.ofVirtual().name("operator-" + w).start(() -> operator(token, id, codeById, employeeFactor, speed, wrnd)));
             }
 
             long end = System.currentTimeMillis() + minutes * 60_000L;
-            long rushFrom = end - minutes * 30_000L;                                   // вторая половина — наплыв ×2
+            long rushFrom = end - minutes * 30_000L;                                   // second half: ×2 surge
             int deviceSeq = 0;
             while (System.currentTimeMillis() < end) {
                 double rate = perMin * (System.currentTimeMillis() > rushFrom ? 2.0 : 1.0);
@@ -330,7 +329,7 @@ public class LoadGenerator {
                 int version = ((Number) t.get("version")).intValue();
                 var service = codeById.getOrDefault(((Map<?, ?>) t.get("service")).get("id"), "parcel");
                 var category = (String) t.get("client_category");
-                if (rnd.nextInt(100) < 3) {                                            // клиент не подошёл
+                if (rnd.nextInt(100) < 3) {                                            // client did not show up
                     call("POST", "/tickets/" + id + "/no-show", token, "{\"expected_version\":" + version + "}", null);
                     noShows.incrementAndGet();
                     continue;
@@ -355,7 +354,7 @@ public class LoadGenerator {
         }
     }
 
-    /** Обратная сериализация простых значений, разобранных {@link Json}. */
+    /** Serializes simple values parsed by {@link Json} back. */
     static final class JsonOut {
         static String list(Object o) {
             if (!(o instanceof List<?> l)) return "[]";
@@ -384,7 +383,7 @@ public class LoadGenerator {
                 var day = today.minusDays(d);
                 total += day(sql, day, zone, perDay, new Random(seed * 1000 + d), seed);
             }
-            // handling_stats пересобирается из обслуженных талонов: скрипт можно запускать повторно.
+            // handling_stats is rebuilt from served tickets, so the script can be rerun.
             sql.append("""
                     DELETE FROM handling_stats;
                     INSERT INTO handling_stats(service_id, employee_id, window_id, client_category, avg_duration_sec, sample_count, updated_at)
@@ -403,7 +402,7 @@ public class LoadGenerator {
             System.out.printf("Записано %s: %d талонов за %d дн.%nПрименить: docker exec -i esuo-postgres-b01 psql -U esuo -d esuo < %s%n", out, total, days, out);
         }
 
-        /** Один день: поток клиентов с обеденным пиком и пенсионными днями, обслуживание двумя окнами по EDF. */
+        /** One day: client stream with a lunch peak and pension days, served by two windows via EDF. */
         static int day(StringBuilder sql, LocalDate day, ZoneId zone, int perDay, Random rnd, long seed) {
             boolean pensionDay = day.getDayOfMonth() == 3 || day.getDayOfMonth() == 13 || day.getDayOfMonth() == 23;
             int count = (int) Math.round(perDay * (pensionDay ? 1.6 : 1.0) * (0.8 + 0.4 * rnd.nextDouble()));
@@ -412,7 +411,7 @@ public class LoadGenerator {
 
             var jobs = new ArrayList<Job>();
             for (int i = 0; i < count; i++) {
-                // Плотность по часам: утро и обед (12–14) гуще.
+                // Hourly density: morning and lunch (12–14) are denser.
                 double x = rnd.nextDouble();
                 double hour = x < 0.35 ? 9 + rnd.nextDouble() * 3 : x < 0.65 ? 12 + rnd.nextDouble() * 2 : 14 + rnd.nextDouble() * 3.9;
                 var arrival = open.plusSeconds((long) ((hour - 9) * 3600));
@@ -425,7 +424,7 @@ public class LoadGenerator {
             }
             jobs.sort(Comparator.comparing(Job::arrival));
 
-            // Два окна: окно 1 (посылки, отправка; быстрый сотрудник), окно 2 (посылки, финансы; медленный).
+            // Two windows: window 1 (parcels, send; fast employee), window 2 (parcels, finance; slow).
             var windowFree = new Instant[]{open, open};
             var windowServices = new List[]{List.of("parcel", "send"), List.of("parcel", "finance")};
             var windowIds = new String[]{WINDOW_1, WINDOW_2};
@@ -457,10 +456,10 @@ public class LoadGenerator {
                 long serviceSec = Math.max(20, Math.round(BASE_SEC.get(job.service()) * categoryFactor(job.service(), job.category())
                         * factors[w] * noise(rnd)));
                 var called = at;
-                var started = called.plusSeconds(3 + rnd.nextInt(20));                 // клиент подходит к окну
+                var started = called.plusSeconds(3 + rnd.nextInt(20));                 // client comes to the window
                 var completed = started.plusSeconds(serviceSec);
                 windowFree[w] = completed;
-                if (completed.isAfter(close.plus(Duration.ofHours(2)))) continue;      // слишком поздно — отделение закрыто
+                if (completed.isAfter(close.plus(Duration.ofHours(2)))) continue;      // too late, branch closed
                 int n = numbers.merge(job.service(), 1, Integer::sum);
                 ticket(sql, job, day, n, called, started, completed, windowIds[w], employees[w], ++seqInDay);
                 served++;
@@ -491,8 +490,8 @@ public class LoadGenerator {
 
         static void event(StringBuilder sql, UUID ticket, String type, String from, String to, String actor, Instant at, int order, int step) {
             var eventId = UUID.nameUUIDFromBytes(("e" + ticket + step).getBytes(StandardCharsets.UTF_8));
-            // Талон мог не вставиться (конфликт номера ux_ticket_number с уже существующими талонами дня):
-            // события пишем только к талонам, которые есть в БД, иначе упадёт внешний ключ.
+            // A ticket may fail to insert (ux_ticket_number conflict with existing tickets of the day):
+            // write events only for tickets present in the DB, otherwise the FK fails.
             sql.append("INSERT INTO ticket_events(id, ticket_id, event_type, from_status, to_status, actor_type, payload, occurred_at) SELECT '")
                     .append(eventId).append("'::uuid,'").append(ticket).append("'::uuid,'").append(type).append("',")
                     .append(from == null ? "NULL::text" : "'" + from + "'").append(",'").append(to).append("','").append(actor)

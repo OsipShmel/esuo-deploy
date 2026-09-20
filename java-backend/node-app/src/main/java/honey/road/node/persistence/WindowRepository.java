@@ -26,7 +26,7 @@ public class WindowRepository {
 
     public WindowRepository(JdbcClient jdbc) { this.jdbc = jdbc; }
 
-    /** Строка окна — точка сериализации всех команд окна (docs, sect 6.4, 6.7). */
+    /** Window row is the serialization point of all window commands (sect 6.4, 6.7). */
     @Transactional(propagation = Propagation.MANDATORY)
     public ServiceWindow lock(String branch, UUID id) {
         return jdbc.sql("SELECT * FROM windows WHERE branch_id=:b AND id=:id AND active FOR UPDATE")
@@ -49,7 +49,7 @@ public class WindowRepository {
                 .param("w", window).query(UUID.class).list();
     }
 
-    /** Услуги всех окон разом – как говорилось, вероятно в реальной почте не актуально. */
+    /** Services of all windows at once – как говорилось, вероятно в реальной почте не актуально. */
     public Map<UUID, List<UUID>> serviceIdsByWindow(String branch) {
         return jdbc.sql("""
                         SELECT ws.window_id, ws.service_id FROM window_services ws
@@ -79,7 +79,7 @@ public class WindowRepository {
                 .query(MAPPER).single();
     }
 
-    /** Число открытых окон, оказывающих услугу (для ETA). */
+    /** Open windows providing the service (ETA). */
     public int openWindowsFor(UUID service) {
         return jdbc.sql("""
                         SELECT count(*) FROM windows w JOIN window_services ws ON ws.window_id = w.id

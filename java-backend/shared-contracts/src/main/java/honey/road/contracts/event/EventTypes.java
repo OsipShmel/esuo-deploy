@@ -1,6 +1,6 @@
 package honey.road.contracts.event;
 
-/** {@code event_type} (раздел 10.1). Он же хвост subject после {@code branch.{b}.evt.}. */
+/** {@code event_type} (sect 10.1); also the subject suffix after {@code branch.{b}.evt.}. */
 public final class EventTypes {
     private EventTypes() {
     }

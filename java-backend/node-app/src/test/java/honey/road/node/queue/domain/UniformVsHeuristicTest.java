@@ -18,10 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Сравнение {@code uniform} и {@code heuristic} на детерминированной симуляции (раздел 16.3) и гарантия
- * ограничения ожидания (раздел 6.6). Сценарии подобраны так, что результат выводится вручную, а не подгоняется.
- * Сводная таблица пишется в {@code target/simulation/uniform-vs-heuristic.md} — её можно вставить в
- * {@code docs/demo/results.md} с меткой [Проверено] (синтетика).
+ * {@code uniform} vs {@code heuristic} on a deterministic simulation (sect 16.3) and the bounded-wait guarantee
+ * (sect 6.6). Scenarios are chosen so the result can be derived by hand. The summary table goes to
+ * {@code target/simulation/uniform-vs-heuristic.md} for {@code docs/demo/results.md} (synthetic).
  */
 class UniformVsHeuristicTest {
     static final UUID FAST = UUID.fromString("00000000-0000-4000-8000-0000000000f1");
@@ -37,11 +36,11 @@ class UniformVsHeuristicTest {
         return t -> 1.0 / duration.get(t.serviceId());
     }
 
-    // ------------------------------------------------------------------ вручную проверяемые сценарии
+    // ------------------------------------------------------------------ hand-checkable scenarios
 
     /**
-     * В момент 0 у окна две допущенные головы, обе в пределах slack: «посылки» 600 с (дедлайн 2 мин) и «письма» 60 с (4 мин).
-     * uniform берёт по дедлайну: ожидание 0 и 600 → среднее 300 с. heuristic — короткую первой: 0 и 60 → среднее 30 с.
+     * At 0 the window has two eligible heads within slack: parcels 600 s (deadline 2 min) and letters 60 s (4 min).
+     * uniform goes by deadline: waits 0 and 600 → mean 300 s. heuristic takes the short one first: 0 and 60 → mean 30 s.
      */
     @Test
     void heuristicCutsMeanWaitWhenBothHeadsAreInsideSlack() {
@@ -57,11 +56,11 @@ class UniformVsHeuristicTest {
         assertEquals(QueueSelection.REASON_SCORE, h.picks().getFirst().reason());
         assertEquals(300.0, u.meanWait(), 1e-9);
         assertEquals(30.0, h.meanWait(), 1e-9);
-        assertEquals(u.makespanSec(), h.makespanSec());                      // работа та же: выигрыш только в ожидании
+        assertEquals(u.makespanSec(), h.makespanSec());                      // same work: the gain is only in waiting
     }
 
     /**
-     * Просроченный талон score не переигрывает: «посылки» уже просрочены (дедлайн 0), поэтому даже heuristic берёт их первыми.
+     * Score does not override an overdue ticket: parcels are overdue (deadline 0), so even heuristic takes them first.
      */
     @Test
     void overdueTicketIsNeverBypassedByAShorterOne() {
@@ -75,10 +74,10 @@ class UniformVsHeuristicTest {
     }
 
     /**
-     * Ограничение ожидания (6.6): долгая услуга не «голодает». Окно одно; быстрые клиенты (30 с) приходят каждые 30 с
-     * и всегда есть в очереди, долгий (600 с, дедлайн 300 с) пришёл первым. Пока долгий не просрочен, heuristic
-     * предпочитает быстрых; в момент 300 с он просрочен, его дедлайн раньше всех быстрых (≥ 330 с) — и его берут
-     * сразу, как только окно свободно: ожидание ровно 300 с, не больше дедлайна плюс одно обслуживание быстрого.
+     * Bounded wait (6.6): a long service does not starve. One window; fast clients (30 s) arrive every 30 s and are always
+     * queued; the long one (600 s, deadline 300 s) arrived first. While it is not overdue heuristic prefers the fast ones;
+     * at 300 s it is overdue with a deadline earlier than all fast ones (≥ 330 s) and is taken as soon as the window frees:
+     * wait exactly 300 s, never more than the deadline plus one fast service.
      */
     @Test
     void longServiceIsNotStarvedByAStreamOfShortOnes() {
@@ -93,18 +92,18 @@ class UniformVsHeuristicTest {
         var h = QueueSimulator.run(jobs, windows, duration, heuristic(duration), SLACK);
         var u = QueueSimulator.run(jobs, windows, duration, uniform(), SLACK);
 
-        assertEquals(300L, h.waitSec().get("slow"));                          // отложен на весь дедлайн, но не дольше
-        assertTrue(h.waitSec().get("slow") <= 300 + duration.get(FAST));      // граница из 6.6
-        assertEquals(0L, u.waitSec().get("slow"));                            // EDF при равных дедлайнах: первым пришёл — первым обслужен
+        assertEquals(300L, h.waitSec().get("slow"));                          // deferred for the whole deadline, but no longer
+        assertTrue(h.waitSec().get("slow") <= 300 + duration.get(FAST));      // bound from 6.6
+        assertEquals(0L, u.waitSec().get("slow"));                            // EDF with equal deadlines: first come, first served
         var slowPick = h.picks().stream().filter(p -> p.job().equals("slow")).findFirst().orElseThrow();
         assertEquals(QueueSelection.REASON_OVERDUE, slowPick.reason());
     }
 
-    // ------------------------------------------------------------------ сводка на «типичном» потоке
+    // ------------------------------------------------------------------ summary on a "typical" stream
 
     /**
-     * Псевдослучайный поток (seed 42), два окна, три услуги. Строго проверяем только выводимое:
-     * обе стратегии выполняют один и тот же объём работы и никого не теряют; числа для отчёта пишем в файл.
+     * Pseudo-random stream (seed 42), two windows, three services. Only derivable facts are asserted: both strategies do the
+     * same amount of work and lose nobody; report numbers go to a file.
      */
     @Test
     void randomizedDayIsServedCompletelyByBothStrategiesAndReportIsWritten() throws IOException {
@@ -114,7 +113,7 @@ class UniformVsHeuristicTest {
         long t = 0;
         var services = List.of(FAST, FAST, MEDIUM, MEDIUM, SLOW);
         for (int i = 0; i < 120; i++) {
-            t += 20 + rnd.nextInt(160);                                       // в среднем ~ раз в 100 с
+            t += 20 + rnd.nextInt(160);                                       // ~ once per 100 s on average
             jobs.add(new QueueSimulator.Job("c" + i, services.get(rnd.nextInt(services.size())), t, 1200));
         }
         var windows = List.<Set<UUID>>of(Set.of(FAST, MEDIUM, SLOW), Set.of(FAST, MEDIUM, SLOW));
@@ -125,7 +124,7 @@ class UniformVsHeuristicTest {
         assertEquals(jobs.size(), u.doneSec().size());
         assertEquals(jobs.size(), h.doneSec().size());
         long busy = jobs.stream().mapToLong(j -> duration.get(j.service())).sum();
-        assertTrue(u.makespanSec() >= busy / 2 && h.makespanSec() >= busy / 2);   // нижняя граница по загрузке двух окон
+        assertTrue(u.makespanSec() >= busy / 2 && h.makespanSec() >= busy / 2);   // lower bound from the load of two windows
 
         var report = new StringBuilder("# uniform vs heuristic (синтетика, seed 42)\n\n")
                 .append("| Стратегия | Клиентов | Среднее ожидание, с | Максимум, с | Завершение работы, с |\n|---|---|---|---|---|\n");

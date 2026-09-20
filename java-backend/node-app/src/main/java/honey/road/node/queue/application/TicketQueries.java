@@ -24,14 +24,14 @@ public class TicketQueries {
     private final PolicyRepository policies;
     private final TicketRepository tickets;
     private final SlotRepository slots;
-    private final honey.road.node.queue.application.TicketViews views;
+    private final TicketViews views;
     private final NodeProperties node;
     private final Clock clock;
     public TicketQueries(CatalogRepository catalog, PolicyRepository policies, TicketRepository tickets,
-                         SlotRepository slots, honey.road.node.queue.application.TicketViews views, NodeProperties node, Clock clock) {
+                         SlotRepository slots, TicketViews views, NodeProperties node, Clock clock) {
         this.catalog=catalog;this.policies=policies;this.tickets=tickets;this.slots=slots;this.views=views;this.node=node;this.clock=clock;
     }
-    /** Для центра (RPC {@code ticket.by_mp}): по записи МП находит талон; токен уходит только в RPC-ответе. */
+    /** For the center (RPC {@code ticket.by_mp}): ticket by MP booking; the token leaves only in the RPC reply. */
     public TicketView byMpAppointment(String mpAppointmentId) {
         return views.of(tickets.byMpAppointmentId(node.branchId(), mpAppointmentId));
     }

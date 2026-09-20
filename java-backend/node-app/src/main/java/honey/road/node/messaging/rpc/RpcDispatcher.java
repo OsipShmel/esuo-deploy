@@ -24,12 +24,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Приём синхронных запросов центра {@code branch.{b}.rpc.{op}} (разделы 4.1, 10.3).
+ * Center sync requests {@code branch.{b}.rpc.{op}} (sect 4.1, 10.3).
  * <ul>
- *   <li>Подписка с queue group {@code node-rpc}: при нескольких экземплярах ноды запрос обработает один.</li>
- *   <li>Подписка восстанавливается jnats сама; при новом подключении создаётся заново.</li>
- *   <li>Обработка — на виртуальных потоках (JDBC блокирует), не в потоке диспетчера NATS.</li>
- *   <li>Истёкший {@code X-Deadline} — запрос не выполняется: центр уже ответил клиенту 503.</li>
+ *   <li>Queue group {@code node-rpc}: one node instance handles a request.</li>
+ *   <li>Handled on virtual threads (JDBC blocks), not on the NATS dispatcher thread.</li>
+ *   <li>Expired {@code X-Deadline}: not executed, the center has already answered 503.</li>
  * </ul>
  */
 @Component
@@ -56,7 +55,7 @@ public class RpcDispatcher {
 
     synchronized void subscribe(Connection c) {
         if (dispatcher != null && dispatcher.isActive()) {
-            return;                                   // jnats переподписывает сам после reconnect
+            return;                                   // jnats resubscribes after reconnect
         }
         dispatcher = c.createDispatcher(msg -> workers.execute(() -> handle(c, msg)));
         dispatcher.subscribe(Subjects.rpcAll(node.branchId()), QUEUE_GROUP);

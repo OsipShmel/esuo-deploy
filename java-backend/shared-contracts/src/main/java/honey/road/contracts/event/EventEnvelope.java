@@ -8,12 +8,10 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Конверт события (раздел 10.2). Домен пишет его в {@code outbox.payload},
- * outbox-воркер публикует с {@code Nats-Msg-Id = eventId}, потребители дедуплицируют по {@code eventId}.
- * <p>
- * Секрет клиента ({@code public_token}) из отделения не уходит: вместо него в {@code data}
- * кладётся {@code token_hash} ({@link TokenHash}). Центр находит талон для SSE по хешу токена клиента.
- * Значения {@code data} могут быть null (например, {@code window_id} у ожидающего талона).
+ * Event envelope (sect 10.2). The domain writes it to {@code outbox.payload}, the outbox worker publishes it with
+ * {@code Nats-Msg-Id = eventId}, consumers dedup by {@code eventId}.
+ * <p>The client secret ({@code public_token}) never leaves the branch: {@code data} carries {@code token_hash}
+ * ({@link TokenHash}) instead. {@code data} values may be null (e.g. {@code window_id} of a waiting ticket).
  */
 public record EventEnvelope(
         UUID eventId,
@@ -38,7 +36,7 @@ public record EventEnvelope(
         if (data != null && data.containsKey("public_token")) {
             throw new IllegalArgumentException("public_token must not leave the branch in events");
         }
-        // Map.copyOf не принимает null-значения, а они в data законны.
+        // Map.copyOf rejects nulls, which are valid in data.
         data = data == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(data));
     }
 

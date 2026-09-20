@@ -9,8 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import honey.road.contracts.event.Actor;
 
-/** Проверка ТЗ №3: вызов клиента свободным окном; выбор по EDF, журнал решения. */
+/** Check #3: a free window calls a client; EDF choice, decision journal. */
 class CallNextIT extends AbstractNodeIT {
     @Autowired Walkin walkin;
 
@@ -26,8 +27,8 @@ class CallNextIT extends AbstractNodeIT {
     @Test
     void earlierDeadlineWinsWithinService() {
         openWindow(W1, E1, PARCEL);
-        var ordinary = qr(PARCEL, "d1", "default");      // due = выдача + 20 мин
-        var pensioner = qr(PARCEL, "d2", "pensioner");   // due = выдача + 15 мин, хотя выдан позже
+        var ordinary = qr(PARCEL, "d1", "default");      // due = issue + 20 min
+        var pensioner = qr(PARCEL, "d2", "pensioner");   // due = issue + 15 min, although issued later
         var first = callNext.execute(W1, null);
         assertThat(first.ticketId()).isEqualTo(pensioner);
         assertThat(status(ordinary)).isEqualTo("waiting");
@@ -37,7 +38,7 @@ class CallNextIT extends AbstractNodeIT {
     void headsOfDifferentServicesAreComparedByDeadline() {
         openWindow(W1, E1, PARCEL, SEND);
         qr(PARCEL, "p", "default");
-        var urgent = qr(SEND, "s", "svo");               // due = +5 мин
+        var urgent = qr(SEND, "s", "svo");               // due = +5 min
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(urgent);
     }
 
@@ -78,8 +79,8 @@ class CallNextIT extends AbstractNodeIT {
         var b = qr(PARCEL, "b");
         var first = callNext.execute(W1, null);
         assertThat(first.ticketId()).isEqualTo(a);
-        tickets.start(a, null, honey.road.contracts.event.Actor.operator(E1.toString()));
-        tickets.complete(a, null, honey.road.contracts.event.Actor.operator(E1.toString()));
+        tickets.start(a, null, Actor.operator(E1.toString()));
+        tickets.complete(a, null, Actor.operator(E1.toString()));
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(b);
     }
 }

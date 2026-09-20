@@ -15,11 +15,11 @@ import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Таймеры очереди — периодические задачи по полям БД, без состояния в памяти (S12):
- * после рестарта ноды просроченные таймауты обрабатываются первым же проходом.
+ * Queue timers: periodic jobs over DB fields, no in-memory state (S12), so overdue timeouts are handled by the
+ * first pass after a restart.
  * <ul>
- *   <li>S5: вызванный не подошёл за {@code call_timeout_sec} — повторный вызов, после {@code max_recalls} — no_show.</li>
- *   <li>S8: запись без check-in к {@code slot_start + max(grace, retention)} — no_show.</li>
+ *   <li>S5: the called client did not show up within {@code call_timeout_sec} → recall; after {@code max_recalls} → no_show.</li>
+ *   <li>S8: booking without check-in by {@code slot_start + max(grace, retention)} → no_show.</li>
  * </ul>
  */
 @Component
