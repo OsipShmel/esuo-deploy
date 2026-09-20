@@ -53,13 +53,16 @@ def send_webhook(req):
         slot = datetime.now(timezone.utc) + timedelta(minutes=minutes)
         slot = slot.replace(minute=(slot.minute // 15) * 15, second=0, microsecond=0)   # slots are 15 min
         req["slot_start"] = iso(slot)
+    appointment_id = req.get("mp_appointment_id") or "mp-" + uuid.uuid4().hex[:12]
     payload = {
-        "mp_appointment_id": req.get("mp_appointment_id") or "mp-" + uuid.uuid4().hex[:12],
+        "mp_appointment_id": appointment_id,
         "branch_id": req["branch_id"],
         "service_code": req["service_code"],
         "slot_start": req["slot_start"],
         "client_category": req.get("client_category", "default"),
-        "client_ref": req.get("client_ref") or "mp-client-" + uuid.uuid4().hex[:8],
+        # Derived from the id, not random: a resend of the same booking must be byte-identical, otherwise the
+        # center rightly answers 422 IDEMPOTENCY_CONFLICT (design doc 4.6).
+        "client_ref": req.get("client_ref") or "mp-client-" + hashlib.sha1(appointment_id.encode()).hexdigest()[:8],
     }
     body = json.dumps(payload, ensure_ascii=False).encode()
     ts = req.get("timestamp") or str(int(time.time()))
