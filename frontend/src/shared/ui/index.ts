@@ -10,3 +10,6 @@ export { ProblemAlert, problemText } from './ProblemAlert';
 export { EmptyState, Loading } from './EmptyState';
 export { Bar } from './BarChart';
 export { A11yToggles } from './A11yToggles';
+export { Clock } from './Clock';
+export { LoadLevelBadge } from './LoadLevelBadge';
+export { EtaText } from './EtaText';

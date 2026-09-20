@@ -62,6 +62,12 @@ export function useEventStream(opts: StreamOptions): StreamStatus {
         failures = 0;
         touch('live');
       });
+      // Узел перезапускается: закрываем поток и возвращаемся через 1–3 с (дизайн-док 9.6).
+      es.addEventListener('reconnect', () => {
+        es.close();
+        setStatus((s) => ({ ...s, state: 'connecting' }));
+        retryTimer = window.setTimeout(connect, 1000 + Math.random() * 2000);
+      });
       for (const name of eventsKey ? eventsKey.split('|') : []) {
         es.addEventListener(name, (e) => {
           const m = e as MessageEvent<string>;

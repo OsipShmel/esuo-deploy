@@ -1,0 +1,44 @@
+html, body, #root { height: 100%; }
+body { overflow: hidden; cursor: none; user-select: none; }
+
+.sound-gate { position: fixed; inset: 0; width: 100%; display: grid; place-content: center; gap: 24px; text-align: center; border: 0; cursor: pointer;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 7vh; font-weight: 700; }
+.sound-gate span { font-size: 3vh; font-weight: 400; color: var(--text-muted); }
+
+.board { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: 2vh 3vw; gap: 2vh; }
+.board-top { display: flex; justify-content: space-between; align-items: center; font-size: 3.6vh; color: var(--text-muted); }
+.board-top .branch { color: var(--text); font-weight: 500; }
+.board-status { display: flex; align-items: center; gap: 3vw; font-size: 4vh; color: var(--text); }
+.board-status .offline { display: inline-flex; align-items: center; gap: 12px; color: var(--warn); font-size: 2.6vh; }
+
+.board-main { display: grid; grid-template-columns: 2fr 1fr; gap: 3vw; min-height: 0; }
+.calls { display: flex; flex-direction: column; min-height: 0; }
+.calls h1 { font-size: 3.6vh; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 1vh; }
+
+.announce { display: flex; align-items: baseline; gap: 3vw; padding: 2vh 3vw; margin-bottom: 2vh; border: 0.7vh solid var(--accent); border-radius: 2vh; background: var(--surface);
+  animation: blink 1s ease-in-out infinite; min-height: 24vh; align-items: center; }
+.announce.idle { border-color: transparent; background: none; animation: none; font-size: 4vh; color: var(--text-muted); }
+.announce .num { font-size: 17vh; font-weight: 700; line-height: 1; letter-spacing: 0.02em; }
+.announce .arrow { font-size: 10vh; color: var(--text-muted); }
+.announce .win { font-size: 10vh; font-weight: 700; color: var(--accent); text-transform: uppercase; }
+/* Мигает рамка, а не текст (постановка board). */
+@keyframes blink { 50% { border-color: transparent; } }
+
+.call-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1vh; }
+.call-list li { display: flex; align-items: baseline; gap: 2vw; font-size: 6.6vh; padding: 0.6vh 3vw; border-bottom: 1px solid var(--border); }
+.call-list .num { font-weight: 700; min-width: 16vh; }
+.call-list .arrow { color: var(--text-muted); }
+
+.side { display: flex; flex-direction: column; align-items: center; gap: 2vh; text-align: center; }
+.side h2 { font-size: 4vh; line-height: 1.2; }
+.qr { width: min(100%, 44vh); height: auto; border-radius: 1.5vh; background: #fff; }
+.facts { font-size: 4vh; display: grid; gap: 1vh; }
+.facts strong { font-size: 5vh; }
+.warn-small { font-size: 1.8vh; color: var(--warn); }
+
+.load-banner { display: flex; align-items: center; gap: 2vw; padding: 2vh 3vw; border-radius: 2vh; font-size: 3.6vh; font-weight: 500; border: 0.5vh solid currentColor; }
+.load-banner.high { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+.load-banner.overload { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--surface)); }
+.load-banner { color: var(--text); }
+.load-banner.high svg { color: var(--warn); }
+.load-banner.overload svg { color: var(--danger); }

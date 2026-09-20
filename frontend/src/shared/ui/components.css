@@ -15,7 +15,7 @@
 .banner.tone-warn { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
 .banner.tone-ok { background: color-mix(in srgb, var(--ok) 10%, var(--surface)); }
 .banner .banner-body { color: var(--text); flex: 1; }
-.banner .banner-body small { color: var(--text-muted); }
+.banner .banner-body small { display: block; margin-top: 2px; color: var(--text-muted); overflow-wrap: anywhere; }
 
 .empty { text-align: center; padding: 32px 16px; color: var(--text-muted); }
 .empty strong { display: block; color: var(--text); font-size: 1.0625rem; margin-bottom: 4px; }

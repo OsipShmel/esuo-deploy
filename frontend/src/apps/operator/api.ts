@@ -1,14 +1,10 @@
 /** Команды оператора (дизайн-док 9.3). Все команды над талоном передают `expected_version`. */
 import { api } from '@shared/api/http';
-import type { TicketView, WindowView } from '@shared/api/node';
+import type { TicketView } from '@shared/api/node';
 
 export * from '@shared/api/node';
 
-export const openWindow = (id: string, service_ids: string[]) =>
-  api<WindowView>(`/windows/${id}/open`, { method: 'POST', body: { service_ids } });
-export const closeWindow = (id: string, mode: 'graceful' | 'force') =>
-  api<WindowView>(`/windows/${id}/close`, { method: 'POST', body: { mode } });
-export const callNext = (windowId: string) => api<TicketView>(`/windows/${windowId}/call-next`, { method: 'POST' });
+export * from '@shared/api/commands';
 
 export interface WalkinInput {
   service_id: string;

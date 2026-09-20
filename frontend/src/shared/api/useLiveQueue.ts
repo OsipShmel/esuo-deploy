@@ -23,7 +23,13 @@ export interface LiveQueue {
  * Очередь и окна отделения в реальном времени: SSE со снапшотом (`/operator/stream` или `/admin/stream`),
  * при недоступном SSE — опрос GET раз в 10 с (дизайн-док 9.6).
  */
-export function useLiveQueue(streamPath: '/operator/stream' | '/admin/stream', onEvent?: (name: string) => void): LiveQueue {
+export interface LiveQueueOptions {
+  /** Дополнительные имена событий (журнал решений демо-пульта): они не перечитывают очередь. */
+  extraEvents?: readonly string[];
+  onEvent?: (name: string, data: unknown, id: string) => void;
+}
+
+export function useLiveQueue(streamPath: '/operator/stream' | '/admin/stream', opts: LiveQueueOptions = {}): LiveQueue {
   const qc = useQueryClient();
   const token = accessToken();
 
@@ -34,15 +40,15 @@ export function useLiveQueue(streamPath: '/operator/stream' | '/admin/stream', o
 
   const stream = useEventStream({
     url: token ? `/api/v1${streamPath}?access_token=${encodeURIComponent(token)}` : null,
-    events: QUEUE_EVENTS,
+    events: opts.extraEvents ? [...QUEUE_EVENTS, ...opts.extraEvents] : QUEUE_EVENTS,
     onSnapshot: (data) => {
       const s = data as Partial<QueueSnapshot>;
       if (s.queue) qc.setQueryData(['queue'], s.queue);
       if (s.windows) qc.setQueryData(['windows', 'live'], s.windows);
     },
-    onEvent: (name) => {
-      refresh();
-      onEvent?.(name);
+    onEvent: (name, data, id) => {
+      if ((QUEUE_EVENTS as readonly string[]).includes(name)) refresh();
+      opts.onEvent?.(name, data, id);
     },
   });
   const refetchInterval = stream.state === 'polling' ? 10_000 : false;

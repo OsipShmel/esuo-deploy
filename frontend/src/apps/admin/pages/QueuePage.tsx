@@ -20,7 +20,7 @@ export function QueuePage() {
   }, []);
 
   const qc = useQueryClient();
-  const live = useLiveQueue('/admin/stream', () => void qc.invalidateQueries({ queryKey: ['recommendations'] }));
+  const live = useLiveQueue('/admin/stream', { onEvent: () => void qc.invalidateQueries({ queryKey: ['recommendations'] }) });
   const stream = live.stream;
   const queue = { data: live.queue, isLoading: live.loading, error: live.error };
   const windows = { data: live.windows, isLoading: live.loading, error: null as unknown };

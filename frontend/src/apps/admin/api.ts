@@ -3,6 +3,7 @@
  * когда появится `docs/openapi/node.yaml`, модуль заменяется сгенерированным клиентом.
  */
 import { api } from '@shared/api/http';
+import { optional } from '@shared/api/load';
 
 // ------------------------------------------------------------------ общие
 
@@ -204,3 +205,19 @@ export interface Recommendations {
 }
 
 export const getRecommendations = () => api<Recommendations>('/admin/recommendations');
+
+// ------------------------------------------------------------------ нагрузка и модель длительности (делает B)
+
+export * from '@shared/api/load';
+
+/** Формат ответа `GET /admin/model` в дизайн-доке не расписан: читаем то, что есть, лишнее показываем как есть. */
+export interface DurationModel {
+  version: string;
+  status?: string;
+  trained_at?: string;
+  observations?: number;
+  metrics?: Record<string, unknown>;
+}
+
+export const getModel = () => optional(() => api<DurationModel>('/admin/model'));
+export const trainModel = () => api<DurationModel>('/admin/model/train', { method: 'POST' });

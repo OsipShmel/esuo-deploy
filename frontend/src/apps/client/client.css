@@ -1,0 +1,39 @@
+body { -webkit-tap-highlight-color: transparent; }
+.shell { max-width: 520px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 16px; align-content: start; min-height: 100vh; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.topbar a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.stack { display: grid; gap: 12px; align-content: start; }
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.row.between { justify-content: space-between; }
+
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.list-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 60px; padding: 12px 16px; text-align: left; text-decoration: none;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-card); font: inherit; font-size: 1.0625rem; font-weight: 500; cursor: pointer; }
+.list-item:hover { background: var(--surface-2); }
+.list-item[aria-disabled='true'] { opacity: 0.55; pointer-events: none; }
+.list-item .sub { display: block; color: var(--text-muted); font-size: 0.875rem; font-weight: 400; }
+.chev { color: var(--text-muted); font-size: 1.5rem; }
+
+.choice { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-btn); background: var(--surface); }
+.choice input { width: 22px; height: 22px; }
+.choice:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.slot { min-height: 52px; border: 1px solid var(--border); border-radius: var(--radius-btn); background: var(--surface); color: var(--text); font: inherit; font-weight: 500; cursor: pointer; }
+.slot[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.slot:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn { min-height: 52px; }
+.btn-block { width: 100%; }
+
+.ticket-card { text-align: center; display: grid; gap: 8px; padding: 24px 16px; }
+.ticket-card .number { font-size: 3rem; font-weight: 700; letter-spacing: 0.03em; line-height: 1.1; }
+.ticket-card .headline { font-size: 1.25rem; font-weight: 500; }
+.ticket-card .eta { font-size: 1.0625rem; }
+
+.callscreen { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; gap: 12px; padding: 24px; text-align: center;
+  background: var(--accent); color: var(--accent-contrast); animation: callpulse 2s ease-in-out infinite; }
+.callscreen .big { font-size: 2rem; font-weight: 700; }
+.callscreen .number { font-size: 4.5rem; font-weight: 700; line-height: 1; }
+.callscreen .btn { background: var(--accent-contrast); color: var(--accent); border-color: var(--accent-contrast); }
+@keyframes callpulse { 50% { filter: brightness(1.12); } }

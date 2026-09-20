@@ -11,17 +11,17 @@ const PHRASES: Record<string, string> = {
   UNAUTHENTICATED: 'Сессия истекла. Войдите снова.',
 };
 
-export function problemText(error: unknown): { title: string; detail: string; requestId: string | null; code: string } {
+export function problemText(error: unknown, phrases: Record<string, string> = PHRASES): { title: string; detail: string; requestId: string | null; code: string } {
   if (error instanceof ApiError) {
-    const phrase = PHRASES[error.code];
+    const phrase = phrases[error.code];
     return { title: phrase ? phrase : error.title, detail: phrase ? '' : error.detail, requestId: error.requestId, code: error.code };
   }
   return { title: 'Что-то пошло не так', detail: error instanceof Error ? error.message : '', requestId: null, code: 'UNKNOWN' };
 }
 
-export function ProblemAlert({ error }: { error: unknown }) {
+export function ProblemAlert({ error, phrases }: { error: unknown; phrases?: Record<string, string> }) {
   if (!error) return null;
-  const p = problemText(error);
+  const p = problemText(error, phrases);
   return (
     <div className="banner tone-danger" role="alert">
       <Icon name="alert" />

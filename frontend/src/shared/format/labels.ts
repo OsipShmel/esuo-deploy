@@ -10,6 +10,6 @@ export const STATUS_LABEL: Record<string, string> = {
   no_show: 'Не подошёл',
 };
 export const WINDOW_STATUS_LABEL: Record<string, string> = { open: 'Открыто', closing: 'Закрывается', closed: 'Закрыто' };
-export const CATEGORY_LABEL: Record<string, string> = { default: 'Обычный', pensioner: 'Пенсионер', svo: 'СВО' };
+export const CATEGORY_LABEL: Record<string, string> = { default: 'Обычный', pensioner: 'Пенсионер' };
 
 export const label = (map: Record<string, string>, key: string): string => map[key] ?? key;

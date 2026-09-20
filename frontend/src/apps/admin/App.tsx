@@ -10,9 +10,11 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { IncidentsPage } from './pages/IncidentsPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { CatalogPage } from './pages/CatalogPage';
+import { LoadPage } from './pages/LoadPage';
 
 const TABS = [
   { id: 'queue', title: 'Очередь' },
+  { id: 'load', title: 'Нагрузка' },
   { id: 'analytics', title: 'Аналитика' },
   { id: 'incidents', title: 'Инциденты' },
   { id: 'config', title: 'Настройки' },
@@ -68,6 +70,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       <main className="page">
         <RecommendationBanner data={recommendations.data} />
         {tab === 'queue' && <QueuePage />}
+        {tab === 'load' && <LoadPage />}
         {tab === 'analytics' && <AnalyticsPage />}
         {tab === 'incidents' && <IncidentsPage />}
         {tab === 'config' && <ConfigPage />}
