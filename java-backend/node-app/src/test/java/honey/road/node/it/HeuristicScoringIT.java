@@ -83,12 +83,12 @@ class HeuristicScoringIT extends AbstractNodeIT {
 
     @Test
     void employeeLevelAveragesAcrossCategoriesWeightedBySamples() {
-        stats(PARCEL, E1, "default", 100, 5);
-        stats(PARCEL, E1, "svo", 400, 5);                  // weighted: (100·5 + 400·5) / 10 = 250
-        var r = score(qr(PARCEL, "a", "pensioner"), E1);
+        stats(PARCEL, E1, "default", 100, 3);              // each category is below min_samples (5) ...
+        stats(PARCEL, E1, "pensioner", 400, 3);            // ... so the level is weighted: (100·3 + 400·3) / 6 = 250
+        var r = score(qr(PARCEL, "a", "default"), E1);
         assertThat(r.basis()).isEqualTo("employee_service");
         assertThat(r.predictedDuration().toSeconds()).isEqualTo(250);
-        assertThat(r.samples()).isEqualTo(10);
+        assertThat(r.samples()).isEqualTo(6);
     }
 
     @Test

@@ -22,14 +22,14 @@ class ConfigRulesTest {
 
     @Test
     void mergeIsDeepAndDoesNotMutateInputs() {
-        var base = j("{\"a\":1,\"target_wait_min\":{\"qr\":{\"default\":20,\"svo\":5},\"walkin\":{\"default\":30}}}");
+        var base = j("{\"a\":1,\"target_wait_min\":{\"qr\":{\"default\":20,\"pensioner\":15},\"walkin\":{\"default\":30}}}");
         var patch = j("{\"a\":2,\"target_wait_min\":{\"qr\":{\"default\":25}}}");
 
         var merged = ConfigRules.merge(base, patch);
 
         assertEquals(2, merged.get("a").asInt());
         assertEquals(25, merged.get("target_wait_min").get("qr").get("default").asInt());
-        assertEquals(5, merged.get("target_wait_min").get("qr").get("svo").asInt());   // sibling keys kept
+        assertEquals(15, merged.get("target_wait_min").get("qr").get("pensioner").asInt());   // sibling keys kept
         assertEquals(30, merged.get("target_wait_min").get("walkin").get("default").asInt());
         assertEquals(1, base.get("a").asInt());                                        // input unchanged
         assertEquals(20, base.get("target_wait_min").get("qr").get("default").asInt());
@@ -52,7 +52,7 @@ class ConfigRulesTest {
     void nestedValuesAreCheckedLeafByLeaf() {
         ConfigRules.checkWithinBounds(j("{\"target_wait_min\":{\"qr\":{\"default\":30},\"walkin\":{\"default\":45}}}"), BOUNDS);
         var e = assertThrows(DomainException.class,
-                () -> ConfigRules.checkWithinBounds(j("{\"target_wait_min\":{\"qr\":{\"default\":30,\"svo\":2}}}"), BOUNDS));
+                () -> ConfigRules.checkWithinBounds(j("{\"target_wait_min\":{\"qr\":{\"default\":30,\"pensioner\":2}}}"), BOUNDS));
         assertEquals("CONFIG_OUT_OF_BOUNDS", e.code());
     }
 

@@ -87,7 +87,7 @@ class BranchInboxIT extends AbstractNodeIT {
         inbox.process(CONFIG, "cfg-1", configMessage(10, "{\"target_wait_min\":{\"qr\":{\"default\":25}}}", BOUNDS));
         var policy = policies.current();
         assertThat(policy.targetWaitMin().get("qr").get("default")).isEqualTo(25);
-        assertThat(policy.targetWaitMin().get("qr").get("svo")).isEqualTo(5);           // the rest is intact
+        assertThat(policy.targetWaitMin().get("qr").get("pensioner")).isEqualTo(15);     // the rest is intact
         assertThat(policy.targetWaitMin().get("walkin").get("default")).isEqualTo(30);
     }
 

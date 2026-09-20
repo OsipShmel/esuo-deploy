@@ -38,7 +38,7 @@ class CallNextIT extends AbstractNodeIT {
     void headsOfDifferentServicesAreComparedByDeadline() {
         openWindow(W1, E1, PARCEL, SEND);
         qr(PARCEL, "p", "default");
-        var urgent = qr(SEND, "s", "svo");               // due = +5 min
+        var urgent = qr(SEND, "s", "pensioner");          // due = +15 min, earlier than the default +20
         assertThat(callNext.execute(W1, null).ticketId()).isEqualTo(urgent);
     }
 

@@ -24,9 +24,9 @@ class QrIssueIT extends AbstractNodeIT {
     }
 
     @Test
-    void privilegedCategoryGetsShorterTargetWait() {
-        var id = qr(PARCEL, "svo-phone", "svo");
-        assertThat(count("SELECT EXTRACT(EPOCH FROM (due_at - issued_at))::bigint FROM tickets WHERE id=?", id)).isEqualTo(5 * 60);
+    void pensionerGetsShorterTargetWait() {
+        var id = qr(PARCEL, "pensioner-phone", "pensioner");
+        assertThat(count("SELECT EXTRACT(EPOCH FROM (due_at - issued_at))::bigint FROM tickets WHERE id=?", id)).isEqualTo(15 * 60);
     }
 
     @Test
