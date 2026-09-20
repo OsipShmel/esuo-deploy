@@ -101,3 +101,5 @@ data/
 .env
 .smoke-day1-token
 dev-docs/
+# frontend bundle copied in by the Docker build
+java-backend/*/src/main/resources/static/
