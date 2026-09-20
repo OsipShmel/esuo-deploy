@@ -24,6 +24,9 @@ import java.time.temporal.ChronoUnit;
  */
 @Component
 public class QueueTimers {
+    /** Timer period: {@code esuo.timers.interval} (5 s), 1 s in demo mode. */
+    static final String INTERVAL = "#{${esuo.demo-mode:false} ? '1s' : '${esuo.timers.interval:5s}'}";
+
     private static final Logger log = LoggerFactory.getLogger(QueueTimers.class);
     private static final int BATCH = 50;
 
@@ -40,7 +43,7 @@ public class QueueTimers {
         this.node = node; this.tx = tx; this.clock = clock;
     }
 
-    @Scheduled(fixedDelayString = "${esuo.timers.interval:5s}", initialDelayString = "10s")
+    @Scheduled(fixedDelayString = QueueTimers.INTERVAL, initialDelayString = "10s")
     public void callTimeouts() {
         try {
             tx.executeWithoutResult(s -> {
@@ -56,7 +59,7 @@ public class QueueTimers {
         }
     }
 
-    @Scheduled(fixedDelayString = "${esuo.timers.interval:5s}", initialDelayString = "15s")
+    @Scheduled(fixedDelayString = QueueTimers.INTERVAL, initialDelayString = "15s")
     public void expireBookings() {
         try {
             tx.executeWithoutResult(s -> {

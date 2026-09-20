@@ -43,6 +43,7 @@ esuo:
   branch-name: ${BRANCH_NAME:Демонстрационное отделение}
   timezone: ${BRANCH_TIMEZONE:Europe/Moscow}
   demo-data: ${DEMO_DATA:false}
+  demo-mode: ${DEMO_MODE:false}                # DemoClock and demo API (load-planning.md 7.1)
   security:
     jwt-secret: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
     jwt-ttl: 12h

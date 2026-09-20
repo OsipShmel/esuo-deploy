@@ -147,6 +147,7 @@ services:
       BRANCH_NAME: Отделение 101000 (b01)
       NATS_URL: nats://nats-leaf-b01:4222
       DEMO_DATA: ${DEMO_DATA:-true}
+      DEMO_MODE: ${DEMO_MODE:-false}
       JWT_SECRET: ${JWT_SECRET}
       DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}

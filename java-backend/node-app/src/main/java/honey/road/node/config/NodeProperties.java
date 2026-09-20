@@ -21,6 +21,7 @@ public record NodeProperties(
         String branchName,
         @NotBlank String timezone,
         boolean demoData,
+        boolean demoMode,
         @NotNull @Valid Security security,
         DemoUsers demoUsers
 ) {

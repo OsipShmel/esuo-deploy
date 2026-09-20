@@ -43,6 +43,7 @@ services:
       BRANCH_NAME: ${BRANCH_NAME:-Отделение ${BRANCH_ID}}
       NATS_URL: nats://nats-leaf:4222
       DEMO_DATA: ${DEMO_DATA:-true}
+      DEMO_MODE: ${DEMO_MODE:-false}
       JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET}
       DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}

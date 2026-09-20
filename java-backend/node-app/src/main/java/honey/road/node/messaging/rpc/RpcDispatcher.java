@@ -15,6 +15,7 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -44,7 +45,7 @@ public class RpcDispatcher {
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private volatile Dispatcher dispatcher;
 
-    public RpcDispatcher(NatsGateway nats, NodeProperties node, RpcOperations operations, JsonCodec json, Clock clock) {
+    public RpcDispatcher(NatsGateway nats, NodeProperties node, RpcOperations operations, JsonCodec json, @Qualifier("realClock") Clock clock) {
         this.nats = nats; this.node = node; this.operations = operations; this.json = json; this.clock = clock;
     }
 

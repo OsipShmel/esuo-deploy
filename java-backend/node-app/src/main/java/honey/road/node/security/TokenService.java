@@ -1,5 +1,6 @@
 package honey.road.node.security;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -22,7 +23,7 @@ public class TokenService {
     private final NodeProperties props;
     private final Clock clock;
 
-    TokenService(JwtEncoder encoder, NodeProperties props, Clock clock) {
+    TokenService(JwtEncoder encoder, NodeProperties props, @Qualifier("realClock") Clock clock) {
         this.encoder = encoder;
         this.props = props;
         this.clock = clock;

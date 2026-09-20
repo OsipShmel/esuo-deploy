@@ -2,6 +2,7 @@ package honey.road.node.messaging.heartbeat;
 
 import honey.road.contracts.event.Subjects;
 import honey.road.contracts.http.EsuoHeaders;
+import honey.road.node.demo.DemoClock;
 import honey.road.node.config.JsonCodec;
 import honey.road.node.config.NodeProperties;
 import honey.road.node.messaging.nats.NatsGateway;
@@ -75,6 +76,9 @@ public class HeartbeatPublisher {
         hb.put("name", branch.name());
         hb.put("timezone", branch.timezone());
         hb.put("sent_at", now);
+        if (clock instanceof DemoClock demo) {
+            hb.put("demo_rate", demo.rate());                  // the center converts TTLs to branch time (sect 11.3)
+        }
         // config_version: the version published by the center (lets the center see whether it was applied);
         // effective_config_version also grows with local admin overrides and is stamped into tickets.
         var versions = policies.versions();

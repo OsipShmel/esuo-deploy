@@ -23,7 +23,7 @@ public class ApproachingScheduler {
         this.notifier = notifier;
     }
 
-    @Scheduled(fixedDelayString = "${esuo.timers.interval:5s}", initialDelayString = "20s")
+    @Scheduled(fixedDelayString = QueueTimers.INTERVAL, initialDelayString = "20s")
     public void scan() {
         try {
             int n = notifier.scan();
