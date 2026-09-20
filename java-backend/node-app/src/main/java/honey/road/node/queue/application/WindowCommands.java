@@ -43,13 +43,14 @@ public class WindowCommands {
     private final CatalogRepository catalog;
     private final EventRepository events;
     private final WindowViews views;
+    private final CallNext callNext;
     private final NodeProperties node;
     private final Clock clock;
 
     public WindowCommands(WindowRepository windows, TicketRepository tickets, CatalogRepository catalog,
-                          EventRepository events, WindowViews views, NodeProperties node, Clock clock) {
+                          EventRepository events, WindowViews views, CallNext callNext, NodeProperties node, Clock clock) {
         this.windows = windows; this.tickets = tickets; this.catalog = catalog; this.events = events;
-        this.views = views; this.node = node; this.clock = clock;
+        this.views = views; this.callNext = callNext; this.node = node; this.clock = clock;
     }
 
     @Transactional
@@ -74,6 +75,7 @@ public class WindowCommands {
                 wasOpen ? null : now);
         events.windowEvent(opened, EventTypes.WINDOW_OPENED, actor(employeeId), now,
                 Map.of("service_ids", List.copyOf(services), "reopened", wasOpen));
+        callNext.autoCallIfEnabled(windowId, opened.currentEmployeeId());
         return views.of(opened);
     }
 

@@ -97,6 +97,23 @@ class ApproachingNotificationIT extends AbstractNodeIT {
         assertThat(queries.get(third.token()).position()).isEqualTo(2);
     }
 
+    /** 16.3: при heuristic ETA учитывает скорость сотрудника открытого окна (каскад), при uniform — среднее по услуге. */
+    @Test
+    void heuristicEtaUsesEmployeeSpeed() {
+        jdbc.update("UPDATE branch_config SET central_config = jsonb_set(central_config, '{scoring_strategy}', '\"heuristic\"') WHERE id=1");
+        jdbc.update("""
+                INSERT INTO handling_stats(service_id, employee_id, window_id, client_category, avg_duration_sec, sample_count, updated_at)
+                VALUES (?, NULL, NULL, 'default', 300, 20, now()), (?, ?, NULL, 'default', 60, 10, now())
+                """, PARCEL, PARCEL, E1);
+        openWindow(W1, E1, PARCEL);                                    // быстрый сотрудник: ~60 с
+        var first = qrView(PARCEL, "a");
+        var second = qrView(PARCEL, "b");
+
+        var eta0 = queries.get(first.token()).eta();
+        var eta1 = queries.get(second.token()).eta();
+        assertThat(eta1).isAfter(eta0.plusSeconds(55)).isBefore(eta0.plusSeconds(65));
+    }
+
     @Test
     void ticketWithoutOpenWindowShowsUndefinedEta() {
         var view = qrView(PARCEL, "nowin");

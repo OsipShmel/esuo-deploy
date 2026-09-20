@@ -296,6 +296,7 @@ public class AnalyticsQueries {
                         "duration_sec", Math.round(rs.getDouble("sec"))))
                 .list().forEach(items::add);
 
+        slowWindows(p, policy.heuristicMinSamples(), policy.slowWindowFactor(), items);
         idleWindows(now, policy.idleAlertMin(), items);
 
         // S2: есть ожидающие, а открытого окна с их услугой нет.
@@ -322,10 +323,41 @@ public class AnalyticsQueries {
                 .list().forEach(items::add);
 
         var counts = new LinkedHashMap<String, Integer>();
-        for (var type : List.of("overdue_ticket", "no_show", "long_service", "idle_window", "service_without_window", "open_incident")) {
+        for (var type : List.of("overdue_ticket", "no_show", "long_service", "slow_window", "idle_window", "service_without_window", "open_incident")) {
             counts.put(type, (int) items.stream().filter(i -> type.equals(i.get("type"))).count());
         }
         return new Deviations(now, p.from(), p.to(), counts, items);
+    }
+
+    /**
+     * Окно обслуживает медленнее нормы (16.3): средняя длительность завершённых за период обслуживаний окна
+     * больше нормы по тем же услугам (среднее по отделению) в {@code slow_window_factor} раз и более.
+     * Окна с числом обслуживаний меньше {@code heuristic_min_samples} не оцениваются.
+     */
+    private void slowWindows(Period p, int minSamples, double factor, List<Map<String, Object>> items) {
+        var names = windows.all(node.branchId()).stream().collect(Collectors.toMap(ServiceWindow::id, ServiceWindow::name));
+        jdbc.sql("""
+                        WITH d AS (
+                          SELECT window_id, service_id,
+                                 EXTRACT(EPOCH FROM (completed_at - COALESCE(serving_started_at, called_at))) AS sec
+                            FROM tickets
+                           WHERE branch_id = :b AND status = 'done' AND window_id IS NOT NULL
+                             AND completed_at >= :from AND completed_at < :to
+                        ), d1 AS (SELECT * FROM d WHERE sec > 0),
+                        norm AS (SELECT service_id, avg(sec) AS norm_sec FROM d1 GROUP BY service_id)
+                        SELECT d1.window_id, count(*) AS n, avg(d1.sec) AS actual_sec, avg(norm.norm_sec) AS norm_sec
+                          FROM d1 JOIN norm ON norm.service_id = d1.service_id
+                         GROUP BY d1.window_id
+                        HAVING count(*) >= :min AND avg(d1.sec) > :factor * avg(norm.norm_sec)
+                         ORDER BY avg(d1.sec) / avg(norm.norm_sec) DESC
+                        """).param("b", node.branchId()).param("from", Timestamp.from(p.from())).param("to", Timestamp.from(p.to()))
+                .param("min", Math.max(1, minSamples)).param("factor", factor)
+                .query((rs, n) -> item("slow_window", "window_id", rs.getObject("window_id", UUID.class),
+                        "window_name", names.getOrDefault(rs.getObject("window_id", UUID.class), "?"),
+                        "avg_service_sec", Math.round(rs.getDouble("actual_sec")), "norm_service_sec", Math.round(rs.getDouble("norm_sec")),
+                        "ratio", Math.round(rs.getDouble("actual_sec") / rs.getDouble("norm_sec") * 100) / 100.0,
+                        "samples", rs.getInt("n")))
+                .list().forEach(items::add);
     }
 
     /** S14: окно {@code open} без активного талона и без действий дольше {@code idle_alert_min}. */

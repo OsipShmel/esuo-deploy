@@ -20,7 +20,8 @@ public record QueuePolicy(
         Integer defaultServiceDurationSec,
         Integer approachingPositionLte, Integer approachingEtaLteMin,
         Integer idleAlertMin, Integer longServiceMin,
-        Integer heuristicMinSamples, Integer recommendOverdueMin, Integer recommendOverdueCount) {
+        Integer heuristicMinSamples, Integer recommendOverdueMin, Integer recommendOverdueCount,
+        Double slowWindowFactor) {
 
     public static final String LATE_CONVERT = "convert_to_qr";
     public static final String LATE_REJECT = "reject";
@@ -63,6 +64,7 @@ public record QueuePolicy(
         heuristicMinSamples = heuristicMinSamples == null ? 5 : heuristicMinSamples;
         recommendOverdueMin = recommendOverdueMin == null ? 10 : recommendOverdueMin;
         recommendOverdueCount = recommendOverdueCount == null ? 5 : recommendOverdueCount;
+        slowWindowFactor = slowWindowFactor == null ? 1.5 : slowWindowFactor;
     }
 
     public int targetWait(TicketSource source, String category) {

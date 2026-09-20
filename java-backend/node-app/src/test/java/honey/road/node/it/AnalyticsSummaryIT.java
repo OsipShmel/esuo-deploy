@@ -195,6 +195,51 @@ class AnalyticsSummaryIT extends AbstractNodeIT {
         assertThat(((Number) items(d, "long_service").getFirst().get("duration_sec")).longValue()).isBetween(2395L, 2410L);
     }
 
+    /** 16.3: окно, чьё среднее обслуживание в 1.5 раза и более выше нормы по тем же услугам, попадает в отклонения. */
+    @Test
+    void slowWindowIsReportedAgainstBranchNorm() {
+        openWindow(W1, E1, PARCEL);
+        openWindow(W2, E2, PARCEL);
+        for (int i = 0; i < 5; i++) {                                  // порог выборки — 5 обслуживаний на окно
+            serve(W1, "fast" + i, 60);
+            serve(W2, "slow" + i, 240);
+        }
+        var slow = items(analytics.deviations(today()), "slow_window");
+        assertThat(slow).hasSize(1);
+        assertThat(slow.getFirst().get("window_id")).isEqualTo(W2);
+        assertThat(((Number) slow.getFirst().get("samples")).intValue()).isEqualTo(5);
+        assertThat(((Number) slow.getFirst().get("ratio")).doubleValue()).isGreaterThan(1.5);
+    }
+
+    @Test
+    void windowsWithSimilarSpeedOrFewSamplesAreNotSlow() {
+        openWindow(W1, E1, PARCEL);
+        openWindow(W2, E2, PARCEL);
+        for (int i = 0; i < 5; i++) {
+            serve(W1, "a" + i, 100);
+            serve(W2, "b" + i, 110);
+        }
+        assertThat(deviations(analytics.deviations(today()), "slow_window")).isZero();
+    }
+
+    @Test
+    void slowWindowWithTooFewSamplesIsNotReported() {
+        openWindow(W1, E1, PARCEL);
+        openWindow(W2, E2, PARCEL);
+        for (int i = 0; i < 6; i++) { serve(W1, "fast" + i, 60); }
+        for (int i = 0; i < 4; i++) { serve(W2, "slow" + i, 600); }   // 4 < heuristic_min_samples (5)
+        assertThat(deviations(analytics.deviations(today()), "slow_window")).isZero();
+    }
+
+    /** Обслужить один талон в окне; длительность задаётся сдвигом {@code serving_started_at} назад. */
+    private void serve(java.util.UUID window, String device, int seconds) {
+        var id = qr(PARCEL, device);
+        callNext.execute(window, null);
+        tickets.start(id, null, operator);
+        jdbc.update("UPDATE tickets SET serving_started_at = now() - make_interval(secs => ?) WHERE id=?", seconds, id);
+        tickets.complete(id, null, operator);
+    }
+
     @Test
     void openWindowWithoutActivityIsIdleButBusyOrFreshOneIsNot() {
         // W3 «открыто» час назад без единого события и клиентов (S14); W1 только что открыто.

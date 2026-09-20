@@ -47,15 +47,16 @@ public class TicketCommands {
     private final EventRepository events;
     private final HandlingStatsRepository stats;
     private final WindowCommands windowCommands;
+    private final CallNext callNext;
     private final TicketViews views;
     private final NodeProperties node;
     private final Clock clock;
 
     public TicketCommands(TicketRepository tickets, WindowRepository windows, CatalogRepository catalog,
                           PolicyRepository policies, EventRepository events, HandlingStatsRepository stats,
-                          WindowCommands windowCommands, TicketViews views, NodeProperties node, Clock clock) {
+                          WindowCommands windowCommands, CallNext callNext, TicketViews views, NodeProperties node, Clock clock) {
         this.tickets = tickets; this.windows = windows; this.catalog = catalog; this.policies = policies;
-        this.events = events; this.stats = stats; this.windowCommands = windowCommands; this.views = views;
+        this.events = events; this.stats = stats; this.windowCommands = windowCommands; this.callNext = callNext; this.views = views;
         this.node = node; this.clock = clock;
     }
 
@@ -82,6 +83,8 @@ public class TicketCommands {
         events.ticketEvent(done, EventTypes.TICKET_COMPLETED, t.status(), actor, Map.of("service_duration_sec", seconds));
         if (ctx.window != null && WindowStatus.CLOSING.equals(ctx.window.status())) {
             windowCommands.finishClose(ctx.window, actor, now, "graceful_after_complete");
+        } else if (ctx.window != null) {
+            callNext.autoCallIfEnabled(ctx.window.id(), t.employeeId());
         }
         return views.of(done);
     }

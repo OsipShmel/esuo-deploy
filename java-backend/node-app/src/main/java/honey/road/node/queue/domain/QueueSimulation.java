@@ -33,13 +33,25 @@ public final class QueueSimulation {
     public record Result(Map<UUID, Instant> eta) {
     }
 
+    /** Прогноз длительности обслуживания талона в конкретном окне (окно даёт сотрудника), секунд. */
+    @FunctionalInterface
+    public interface DurationModel {
+        long seconds(WindowState window, Ticket ticket);
+    }
+
+    /** Прогноз по услуге, одинаковый для всех окон. */
+    public static Result run(Instant now, List<Ticket> waiting, List<WindowState> windows,
+                             ToLongFunction<UUID> durationSec, Duration slack) {
+        return run(now, waiting, windows, (w, t) -> durationSec.applyAsLong(t.serviceId()), slack);
+    }
+
     /**
      * @param waiting     ожидающие талоны в порядке EDF {@code (due_at, seq)}
      * @param windows     окна, принимающие новых клиентов (открытые, не {@code closing})
-     * @param durationSec прогноз длительности обслуживания по услуге, секунд
+     * @param duration    прогноз длительности обслуживания талона окном, секунд
      */
     public static Result run(Instant now, List<Ticket> waiting, List<WindowState> windows,
-                             ToLongFunction<UUID> durationSec, Duration slack) {
+                             DurationModel duration, Duration slack) {
         var remaining = new ArrayList<>(waiting);
         var free = new HashMap<UUID, Instant>();
         var live = new ArrayList<WindowState>();
@@ -76,7 +88,7 @@ public final class QueueSimulation {
             var chosen = QueueSelection.choose(heads, at, slack, t -> 1.0).chosen();
             eta.put(chosen.id(), at);
             remaining.remove(chosen);
-            free.put(window.windowId(), at.plusSeconds(Math.max(1, durationSec.applyAsLong(chosen.serviceId()))));
+            free.put(window.windowId(), at.plusSeconds(Math.max(1, duration.seconds(window, chosen))));
         }
         return new Result(Map.copyOf(eta));
     }

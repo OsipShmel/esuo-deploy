@@ -57,6 +57,32 @@ public class CallNext {
         var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         var window = lockFreeOpenWindow(windowId);
         var employee = employeeId != null ? employeeId : window.currentEmployeeId();
+        return selectAndAssign(window, employee, now)
+                .map(views::of)
+                .orElseThrow(() -> new DomainException("QUEUE_EMPTY", "Нет клиентов, которых может вызвать это окно"));
+    }
+
+    /**
+     * Автовызов при {@code auto_call_on_free} (6.4): после {@code open} и {@code complete}. Вызывается внутри
+     * транзакции команды. Не бросает исключений на «нечего вызывать»: иначе транзакция команды стала бы
+     * rollback-only. Окно не {@code open} или уже занятое пропускается молча.
+     */
+    @Transactional
+    public void autoCallIfEnabled(UUID windowId, UUID employeeId) {
+        if (!policies.current().autoCallOnFree()) {
+            return;
+        }
+        var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        var window = windows.lock(node.branchId(), windowId);
+        if (!WindowStatus.OPEN.equals(window.status()) || tickets.activeForWindow(windowId, false).isPresent()) {
+            return;
+        }
+        var employee = employeeId != null ? employeeId : window.currentEmployeeId();
+        selectAndAssign(window, employee, now);
+    }
+
+    private java.util.Optional<Ticket> selectAndAssign(ServiceWindow window, UUID employee, Instant now) {
+        var windowId = window.id();
         var policy = policies.current();
 
         var heads = new ArrayList<Ticket>();
@@ -64,7 +90,7 @@ public class CallNext {
             tickets.lockHead(node.branchId(), service, windowId, now).ifPresent(heads::add);
         }
         if (heads.isEmpty()) {
-            throw new DomainException("QUEUE_EMPTY", "Нет клиентов, которых может вызвать это окно");
+            return java.util.Optional.empty();
         }
         var strategy = scoring.get(policy.scoringStrategy());
         // Оценки считаются один раз на голову и идут в журнал: решение можно переиграть (раздел 6.6).
@@ -94,7 +120,7 @@ public class CallNext {
         extra.put("scoring_strategy", strategy.name());
         extra.put("model_version", results.get(selection.chosen().id()).modelVersion());
         extra.put("candidates", candidates);
-        return views.of(assign(selection.chosen(), window, employee, now, extra));
+        return java.util.Optional.of(assign(selection.chosen(), window, employee, now, extra));
     }
 
     /**

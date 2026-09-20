@@ -491,10 +491,13 @@ public class LoadGenerator {
 
         static void event(StringBuilder sql, UUID ticket, String type, String from, String to, String actor, Instant at, int order, int step) {
             var eventId = UUID.nameUUIDFromBytes(("e" + ticket + step).getBytes(StandardCharsets.UTF_8));
-            sql.append("INSERT INTO ticket_events(id, ticket_id, event_type, from_status, to_status, actor_type, payload, occurred_at) VALUES ('")
-                    .append(eventId).append("','").append(ticket).append("','").append(type).append("',")
-                    .append(from == null ? "NULL" : "'" + from + "'").append(",'").append(to).append("','").append(actor)
-                    .append("','{\"synthetic\": true}','").append(at).append("') ON CONFLICT DO NOTHING;\n");
+            // Талон мог не вставиться (конфликт номера ux_ticket_number с уже существующими талонами дня):
+            // события пишем только к талонам, которые есть в БД, иначе упадёт внешний ключ.
+            sql.append("INSERT INTO ticket_events(id, ticket_id, event_type, from_status, to_status, actor_type, payload, occurred_at) SELECT '")
+                    .append(eventId).append("'::uuid,'").append(ticket).append("'::uuid,'").append(type).append("',")
+                    .append(from == null ? "NULL::text" : "'" + from + "'").append(",'").append(to).append("','").append(actor)
+                    .append("','{\"synthetic\": true}'::jsonb,'").append(at).append("'::timestamptz WHERE EXISTS (SELECT 1 FROM tickets WHERE id='")
+                    .append(ticket).append("') ON CONFLICT DO NOTHING;\n");
         }
 
         static String windowEvent(String window, String type, String payload, Instant at, LocalDate day, int w) {
