@@ -1,0 +1,902 @@
+openapi: 3.1.0
+info:
+  title: ESUO center API
+  version: v1
+servers:
+- url: http://localhost:8081
+  description: Generated server url
+paths:
+  /api/v1/config/global:
+    put:
+      tags:
+      - config-controller
+      operationId: putGlobal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Published"
+  /api/v1/config/branches/{branchId}:
+    get:
+      tags:
+      - config-controller
+      operationId: branch
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BranchConfigView"
+    put:
+      tags:
+      - config-controller
+      operationId: putBranch
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Published"
+  /api/v1/webhooks/mp/appointments:
+    post:
+      tags:
+      - mp-webhook-controller
+      summary: MP appointment webhook
+      operationId: appointment
+      parameters:
+      - name: X-Timestamp
+        in: header
+        required: false
+        schema:
+          type: string
+      - name: X-Signature
+        in: header
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Appointment"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Accepted"
+  /api/v1/branches/{branch}/tickets/{token}/postpone:
+    post:
+      tags:
+      - gateway-controller
+      operationId: postpone
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/branches/{branch}/tickets/{token}/check-in:
+    post:
+      tags:
+      - gateway-controller
+      operationId: checkIn
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/branches/{branch}/tickets/{token}/cancel:
+    post:
+      tags:
+      - gateway-controller
+      operationId: cancel
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/branches/{branch}/qr-tickets:
+    post:
+      tags:
+      - gateway-controller
+      operationId: qr
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/branches/{branch}/appointments:
+    post:
+      tags:
+      - gateway-controller
+      operationId: appointment_1
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/branches/{branchId}/users:
+    get:
+      tags:
+      - config-controller
+      operationId: users
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserView"
+    post:
+      tags:
+      - config-controller
+      operationId: createUser
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUser"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserChange"
+  /api/v1/admin/dlq/{id}/retry:
+    post:
+      tags:
+      - dlq-controller
+      operationId: retry
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RetryResponse"
+  /api/v1/branches/{branchId}/users/{userId}:
+    patch:
+      tags:
+      - config-controller
+      operationId: updateUser
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUser"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserChange"
+  /api/v1/network/overview:
+    get:
+      tags:
+      - network-controller
+      operationId: overview
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+  /api/v1/config:
+    get:
+      tags:
+      - config-controller
+      operationId: overview_1
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ConfigOverview"
+  /api/v1/config/versions:
+    get:
+      tags:
+      - config-controller
+      operationId: versions
+      parameters:
+      - name: branch
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VersionView"
+  /api/v1/branches:
+    get:
+      tags:
+      - network-controller
+      operationId: branches
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: {}
+  /api/v1/branches/{branch}/tickets/{token}:
+    get:
+      tags:
+      - gateway-controller
+      operationId: ticket
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/branches/{branch}/tickets/{token}/stream:
+    get:
+      tags:
+      - center-stream-controller
+      operationId: stream
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+  /api/v1/branches/{branch}/slots:
+    get:
+      tags:
+      - gateway-controller
+      operationId: slots
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: service_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/branches/{branch}/info:
+    get:
+      tags:
+      - gateway-controller
+      operationId: info
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+  /api/v1/admin/notifications/status:
+    get:
+      tags:
+      - notifications-controller
+      operationId: status
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Status"
+  /api/v1/admin/notifications/dlq:
+    get:
+      tags:
+      - dlq-controller
+      operationId: notifications
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          default: open
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeadLetterView"
+  /api/v1/admin/mp/requests:
+    get:
+      tags:
+      - mp-webhook-controller
+      operationId: recent
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MpRequestView"
+  /api/v1/admin/dlq:
+    get:
+      tags:
+      - dlq-controller
+      operationId: list
+      parameters:
+      - name: kind
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          default: open
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeadLetterView"
+components:
+  schemas:
+    Published:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int32
+        published_to:
+          type: array
+          items:
+            type: string
+    Appointment:
+      type: object
+      properties:
+        mp_appointment_id:
+          type: string
+        branch_id:
+          type: string
+        service_code:
+          type: string
+        slot_start:
+          type: string
+          format: date-time
+        client_category:
+          type: string
+        client_ref:
+          type: string
+    Accepted:
+      type: object
+      properties:
+        mp_appointment_id:
+          type: string
+        status:
+          type: string
+    CreateUser:
+      type: object
+      properties:
+        login:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+        full_name:
+          type: string
+    UserChange:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserView"
+        config_version:
+          type: integer
+          format: int32
+    UserView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        login:
+          type: string
+        role:
+          type: string
+        employee_id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        active:
+          type: boolean
+    RetryResponse:
+      type: object
+      properties:
+        result:
+          type: string
+        error:
+          type: string
+    UpdateUser:
+      type: object
+      properties:
+        password:
+          type: string
+        role:
+          type: string
+        active:
+          type: boolean
+    BranchConfigStatus:
+      type: object
+      properties:
+        branch_id:
+          type: string
+        overrides:
+          $ref: "#/components/schemas/Overrides"
+        published_version:
+          type: integer
+          format: int32
+        applied_version:
+          type: integer
+          format: int32
+        applied_at:
+          type: string
+          format: date-time
+        pending:
+          type: boolean
+    ConfigOverview:
+      type: object
+      properties:
+        global:
+          $ref: "#/components/schemas/SectionsView"
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/BranchConfigStatus"
+    Overrides:
+      type: object
+      properties:
+        queue:
+          type: object
+          additionalProperties: {}
+        bounds:
+          type: object
+          additionalProperties: {}
+        planning:
+          type: object
+          additionalProperties: {}
+    SectionsView:
+      type: object
+      properties:
+        queue:
+          type: object
+          additionalProperties: {}
+        bounds:
+          type: object
+          additionalProperties: {}
+        planning:
+          type: object
+          additionalProperties: {}
+        updated_at:
+          type: string
+          format: date-time
+        updated_by:
+          type: string
+    VersionView:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int32
+        branch_id:
+          type: string
+        message:
+          type: object
+          additionalProperties: {}
+        author:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    BranchConfigView:
+      type: object
+      properties:
+        overrides:
+          $ref: "#/components/schemas/Overrides"
+        effective:
+          type: object
+          additionalProperties: {}
+        published_version:
+          type: integer
+          format: int32
+        applied_version:
+          type: integer
+          format: int32
+        applied_at:
+          type: string
+          format: date-time
+    SseEmitter:
+      type: object
+      properties:
+        timeout:
+          type: integer
+          format: int64
+    BreakerView:
+      type: object
+      properties:
+        state:
+          type: string
+        failure_rate:
+          type: number
+          format: float
+    Status:
+      type: object
+      properties:
+        circuit_breaker:
+          $ref: "#/components/schemas/BreakerView"
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        last_error:
+          type: string
+    DeadLetterView:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        key:
+          type: string
+        branch_id:
+          type: string
+        payload:
+          $ref: "#/components/schemas/JsonNode"
+        attempts:
+          type: integer
+          format: int32
+        reason:
+          type: string
+        last_error:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+    JsonNode:
+      type: object
+      properties:
+        empty:
+          type: boolean
+        array:
+          type: boolean
+        "null":
+          type: boolean
+        object:
+          type: boolean
+        float:
+          type: boolean
+        container:
+          type: boolean
+        missing_node:
+          type: boolean
+        binary:
+          type: boolean
+        value_node:
+          type: boolean
+        integral_number:
+          type: boolean
+        node_type:
+          type: string
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+        string:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        int:
+          type: boolean
+        long:
+          type: boolean
+        double:
+          type: boolean
+        big_decimal:
+          type: boolean
+        big_integer:
+          type: boolean
+        textual:
+          type: boolean
+          deprecated: true
+        boolean:
+          type: boolean
+        floating_point_number:
+          type: boolean
+        number:
+          type: boolean
+        embedded_value:
+          type: boolean
+    MpRequestView:
+      type: object
+      properties:
+        mp_appointment_id:
+          type: string
+        branch_id:
+          type: string
+        status:
+          type: string
+        published:
+          type: boolean
+        display_number:
+          type: string
+        reason:
+          type: string
+        callback_attempts:
+          type: integer
+          format: int32
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time

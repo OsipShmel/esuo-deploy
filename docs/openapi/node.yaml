@@ -1,0 +1,1918 @@
+openapi: 3.1.0
+info:
+  title: ESUO branch node API
+  version: v1
+servers:
+- url: http://localhost:8080
+  description: Generated server url
+paths:
+  /api/v1/admin/windows/{id}:
+    get:
+      tags:
+      - admin-catalog-controller
+      operationId: window
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowAdminView"
+    put:
+      tags:
+      - admin-catalog-controller
+      operationId: renameWindow
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WindowRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowAdminView"
+    delete:
+      tags:
+      - admin-catalog-controller
+      operationId: deleteWindow
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowAdminView"
+  /api/v1/admin/windows/{id}/services:
+    put:
+      tags:
+      - admin-catalog-controller
+      operationId: windowServices
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WindowServicesRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowAdminView"
+  /api/v1/admin/services/{id}:
+    get:
+      tags:
+      - admin-catalog-controller
+      operationId: service
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceView"
+    put:
+      tags:
+      - admin-catalog-controller
+      operationId: updateService
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceView"
+    delete:
+      tags:
+      - admin-catalog-controller
+      operationId: deleteService
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceView"
+  /api/v1/admin/employees/{id}:
+    get:
+      tags:
+      - admin-catalog-controller
+      operationId: employee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EmployeeView"
+    put:
+      tags:
+      - admin-catalog-controller
+      operationId: updateEmployee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EmployeeView"
+    delete:
+      tags:
+      - admin-catalog-controller
+      operationId: deleteEmployee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EmployeeView"
+  /api/v1/admin/demo/clock:
+    put:
+      tags:
+      - demo-clock-controller
+      operationId: put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetClock"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+  /api/v1/admin/config:
+    get:
+      tags:
+      - admin-config-controller
+      operationId: get
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+    put:
+      tags:
+      - admin-config-controller
+      operationId: put_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonNode"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+  /api/v1/windows/{id}/walkin:
+    post:
+      tags:
+      - window-controller
+      operationId: walkin
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalkinRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/windows/{id}/open:
+    post:
+      tags:
+      - window-controller
+      operationId: open
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowView"
+  /api/v1/windows/{id}/close:
+    post:
+      tags:
+      - window-controller
+      operationId: close
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowView"
+  /api/v1/windows/{id}/call-next:
+    post:
+      tags:
+      - window-controller
+      operationId: callNext
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/tickets/{id}/start:
+    post:
+      tags:
+      - operator-ticket-controller
+      operationId: start
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/tickets/{id}/requeue:
+    post:
+      tags:
+      - operator-ticket-controller
+      operationId: requeue
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequeueRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/tickets/{id}/redirect:
+    post:
+      tags:
+      - operator-ticket-controller
+      operationId: redirect
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedirectRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/tickets/{id}/recall:
+    post:
+      tags:
+      - operator-ticket-controller
+      operationId: recall
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/tickets/{id}/no-show:
+    post:
+      tags:
+      - operator-ticket-controller
+      operationId: noShow
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/tickets/{id}/complete:
+    post:
+      tags:
+      - operator-ticket-controller
+      operationId: complete
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/tickets/{id}/check-in:
+    post:
+      tags:
+      - operator-ticket-controller
+      operationId: checkIn
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/public/tickets/{token}/postpone:
+    post:
+      tags:
+      - public-ticket-controller
+      operationId: postpone
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostponeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/public/tickets/{token}/check-in:
+    post:
+      tags:
+      - public-ticket-controller
+      operationId: checkIn_1
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckInRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/public/tickets/{token}/cancel:
+    post:
+      tags:
+      - public-ticket-controller
+      operationId: cancel
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/public/qr-tickets:
+    post:
+      tags:
+      - public-ticket-controller
+      operationId: qr
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/public/appointments:
+    post:
+      tags:
+      - public-ticket-controller
+      operationId: appointment
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/incidents:
+    post:
+      tags:
+      - incident-controller
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/IncidentView"
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth-controller
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+  /api/v1/admin/windows:
+    get:
+      tags:
+      - admin-catalog-controller
+      operationId: windows
+      parameters:
+      - name: include_inactive
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WindowAdminView"
+    post:
+      tags:
+      - admin-catalog-controller
+      operationId: createWindow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WindowRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowAdminView"
+  /api/v1/admin/services:
+    get:
+      tags:
+      - admin-catalog-controller
+      operationId: services
+      parameters:
+      - name: include_inactive
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceView"
+    post:
+      tags:
+      - admin-catalog-controller
+      operationId: createService
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceView"
+  /api/v1/admin/employees:
+    get:
+      tags:
+      - admin-catalog-controller
+      operationId: employees
+      parameters:
+      - name: include_inactive
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeView"
+    post:
+      tags:
+      - admin-catalog-controller
+      operationId: createEmployee
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EmployeeView"
+  /api/v1/admin/incidents/{id}:
+    patch:
+      tags:
+      - incident-controller
+      operationId: resolve
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/IncidentView"
+  /api/v1/windows:
+    get:
+      tags:
+      - window-controller
+      operationId: list
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WindowView"
+  /api/v1/windows/{id}:
+    get:
+      tags:
+      - window-controller
+      operationId: get_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WindowView"
+  /api/v1/tickets/{id}/events:
+    get:
+      tags:
+      - operator-ticket-controller
+      operationId: events
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: {}
+  /api/v1/queue:
+    get:
+      tags:
+      - operator-ticket-controller
+      operationId: queue
+      parameters:
+      - name: service_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueueItem"
+  /api/v1/public/tickets/{token}:
+    get:
+      tags:
+      - public-ticket-controller
+      operationId: get_2
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TicketView"
+  /api/v1/public/tickets/{token}/stream:
+    get:
+      tags:
+      - stream-controller
+      operationId: ticket
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+  /api/v1/public/slots:
+    get:
+      tags:
+      - public-ticket-controller
+      operationId: slots
+      parameters:
+      - name: service_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SlotView"
+  /api/v1/public/demo/clock:
+    get:
+      tags:
+      - demo-clock-controller
+      operationId: get_3
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+  /api/v1/public/branch:
+    get:
+      tags:
+      - public-ticket-controller
+      operationId: branch
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+  /api/v1/public/board:
+    get:
+      tags:
+      - public-ticket-controller
+      operationId: board
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Board"
+  /api/v1/public/board/stream:
+    get:
+      tags:
+      - stream-controller
+      operationId: board_1
+      responses:
+        "200":
+          description: OK
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+  /api/v1/operator/stream:
+    get:
+      tags:
+      - stream-controller
+      operationId: operator
+      responses:
+        "200":
+          description: OK
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+  /api/v1/admin/stream:
+    get:
+      tags:
+      - stream-controller
+      operationId: operator_1
+      responses:
+        "200":
+          description: OK
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+  /api/v1/admin/recommendations:
+    get:
+      tags:
+      - admin-recommendations-controller
+      operationId: get_4
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Result"
+  /api/v1/admin/analytics/windows:
+    get:
+      tags:
+      - admin-analytics-controller
+      operationId: windows_1
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WindowStat"
+  /api/v1/admin/analytics/unfinished:
+    get:
+      tags:
+      - admin-analytics-controller
+      operationId: unfinished
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Unfinished"
+  /api/v1/admin/analytics/summary:
+    get:
+      tags:
+      - admin-analytics-controller
+      operationId: summary
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Summary"
+  /api/v1/admin/analytics/deviations:
+    get:
+      tags:
+      - admin-analytics-controller
+      operationId: deviations
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Deviations"
+components:
+  schemas:
+    WindowRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        service_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    WindowAdminView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+        active:
+          type: boolean
+        current_employee_id:
+          type: string
+          format: uuid
+        service_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    WindowServicesRequest:
+      type: object
+      properties:
+        service_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+      required:
+      - service_ids
+    ServiceRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        number_prefix:
+          type: string
+        slot_duration_min:
+          type: integer
+          format: int32
+        slot_capacity:
+          type: integer
+          format: int32
+        active:
+          type: boolean
+    ServiceView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        number_prefix:
+          type: string
+        slot_duration_min:
+          type: integer
+          format: int32
+        slot_capacity:
+          type: integer
+          format: int32
+        active:
+          type: boolean
+    EmployeeRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+        active:
+          type: boolean
+    EmployeeView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        active:
+          type: boolean
+    SetClock:
+      type: object
+      properties:
+        now:
+          type:
+          - string
+          - "null"
+          format: date-time
+        rate:
+          type:
+          - number
+          - "null"
+          format: double
+    State:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        now:
+          type: string
+          format: date-time
+        rate:
+          type: number
+          format: double
+    JsonNode:
+      type: object
+      properties:
+        empty:
+          type: boolean
+        array:
+          type: boolean
+        "null":
+          type: boolean
+        object:
+          type: boolean
+        float:
+          type: boolean
+        integral_number:
+          type: boolean
+        node_type:
+          type: string
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+        string:
+          type: boolean
+        missing_node:
+          type: boolean
+        value_node:
+          type: boolean
+        container:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        int:
+          type: boolean
+        long:
+          type: boolean
+        double:
+          type: boolean
+        big_decimal:
+          type: boolean
+        big_integer:
+          type: boolean
+        textual:
+          type: boolean
+          deprecated: true
+        boolean:
+          type: boolean
+        binary:
+          type: boolean
+        floating_point_number:
+          type: boolean
+        number:
+          type: boolean
+        embedded_value:
+          type: boolean
+    WalkinRequest:
+      type: object
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        client_category:
+          type: string
+          maxLength: 64
+          minLength: 0
+        call_now:
+          type: boolean
+      required:
+      - service_id
+    TicketView:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          format: uuid
+        token:
+          type: string
+          format: uuid
+        branch_id:
+          type: string
+        display_number:
+          type: string
+        service:
+          $ref: "#/components/schemas/ServiceView"
+        source:
+          type: string
+        client_category:
+          type: string
+        status:
+          type: string
+        position:
+          type: integer
+          format: int32
+        eta:
+          type: string
+          format: date-time
+        eta_confidence:
+          type: string
+        slot_start:
+          type: string
+          format: date-time
+        window:
+          $ref: "#/components/schemas/WindowView"
+        called_at:
+          type: string
+          format: date-time
+        can_cancel:
+          type: boolean
+        can_postpone:
+          type: boolean
+        version:
+          type: integer
+          format: int32
+        updated_at:
+          type: string
+          format: date-time
+    WindowView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    OpenRequest:
+      type: object
+      properties:
+        service_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 32
+          minItems: 0
+      required:
+      - service_ids
+    CloseRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          pattern: graceful|force
+    VersionRequest:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+          format: int32
+    RequeueRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          pattern: keep_position|to_tail
+        expected_version:
+          type: integer
+          format: int32
+    RedirectRequest:
+      type: object
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        window_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        expected_version:
+          type: integer
+          format: int32
+    PostponeRequest:
+      type: object
+      properties:
+        minutes:
+          type: integer
+          format: int32
+          maximum: 120
+          minimum: 1
+      required:
+      - minutes
+    CheckInRequest:
+      type: object
+      properties:
+        qr_code:
+          type: string
+          maxLength: 256
+          minLength: 0
+      required:
+      - qr_code
+    QrRequest:
+      type: object
+      properties:
+        qr_code:
+          type: string
+          maxLength: 128
+          minLength: 0
+        service_id:
+          type: string
+          format: uuid
+        client_category:
+          type: string
+          maxLength: 64
+          minLength: 0
+        device_id:
+          type: string
+          maxLength: 128
+          minLength: 0
+      required:
+      - device_id
+      - qr_code
+      - service_id
+    AppointmentRequest:
+      type: object
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        slot_start:
+          type: string
+          format: date-time
+        client_category:
+          type: string
+          maxLength: 64
+          minLength: 0
+      required:
+      - service_id
+      - slot_start
+    CreateRequest:
+      type: object
+      properties:
+        kind:
+          type: string
+          minLength: 1
+          pattern: technical|operational
+        description:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        window_id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+      required:
+      - description
+      - kind
+    IncidentView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        description:
+          type: string
+        window_id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+        reported_by:
+          type: string
+          format: uuid
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+    LoginRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          maxLength: 64
+          minLength: 0
+        password:
+          type: string
+          maxLength: 128
+          minLength: 0
+      required:
+      - login
+      - password
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        role:
+          type: string
+          enum:
+          - OPERATOR
+          - BRANCH_ADMIN
+        employee_id:
+          type:
+          - string
+          - "null"
+          format: uuid
+    ResolveRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          pattern: resolved
+    QueueItem:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          format: uuid
+        display_number:
+          type: string
+        service_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        source:
+          type: string
+        client_category:
+          type: string
+        status:
+          type: string
+        issued_at:
+          type: string
+          format: date-time
+        slot_start:
+          type: string
+          format: date-time
+        eligible_from:
+          type: string
+          format: date-time
+        due_at:
+          type: string
+          format: date-time
+        overdue:
+          type: boolean
+        position:
+          type: integer
+          format: int32
+        window_id:
+          type: string
+          format: uuid
+        target_window_id:
+          type: string
+          format: uuid
+        called_at:
+          type: string
+          format: date-time
+        call_count:
+          type: integer
+          format: int32
+        version:
+          type: integer
+          format: int32
+    SseEmitter:
+      type: object
+      properties:
+        timeout:
+          type: integer
+          format: int64
+    SlotView:
+      type: object
+      properties:
+        slot_start:
+          type: string
+          format: date-time
+        slot_end:
+          type: string
+          format: date-time
+        remaining_capacity:
+          type: integer
+          format: int64
+    Board:
+      type: object
+      properties:
+        branch_id:
+          type: string
+        branch_name:
+          type: string
+        calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/Call"
+        waiting_by_service:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        qr_code:
+          type: string
+    Call:
+      type: object
+      properties:
+        display_number:
+          type: string
+        window_id:
+          type: string
+          format: uuid
+        window_name:
+          type: string
+        status:
+          type: string
+        called_at:
+          type: string
+          format: date-time
+        call_count:
+          type: integer
+          format: int32
+    Result:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        recommend_open_window:
+          type: boolean
+        overdue_min:
+          type: integer
+          format: int32
+        overdue_count:
+          type: integer
+          format: int32
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceRecommendation"
+    ServiceRecommendation:
+      type: object
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        waiting:
+          type: integer
+          format: int32
+        overdue:
+          type: integer
+          format: int32
+        max_eta_overrun_sec:
+          type: integer
+          format: int64
+        open_windows:
+          type: integer
+          format: int32
+        reasons:
+          type: array
+          items:
+            type: string
+        suggested_windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedWindow"
+    SuggestedWindow:
+      type: object
+      properties:
+        window_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    WindowStat:
+      type: object
+      properties:
+        window_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        open_sec:
+          type: integer
+          format: int64
+        serving_sec:
+          type: integer
+          format: int64
+        idle_sec:
+          type: integer
+          format: int64
+        served:
+          type: integer
+          format: int32
+        avg_service_sec:
+          type: integer
+          format: int64
+        utilization:
+          type: number
+          format: double
+    Unfinished:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          format: uuid
+        display_number:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+        service_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        issued_at:
+          type: string
+          format: date-time
+        slot_start:
+          type: string
+          format: date-time
+        due_at:
+          type: string
+          format: date-time
+        window_id:
+          type: string
+          format: uuid
+    ServiceStat:
+      type: object
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        issued:
+          type: integer
+          format: int32
+        served:
+          type: integer
+          format: int32
+        avg_wait_sec:
+          type: integer
+          format: int64
+        max_wait_sec:
+          type: integer
+          format: int64
+        avg_service_sec:
+          type: integer
+          format: int64
+    SourceStat:
+      type: object
+      properties:
+        source:
+          type: string
+        issued:
+          type: integer
+          format: int32
+        served:
+          type: integer
+          format: int32
+        avg_wait_sec:
+          type: integer
+          format: int64
+        max_wait_sec:
+          type: integer
+          format: int64
+    Summary:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        totals:
+          $ref: "#/components/schemas/Totals"
+        by_source:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceStat"
+        by_service:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceStat"
+    Totals:
+      type: object
+      properties:
+        issued:
+          type: integer
+          format: int32
+        served:
+          type: integer
+          format: int32
+        cancelled:
+          type: integer
+          format: int32
+        no_show:
+          type: integer
+          format: int32
+        active:
+          type: integer
+          format: int32
+        avg_wait_sec:
+          type: integer
+          format: int64
+        max_wait_sec:
+          type: integer
+          format: int64
+        avg_service_sec:
+          type: integer
+          format: int64
+    Deviations:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
