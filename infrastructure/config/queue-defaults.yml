@@ -1,10 +1,10 @@
 # Default queue coefficients (doc section 6.9).
 # config-version is incremented whenever the file is modified.
 queue:
-  config-version: 4
+  config-version: 5
   target-wait-min:              # due_at = issued_at + value (стоит пересмотреть)
-    qr: {default: 20, pensioner: 15, svo: 5}
-    walkin: {default: 30, pensioner: 20, svo: 5}
+    qr: {default: 20, pensioner: 15}
+    walkin: {default: 30, pensioner: 20}
   early-checkin-min: 15         # how early before the slot a booking becomes eligible
   grace-late-min: 10            # lateness without losing priority (тоже стоит пересмотреть, как и всю механику очереди)
   late-policy: convert_to_qr    # convert_to_qr | reject

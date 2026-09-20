@@ -52,8 +52,8 @@ public class LoadGenerator {
     static final String WINDOW_2 = "00000000-0000-4000-8000-000000000007";   // parcels + finance, employee 2 (slow)
     static final String EMPLOYEE_1 = "00000000-0000-4000-8000-000000000002";
     static final String EMPLOYEE_2 = "00000000-0000-4000-8000-000000000006";
-    static final Map<String, Integer> TARGET_WAIT_QR = Map.of("default", 20, "pensioner", 15, "svo", 5);
-    static final Map<String, Integer> TARGET_WAIT_WALKIN = Map.of("default", 30, "pensioner", 20, "svo", 5);
+    static final Map<String, Integer> TARGET_WAIT_QR = Map.of("default", 20, "pensioner", 15);
+    static final Map<String, Integer> TARGET_WAIT_WALKIN = Map.of("default", 30, "pensioner", 20);
 
     public static void main(String[] args) throws Exception {
         var mode = args.length > 0 && !args[0].startsWith("--") ? args[0] : "live";
@@ -91,7 +91,6 @@ public class LoadGenerator {
     static double categoryFactor(String service, String category) {
         return switch (category) {
             case "pensioner" -> service.equals("parcel") ? 1.2 : 1.5;
-            case "svo" -> 1.1;
             default -> 1.0;
         };
     }
@@ -114,7 +113,6 @@ public class LoadGenerator {
         int x = rnd.nextInt(100);
         int pensioner = pensionDay ? 45 : 15;
         if (x < pensioner) return "pensioner";
-        if (x < pensioner + 4) return "svo";
         return "default";
     }
 
