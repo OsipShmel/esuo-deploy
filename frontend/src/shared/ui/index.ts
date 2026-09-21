@@ -13,3 +13,4 @@ export { A11yToggles } from './A11yToggles';
 export { Clock } from './Clock';
 export { LoadLevelBadge } from './LoadLevelBadge';
 export { EtaText } from './EtaText';
+export { ErrorBoundary } from './ErrorBoundary';

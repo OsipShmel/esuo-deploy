@@ -5,7 +5,7 @@
 # Нужны: curl, jq, docker, java (JDK 21+, для tools/load-generator).
 set -uo pipefail
 
-NODE=${NODE:-http://localhost:8080}
+NODE=${NODE:-http://172.20.10.2:8080}
 HUB_FROM_DOCKER=${HUB_FROM_DOCKER:-nats://host.docker.internal:4222}
 PG_CONTAINER=${PG_CONTAINER:-esuo-postgres-b01}
 PG_USER=${PG_USER:-esuo}; PG_DB=${PG_DB:-esuo}
