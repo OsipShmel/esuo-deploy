@@ -120,7 +120,7 @@ public abstract class AbstractNodeIT {
         }
         jdbc.update("""
                 UPDATE branch_config SET central_version=?, central_config=CAST(? AS jsonb), local_overrides='{}', bounds='{}', planning='{}',
-                       effective_version=? WHERE id=1
+                       model='{}', effective_version=? WHERE id=1
                 """, configSnapshot.get("central_version"), configSnapshot.get("c"), configSnapshot.get("effective_version"));
     }
 

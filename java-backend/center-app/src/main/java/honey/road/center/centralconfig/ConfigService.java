@@ -35,11 +35,11 @@ public class ConfigService {
     // ------------------------------------------------------------------ views
 
     public record SectionsView(Map<String, Object> queue, Map<String, Object> bounds, Map<String, Object> planning,
-                               @Nullable Instant updatedAt, @Nullable String updatedBy) {
+                               Map<String, Object> model, @Nullable Instant updatedAt, @Nullable String updatedBy) {
     }
 
     public record Overrides(@Nullable Map<String, Object> queue, @Nullable Map<String, Object> bounds,
-                            @Nullable Map<String, Object> planning) {
+                            @Nullable Map<String, Object> planning, @Nullable Map<String, Object> model) {
     }
 
     public record BranchConfigStatus(String branchId, Overrides overrides, @Nullable Integer publishedVersion,
@@ -67,7 +67,7 @@ public class ConfigService {
 
     public ConfigOverview overview() {
         var g = store.global();
-        var global = new SectionsView(g.queue(), g.bounds(), g.planning(), g.updatedAt(), g.updatedBy());
+        var global = new SectionsView(g.queue(), g.bounds(), g.planning(), g.model(), g.updatedAt(), g.updatedBy());
         var branches = store.states().stream().map(s -> status(s, store.branch(s.id()))).toList();
         return new ConfigOverview(global, branches);
     }
@@ -154,6 +154,7 @@ public class ConfigService {
                 patch.containsKey("queue") ? (Map<String, Object>) patch.get("queue") : current.queue(),
                 patch.containsKey("bounds") ? (Map<String, Object>) patch.get("bounds") : current.bounds(),
                 patch.containsKey("planning") ? (Map<String, Object>) patch.get("planning") : current.planning(),
+                patch.containsKey("model") ? (Map<String, Object>) patch.get("model") : current.model(),
                 null, null);
     }
 
@@ -177,7 +178,7 @@ public class ConfigService {
     }
 
     private static Overrides overrides(ConfigStore.Sections s) {
-        return new Overrides(s.queue(), s.bounds(), s.planning());
+        return new Overrides(s.queue(), s.bounds(), s.planning(), s.model());
     }
 
     private static UserView view(ConfigStore.User u) {

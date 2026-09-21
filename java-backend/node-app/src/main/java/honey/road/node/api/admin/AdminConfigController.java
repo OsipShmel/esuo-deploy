@@ -12,7 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Branch config for the admin (sect 9.3): central version, local overrides, bounds.
+ * Branch config for the admin (sect 9.3): central version, local overrides, bounds, and the two sections
+ * the node stores as is — {@code planning} (load-planning.md 3.1) and {@code model} (ml-model.md 4.4).
  */
 @RestController
 @RequestMapping("/api/v1/admin/config")
@@ -41,6 +42,8 @@ public class AdminConfigController {
         out.put("central", v.central());
         out.put("local_overrides", v.localOverrides());
         out.put("bounds", v.bounds());
+        out.put("planning", v.planning());
+        out.put("model", v.model());
         out.put("effective", v.effective());
         return out;
     }

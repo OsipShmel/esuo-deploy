@@ -28,8 +28,9 @@ class ConfigStore {
     }
 
     record Sections(@Nullable Map<String, Object> queue, @Nullable Map<String, Object> bounds,
-                    @Nullable Map<String, Object> planning, @Nullable Instant updatedAt, @Nullable String updatedBy) {
-        static Sections empty() { return new Sections(null, null, null, null, null); }
+                    @Nullable Map<String, Object> planning, @Nullable Map<String, Object> model,
+                    @Nullable Instant updatedAt, @Nullable String updatedBy) {
+        static Sections empty() { return new Sections(null, null, null, null, null, null); }
     }
 
     record Employee(UUID id, String fullName, boolean active) {
@@ -50,34 +51,39 @@ class ConfigStore {
     // ------------------------------------------------------------------ sections
 
     Sections global() {
-        return jdbc.sql("SELECT queue::text q, bounds::text b, planning::text p, updated_at, updated_by FROM config_global WHERE id=1")
+        return jdbc.sql("SELECT queue::text q, bounds::text b, planning::text p, model::text m, updated_at, updated_by"
+                        + " FROM config_global WHERE id=1")
                 .query(this::sections).single();
     }
 
     Sections branch(String branchId) {
-        return jdbc.sql("SELECT queue::text q, bounds::text b, planning::text p, updated_at, updated_by FROM config_branch WHERE branch_id=:b")
+        return jdbc.sql("SELECT queue::text q, bounds::text b, planning::text p, model::text m, updated_at, updated_by"
+                        + " FROM config_branch WHERE branch_id=:b")
                 .param("b", branchId).query(this::sections).optional().orElse(Sections.empty());
     }
 
     void saveGlobal(Sections s, String author, Instant now) {
         jdbc.sql("""
                         UPDATE config_global SET queue=CAST(:q AS jsonb), bounds=CAST(:b AS jsonb), planning=CAST(:p AS jsonb),
-                               updated_at=:now, updated_by=:by WHERE id=1
+                               model=CAST(:m AS jsonb), updated_at=:now, updated_by=:by WHERE id=1
                         """)
                 .param("q", write(orEmpty(s.queue()))).param("b", write(orEmpty(s.bounds())))
-                .param("p", write(orEmpty(s.planning()))).param("now", Timestamp.from(now)).param("by", author)
+                .param("p", write(orEmpty(s.planning()))).param("m", write(orEmpty(s.model())))
+                .param("now", Timestamp.from(now)).param("by", author)
                 .update();
     }
 
     void saveBranch(String branchId, Sections s, String author, Instant now) {
         jdbc.sql("""
-                        INSERT INTO config_branch(branch_id, queue, bounds, planning, updated_at, updated_by)
-                        VALUES (:id, CAST(:q AS jsonb), CAST(:b AS jsonb), CAST(:p AS jsonb), :now, :by)
+                        INSERT INTO config_branch(branch_id, queue, bounds, planning, model, updated_at, updated_by)
+                        VALUES (:id, CAST(:q AS jsonb), CAST(:b AS jsonb), CAST(:p AS jsonb), CAST(:m AS jsonb), :now, :by)
                         ON CONFLICT (branch_id) DO UPDATE SET queue=EXCLUDED.queue, bounds=EXCLUDED.bounds,
-                               planning=EXCLUDED.planning, updated_at=EXCLUDED.updated_at, updated_by=EXCLUDED.updated_by
+                               planning=EXCLUDED.planning, model=EXCLUDED.model,
+                               updated_at=EXCLUDED.updated_at, updated_by=EXCLUDED.updated_by
                         """)
                 .param("id", branchId).param("q", writeNullable(s.queue())).param("b", writeNullable(s.bounds()))
-                .param("p", writeNullable(s.planning())).param("now", Timestamp.from(now)).param("by", author)
+                .param("p", writeNullable(s.planning())).param("m", writeNullable(s.model()))
+                .param("now", Timestamp.from(now)).param("by", author)
                 .update();
     }
 
@@ -204,7 +210,7 @@ class ConfigStore {
 
     private Sections sections(ResultSet rs, int n) throws SQLException {
         return new Sections(readNullable(rs.getString("q")), readNullable(rs.getString("b")), readNullable(rs.getString("p")),
-                instant(rs, "updated_at"), rs.getString("updated_by"));
+                readNullable(rs.getString("m")), instant(rs, "updated_at"), rs.getString("updated_by"));
     }
 
     private static User user(ResultSet rs, int n) throws SQLException {

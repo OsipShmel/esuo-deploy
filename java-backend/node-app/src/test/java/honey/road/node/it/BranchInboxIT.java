@@ -44,6 +44,22 @@ class BranchInboxIT extends AbstractNodeIT {
 
     private static final String BOUNDS = "{\"slack_min\":{\"min\":0,\"max\":15},\"call_timeout_sec\":{\"min\":30,\"max\":300}}";
 
+    /** Config message carrying a {@code model} section (ml-model.md 4.4). */
+    private static String configWithModel(int version, String model) {
+        return "{\"version\":" + version + ",\"scope\":\"branch\",\"bounds\":" + BOUNDS
+                + ",\"model\":" + model + "}";
+    }
+
+    private static String model(String version, double mu, double mae) {
+        return "{\"version\":\"" + version + "\",\"enabled\":true,\"status\":\"active\",\"mu\":" + mu
+                + ",\"a\":{\"parcel\":-0.2},\"sigma\":{\"parcel\":0.35},\"sigma_default\":0.35"
+                + ",\"counts\":{\"a\":{\"parcel\":100}},\"metrics\":{\"mae_sec\":" + mae + "}}";
+    }
+
+    private long modelTrained() {
+        return count("SELECT count(*) FROM outbox WHERE subject LIKE '%model.trained'");
+    }
+
     private long configApplied() {
         return count("SELECT count(*) FROM outbox WHERE subject LIKE '%config.applied'");
     }
@@ -254,4 +270,63 @@ class BranchInboxIT extends AbstractNodeIT {
         var payload = jdbc.queryForObject("SELECT payload::text FROM outbox WHERE subject LIKE '%mp.appointment.confirmed'", String.class);
         assertThat(payload).doesNotContain(token);
     }
+
+    // ------------------------------------------------------------------ duration model section
+
+    @Test
+    void modelSectionIsStoredAndReportedToTheAdmin() {
+        var outcome = inbox.process(CONFIG, "cfg-m1", configWithModel(10, model("dm-1", 5.5, 90)));
+
+        assertThat(outcome).isEqualTo(Outcome.APPLIED);
+        var model = config.view().model();
+        assertThat(model.get("version").asString()).isEqualTo("dm-1");
+        assertThat(model.get("a").get("parcel").asDouble()).isEqualTo(-0.2);
+        assertThat(model.get("counts").get("a").get("parcel").asInt()).isEqualTo(100);
+    }
+
+    @Test
+    void aNewModelVersionPublishesModelTrainedOnce() {
+        inbox.process(CONFIG, "cfg-m1", configWithModel(10, model("dm-1", 5.5, 90)));
+        assertThat(modelTrained()).isEqualTo(1);
+
+        // Та же версия приехала снова (повторная публикация центром) — второго события быть не должно.
+        inbox.process(CONFIG, "cfg-m2", configWithModel(11, model("dm-1", 5.5, 90)));
+        assertThat(modelTrained()).isEqualTo(1);
+
+        // Новая версия — новое событие, и в нём видно, с чем сравнивать.
+        inbox.process(CONFIG, "cfg-m3", configWithModel(12, model("dm-2", 5.6, 80)));
+        assertThat(modelTrained()).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT payload::text FROM outbox WHERE subject LIKE '%model.trained' ORDER BY id DESC LIMIT 1",
+                String.class))
+                .contains("dm-2").contains("previous_mae_sec");
+    }
+
+    @Test
+    void configWithoutModelLeavesTheCurrentModelAlone() {
+        inbox.process(CONFIG, "cfg-m1", configWithModel(10, model("dm-1", 5.5, 90)));
+
+        // Обычная публикация правил очереди, без секции модели: коэффициенты должны остаться на месте.
+        inbox.process(CONFIG, "cfg-2", configMessage(11, "{\"slack_min\":7}", BOUNDS));
+
+        assertThat(config.view().model().get("version").asString()).isEqualTo("dm-1");
+        assertThat(policies.current().slackMin()).isEqualTo(7);
+        assertThat(modelTrained()).isEqualTo(1);
+    }
+
+    @Test
+    void branchCanBeSwitchedOffTheModelWithoutLosingCoefficients() {
+        inbox.process(CONFIG, "cfg-m1", configWithModel(10, model("dm-1", 5.5, 90)));
+
+        // Переопределение отделения в центре: та же модель, но выключена. Версия не меняется,
+        // поэтому model.trained не публикуется, а коэффициенты остаются для быстрого возврата.
+        inbox.process(CONFIG, "cfg-m2", configWithModel(11,
+                "{\"version\":\"dm-1\",\"enabled\":false,\"mu\":5.5,\"a\":{\"parcel\":-0.2}}"));
+
+        var model = config.view().model();
+        assertThat(model.get("enabled").asBoolean()).isFalse();
+        assertThat(model.get("a").get("parcel").asDouble()).isEqualTo(-0.2);
+        assertThat(modelTrained()).isEqualTo(1);
+    }
+
 }

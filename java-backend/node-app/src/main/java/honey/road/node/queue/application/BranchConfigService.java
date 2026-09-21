@@ -18,6 +18,7 @@ import tools.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.UUID;
@@ -49,27 +50,27 @@ public class BranchConfigService {
 
     /** Config state for the admin ({@code GET /admin/config}). */
     public record View(int centralVersion, int effectiveVersion, JsonNode central, JsonNode localOverrides,
-                       JsonNode bounds, JsonNode planning, QueuePolicy effective) {
+                       JsonNode bounds, JsonNode planning, JsonNode model, QueuePolicy effective) {
     }
 
     private record Row(int centralVersion, int effectiveVersion, JsonNode central, JsonNode overrides, JsonNode bounds,
-                       JsonNode planning) {
+                       JsonNode planning, JsonNode model) {
     }
 
     private Row load(boolean lock) {
         return jdbc.queryForObject("""
                 SELECT central_version, effective_version, central_config::text AS c, local_overrides::text AS o, bounds::text AS b,
-                       planning::text AS p
+                       planning::text AS p, model::text AS m
                   FROM branch_config WHERE id=1""" + (lock ? " FOR UPDATE" : ""),
                 (rs, n) -> new Row(rs.getInt("central_version"), rs.getInt("effective_version"),
                         json.readTree(rs.getString("c")), json.readTree(rs.getString("o")), json.readTree(rs.getString("b")),
-                        json.readTree(rs.getString("p"))));
+                        json.readTree(rs.getString("p")), json.readTree(rs.getString("m"))));
     }
 
     @Transactional(readOnly = true)
     public View view() {
         var r = load(false);
-        return new View(r.centralVersion, r.effectiveVersion, r.central, r.overrides, r.bounds, r.planning,
+        return new View(r.centralVersion, r.effectiveVersion, r.central, r.overrides, r.bounds, r.planning, r.model,
                 policies.current());
     }
 
@@ -88,6 +89,9 @@ public class BranchConfigService {
         var central = ConfigRules.merge(row.central, m.queue() == null ? null : json.toTree(m.queue()));
         JsonNode bounds = m.bounds() == null ? row.bounds : json.toTree(m.bounds());
         JsonNode planning = m.planning() == null ? row.planning : json.toTree(m.planning());
+        // Секция модели заменяется целиком, а не сливается: коэффициенты одной версии — единое целое,
+        // смешивать `a` новой версии с `counts` прежней нельзя. Отсутствие ключа оставляет текущую модель.
+        JsonNode model = m.model() == null ? row.model : json.toTree(m.model());
         var overrides = ConfigRules.pruneOutOfBounds(row.overrides, bounds);
         int effective = row.effectiveVersion + 1;
         try {
@@ -98,9 +102,10 @@ public class BranchConfigService {
 
         jdbc.update("""
                 UPDATE branch_config SET central_version=?, central_config=CAST(? AS jsonb), bounds=CAST(? AS jsonb),
-                       planning=CAST(? AS jsonb), local_overrides=CAST(? AS jsonb), effective_version=?, updated_at=? WHERE id=1
-                """, m.version(), central.toString(), bounds.toString(), planning.toString(), overrides.toString(), effective,
-                Timestamp.from(now));
+                       planning=CAST(? AS jsonb), model=CAST(? AS jsonb), local_overrides=CAST(? AS jsonb),
+                       effective_version=?, updated_at=? WHERE id=1
+                """, m.version(), central.toString(), bounds.toString(), planning.toString(), model.toString(),
+                overrides.toString(), effective, Timestamp.from(now));
         syncPeople(m);
 
         var data = new LinkedHashMap<String, Object>();
@@ -110,7 +115,44 @@ public class BranchConfigService {
         data.put("dropped_overrides", row.overrides.size() - overrides.size());
         events.otherEvent(node.branchId(), EventTypes.AGGREGATE_CONFIG, configId(), effective,
                 EventTypes.CONFIG_APPLIED, Actor.center(), now, effective, data);
+        publishModelTrained(row.model, model, effective, now);
         return true;
+    }
+
+    /**
+     * {@code model.trained}, if this configuration brought a model version the branch did not have.
+     * <p>The branch does not train (ml-model.md 4.2); the event marks the model arriving here, so the center
+     * sees how a version rolls out across the network and the demo journal has a line to show. It goes into
+     * the same transaction as the configuration: either both are recorded, or neither.
+     */
+    private void publishModelTrained(JsonNode previous, JsonNode current, int effective, Instant now) {
+        var version = text(current, "version");
+        if (version == null || version.equals(text(previous, "version"))) {
+            return;
+        }
+        var data = new LinkedHashMap<String, Object>();
+        data.put("version", version);
+        data.put("status", text(current, "status"));
+        var metrics = current.get("metrics");
+        if (metrics != null && metrics.isObject()) {
+            data.put("metrics", metrics);
+            // Демо-пульт печатает «MAE x с (было y с)», поэтому обе величины лежат рядом в событии.
+            if (metrics.hasNonNull("mae_sec")) { data.put("mae_sec", metrics.get("mae_sec")); }
+        }
+        var previousMetrics = previous.get("metrics");
+        if (previousMetrics != null && previousMetrics.hasNonNull("mae_sec")) {
+            data.put("previous_mae_sec", previousMetrics.get("mae_sec"));
+        }
+        events.otherEvent(node.branchId(), EventTypes.AGGREGATE_MODEL, modelId(), effective,
+                EventTypes.MODEL_TRAINED, Actor.center(), now, effective, data);
+    }
+
+    private static String text(JsonNode section, String field) {
+        if (section == null || !section.isObject()) {
+            return null;
+        }
+        var value = section.get(field);
+        return value == null || value.isNull() ? null : value.asString();
     }
 
     /** Local admin overrides ({@code PUT /admin/config}); an empty object clears them. */
@@ -164,5 +206,10 @@ public class BranchConfigService {
     /** Stable aggregate id of the branch config for the event envelope. */
     private UUID configId() {
         return UUID.nameUUIDFromBytes(("config:" + node.branchId()).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Stable aggregate id of the duration model: one per branch, versions live inside the events. */
+    private UUID modelId() {
+        return UUID.nameUUIDFromBytes(("model:" + node.branchId()).getBytes(StandardCharsets.UTF_8));
     }
 }

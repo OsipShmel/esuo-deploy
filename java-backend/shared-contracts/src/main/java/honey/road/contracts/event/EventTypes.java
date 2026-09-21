@@ -27,9 +27,17 @@ public final class EventTypes {
     public static final String MP_APPOINTMENT_REJECTED = "mp.appointment.rejected";
     public static final String CONFIG_APPLIED = "config.applied";
 
+    /**
+     * Published by the branch when applied configuration carries a {@code model.version} it did not have before.
+     * Training itself happens offline (ml-model.md 4.2), so this event marks the model arriving at the branch,
+     * which is what the center's network view and the demo decision journal care about.
+     */
+    public static final String MODEL_TRAINED = "model.trained";
+
     public static final String AGGREGATE_TICKET = "ticket";
     public static final String AGGREGATE_WINDOW = "window";
     public static final String AGGREGATE_INCIDENT = "incident";
     public static final String AGGREGATE_MP = "mp_appointment";
     public static final String AGGREGATE_CONFIG = "config";
+    public static final String AGGREGATE_MODEL = "duration_model";
 }

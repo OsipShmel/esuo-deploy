@@ -105,6 +105,9 @@ public class ConfigPublisher {
                 ConfigMaps.merge(global.queue(), branch.queue()),
                 bounds == null ? Map.of() : bounds,
                 ConfigMaps.merge(global.planning(), branch.planning()),
+                // Модель: глобальная — параметры сети, переопределение отделения — его собственные
+                // (в том числе {"enabled": false}, чтобы выключить модель на одном отделении).
+                ConfigMaps.merge(global.model(), branch.model()),
                 employees, users);
     }
 
