@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import '@shared/ui';
+import { ErrorBoundary } from '@shared/ui';
 import './board.css';
 import { Board } from './Board';
 
@@ -13,7 +13,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 2, ref
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <Board />
+      <ErrorBoundary><Board /></ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>,
 );

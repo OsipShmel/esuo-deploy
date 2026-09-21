@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { CATEGORY_LABEL, label } from '@shared/format/labels';
 import type { BranchInfo, WindowView } from './api';
+import { uuid } from '@shared/format/uuid';
 
 /** Живая очередь (walk-in): талон клиенту без телефона. `Idempotency-Key` — на одну отправку, повтор безопасен. */
 export function WalkinForm({ window: w, branch, busy, onSubmit }: {
@@ -12,7 +13,7 @@ export function WalkinForm({ window: w, branch, busy, onSubmit }: {
   const [service, setService] = useState('');
   const [category, setCategory] = useState('default');
   const [callNow, setCallNow] = useState(false);
-  const key = useRef(crypto.randomUUID());
+  const key = useRef(uuid());
   const serviceId = service || services[0]?.id || '';
   const canCallNow = w.status === 'open' && !w.active_ticket;
 
@@ -20,7 +21,7 @@ export function WalkinForm({ window: w, branch, busy, onSubmit }: {
     e.preventDefault();
     if (!serviceId) return;
     const ok = await onSubmit({ service_id: serviceId, client_category: category, call_now: callNow && canCallNow }, key.current);
-    if (ok) { key.current = crypto.randomUUID(); setCallNow(false); }
+    if (ok) { key.current = uuid(); setCallNow(false); }
   }
 
   return (

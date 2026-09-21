@@ -1,3 +1,4 @@
+import { uuid } from '@shared/format/uuid';
 /** Токен талона и `device_id` в localStorage (S13: талон переживает закрытие вкладки). */
 
 const TICKET_KEY = 'esuo.ticket';
@@ -30,7 +31,7 @@ export const forgetTicket = () => write(TICKET_KEY, null);
 export function deviceId(): string {
   let id = read(DEVICE_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = uuid();
     write(DEVICE_KEY, id);
   }
   return id;
