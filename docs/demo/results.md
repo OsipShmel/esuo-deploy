@@ -60,7 +60,7 @@
 
 ## 3.1. Прогноз длительности и смена по прогнозу [Проверено на синтетике]
 
-Полный отчёт — `docs/demo/ml-report.md` (`cd python-ai-service && uv run esuo-ml report`, зерно 42). Пенсионный день:
+Полный отчёт — `docs/demo/ml-report.md` (`cd python-ai-service && uv run esuo-ml report --end-day 2026-09-20`, зерно 42). Пенсионный день:
 
 | | Без прогноза (300 с) | С прогнозом (модель) |
 |---|---:|---:|

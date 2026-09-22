@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Демо-сценарии для жюри (это не тесты): рабочий день, три источника, МП, спорные ситуации, обрыв связи, аналитика.
+#   ./scripts/demo/run.sh doctor                    — проверка стенда перед записью (ничего не меняет)
+#   ./scripts/demo/run.sh normal                    — вернуть стенд в обычный режим после pension-ab
 #   ./scripts/demo/run.sh list                      — список сценариев
 #   ./scripts/demo/run.sh normal-day                — запустить один сценарий (смотрите табло/оператора/сеть на экране)
 #   ./scripts/demo/run.sh normal-day --fast         — без пауз (для проверки повторяемости)
@@ -44,6 +46,8 @@ run_one() { # выполняется в этом процессе: библио�
 
 case "${1:-list}" in
   list|-h|--help|help) list ;;
+  doctor) exec "$DIR/doctor.sh" ;;                          # проверка стенда перед записью
+  normal) exec "$DIR/ab-prepare.sh" --undo ;;               # вернуть стенд в обычный режим после pension-ab
   repeat)
     code=${2:?Укажите сценарий: run.sh repeat КОД [N] [--paced]}; n=${3:-3}; sigs=""; okall=1; i=1
     mode="--fast"; [ "${4:-}" = "--paced" ] && mode=""       # --paced: с паузами, как на показе (подпись сравнивается только внутри одного режима)

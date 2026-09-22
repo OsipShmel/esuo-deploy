@@ -44,6 +44,22 @@ put_center() { # put_center ПУТЬ ТЕЛО — публикация в цен
 }
 psql_in() { docker exec -i "$1" psql -q -v ON_ERROR_STOP=1 -U "$DB_USER" -d esuo >/dev/null; }
 
+# ---------------------------------------------------------------- --undo: вернуть стенд в обычный режим
+# После pension-ab на обеих нодах висит ручной профиль «пенсионные выплаты», а демо-часы стоят на конце показа.
+# Остальным сценариям это мешает (экраны нагрузки показывают чужой день), поэтому перед ними — --undo.
+if [ "${1:-}" = "--undo" ]; then
+  step "Возвращаю стенд в обычный режим"
+  for n in "$NODE" "$NODE2"; do
+    t=$(token "$n"); [ -n "$t" ] || die "не удалось войти руководителем на $n"
+    curl -sf -X POST "$n/api/v1/admin/demo/reset" -H "Authorization: Bearer $t" -H 'Content-Type: application/json' -d '{}' >/dev/null \
+      || die "сброс $n не прошёл (DEMO_MODE=true?)"
+    curl -sf -X PUT "$n/api/v1/admin/load/profile" -H "Authorization: Bearer $t" -H 'Content-Type: application/json' \
+      -d '{"profile": null}' >/dev/null || die "не удалось снять ручной профиль на $n"
+  done
+  ok "очереди пусты, окна закрыты, профиль дня — по календарю, демо-часы — реальное время"
+  exit 0
+fi
+
 # ---------------------------------------------------------------- 0. стенд жив и в демо-режиме
 step "Проверяю стенд"
 for n in "$NODE" "$NODE2"; do

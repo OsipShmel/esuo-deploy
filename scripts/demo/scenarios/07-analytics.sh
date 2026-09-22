@@ -10,11 +10,15 @@ scenario() {
   command -v docker >/dev/null || { warn "Нужен docker (заливка в PostgreSQL отделения)"; return 1; }
 
   say "Генерируем историю: $days дней, 60 талонов в день (SEED=${SEED:-42})"
-  java "$ROOT/tools/load-generator/LoadGenerator.java" history --days "$days" --per-day 60 --seed "${SEED:-42}" --out "$sql" >/dev/null 2>&1
+  java "$ROOT/tools/load-generator/LoadGenerator.java" history --days "$days" --per-day 60 --seed "${SEED:-42}" --out "$sql" >"$WORK/gen.log" 2>&1
   assert "файл истории создан" "$([ -s "$sql" ] && echo yes || echo no)" yes
+  # Причину показываем, а не глотаем: чаще всего в PATH не та Java (нужна 25, `java -version`).
+  [ -s "$sql" ] || { warn "load-generator не отработал:"; tail -5 "$WORK/gen.log" | sed 's/^/     /'; return 1; }
   say "Заливаем историю в базу отделения $BRANCH"
-  docker exec -i "${PG_CONTAINER:-esuo-postgres-b01}" psql -U "${DB_USER:-esuo}" -d esuo -q < "$sql" >/dev/null 2>&1
-  assert "история залита" "$?" 0
+  docker exec -i "${PG_CONTAINER:-esuo-postgres-b01}" psql -U "${DB_USER:-esuo}" -d esuo -q < "$sql" >"$WORK/psql.log" 2>&1
+  local rc=$?
+  assert "история залита" "$rc" 0
+  [ "$rc" = 0 ] || { warn "psql:"; tail -5 "$WORK/psql.log" | sed 's/^/     /'; }
   ev "history|$days|60|${SEED:-42}"
 
   say "Руководитель открывает «Аналитику»"

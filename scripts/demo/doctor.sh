@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Проверка стенда перед записью демо: инструменты, .env, центр, обе ноды, демо-часы, входы, моки, данные A/B.
+#   ./scripts/demo/run.sh doctor      (или напрямую ./scripts/demo/doctor.sh)
+# Ничего не меняет. Красная строка — то, что сорвёт запись; жёлтая — сорвёт один сценарий.
+set -u
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+[ -f "$ROOT/.env" ] && { set -a; . "$ROOT/.env"; set +a; }
+NODE=${NODE:-http://localhost:8080}; NODE2=${NODE2:-http://localhost:8090}; CENTER=${CENTER:-http://localhost:8081}
+MP=${MP:-http://localhost:8096}; NOTIFY=${NOTIFY:-http://localhost:8095}
+OP_PASS=${DEMO_OPERATOR_PASSWORD:-operator123}; ADMIN_PASS=${DEMO_ADMIN_PASSWORD:-admin123}
+
+G=$'\033[32m'; R=$'\033[31m'; Y=$'\033[33m'; B=$'\033[1m'; D=$'\033[2m'; Z=$'\033[0m'
+BAD=0; WARN=0
+ok()   { printf '  %s✔%s %s\n' "$G" "$Z" "$*"; }
+bad()  { printf '  %s✘ %s%s\n' "$R" "$*" "$Z"; BAD=$((BAD+1)); }
+warn() { printf '  %s! %s%s\n' "$Y" "$*" "$Z"; WARN=$((WARN+1)); }
+hdr()  { printf '\n%s%s%s\n' "$B" "$*" "$Z"; }
+code() { curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$@"; }
+login() { curl -s --max-time 5 -X POST "$1/api/v1/auth/login" -H 'Content-Type: application/json' \
+           -d "{\"login\":\"$2\",\"password\":\"$3\"}" | jq -r '.access_token // empty' 2>/dev/null; }
+
+hdr "Инструменты"
+for t in curl jq python3 docker; do
+  if command -v "$t" >/dev/null; then ok "$t"; else bad "нет $t (mac: brew install $t)"; fi
+done
+if command -v python3 >/dev/null && ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))'; then
+  bad "python3 старше 3.9 — проигрывателю pension-ab нужен zoneinfo"
+fi
+if command -v java >/dev/null; then
+  jv=$(java -version 2>&1 | grep -m1 ' version ' | sed -E 's/.*version "(1\.)?([0-9]+).*/\2/')
+  if [ "${jv:-0}" -ge 25 ] 2>/dev/null; then ok "java $jv"; else warn "java ${jv:-?}: сценарию analytics нужна Java 25"; fi
+else warn "нет java: не запустится только сценарий analytics"; fi
+
+hdr ".env"
+if [ ! -f "$ROOT/.env" ]; then bad "нет .env — cp .env.example .env и заполните"
+else
+  [ "${DEMO_MODE:-false}" = true ] && ok "DEMO_MODE=true" \
+    || bad "DEMO_MODE не true: без демо-часов сценарии не ускоряются, pension-ab не запустится (поправьте и docker compose up -d)"
+  [ "${DEMO_DATA:-true}" = true ] && ok "DEMO_DATA=true" || bad "DEMO_DATA не true: нет демо-справочников и пользователей"
+fi
+
+hdr "Стенд"
+[ "$(code "$CENTER/actuator/health")" = 200 ] && ok "центр $CENTER" || bad "центр $CENTER не отвечает — docker compose up -d center-app (логи: docker logs esuo-center-app)"
+for n in "$NODE" "$NODE2"; do
+  if [ "$(code "$n/actuator/health")" != 200 ]; then bad "нода $n не отвечает — docker compose ps"; continue; fi
+  clock=$(curl -s --max-time 5 "$n/api/v1/public/demo/clock" | jq -r .enabled 2>/dev/null)
+  [ "$clock" = true ] && ok "нода $n, демо-часы включены" || bad "нода $n: демо-часы выключены (DEMO_MODE на ноде false — пересоздайте контейнер)"
+  [ -n "$(login "$n" operator "$OP_PASS")" ] && [ -n "$(login "$n" admin "$ADMIN_PASS")" ] \
+    && ok "нода $n: вход оператором и руководителем" || bad "нода $n: не входит operator/admin — пароли в .env"
+done
+online=$(curl -s --max-time 5 "$CENTER/api/v1/network/overview" | jq '[.branches[]?|select(.online==true)]|length' 2>/dev/null)
+[ "${online:-0}" -ge 2 ] && ok "центр видит оба отделения на связи" || bad "центр видит на связи ${online:-0} отделений из 2 — подождите heartbeat (~30 с) или проверьте nats"
+[ "$(code "$MP/health")" = 200 ] && ok "mp-simulator $MP" || warn "mp-simulator не отвечает: не запустятся mp и запись в pension-ab"
+[ "$(code "$NOTIFY/health")" = 200 ] && ok "notify-mock $NOTIFY" || warn "notify-mock не отвечает: не запустится notify-down"
+
+hdr "Данные для pension-ab"
+SC="$ROOT/infrastructure/demo/scenarios"
+[ -s "$SC/history.sql" ] && ok "history.sql" || bad "нет history.sql — cd python-ai-service && uv run esuo-ml generate --end-day 2026-09-20"
+[ -s "$SC/model.json" ] && ok "model.json ($(jq -r .model.version "$SC/model.json" 2>/dev/null))" || bad "нет model.json"
+[ -s "$SC/scenario-pension.json" ] && ok "scenario-pension.json" || bad "нет scenario-pension.json"
+for c in "${PG_B01:-esuo-postgres-b01}" "${PG_B02:-esuo-postgres-b02}"; do
+  docker inspect "$c" >/dev/null 2>&1 && ok "контейнер $c" || bad "нет контейнера $c (другие имена — PG_B01/PG_B02)"
+done
+
+echo
+if [ "$BAD" = 0 ]; then printf '%sМожно записывать.%s' "$B$G" "$Z"; [ "$WARN" = 0 ] || printf ' %s(%s предупреждений — см. жёлтые строки)%s' "$Y" "$WARN" "$Z"; echo
+else printf '%sНе готово: %s проблем(ы) — красные строки выше.%s\n' "$B$R" "$BAD" "$Z"; fi
+[ "$BAD" = 0 ]

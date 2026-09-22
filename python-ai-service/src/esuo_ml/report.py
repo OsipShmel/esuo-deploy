@@ -117,7 +117,7 @@ def _header(world: World, params: ModelParams, evaluation: list[Observation], se
     return (f"# Прогноз длительности обслуживания: итог в цифрах\n\n"
             f"> Синтетика мира `{world.code}`, зерно `{seed}`, модель `{params.version}`, "
             f"{len(evaluation)} обслуживаний отложенной выборки, собрано {generated}. "
-            f"Пересобирается `uv run esuo-ml report`, числа воспроизводятся по зерну.")
+            f"Пересобирается `uv run esuo-ml report --end-day 2026-09-20`, числа воспроизводятся по зерну.")
 
 
 def _headline(plan: dict | None, eta: dict, acc: dict) -> str:
