@@ -99,6 +99,7 @@ data/
 
 .dockerignore
 .env
+docs/demo/
 .smoke-day1-token
 dev-docs/
 # frontend bundle copied in by the Docker build

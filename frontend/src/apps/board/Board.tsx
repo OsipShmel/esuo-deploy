@@ -11,14 +11,15 @@ import { useAnnouncements } from './useAnnouncements';
 
 const LIST_SIZE = 6;
 const DONE_TTL_MS = 2 * 60_000;
-const DEFAULT_CENTER = 'http://localhost:8081';
 
 /** Табло в зале (концепция 4.2, постановка board): без входа, без мыши, часами подряд. */
 export function Board() {
   const qc = useQueryClient();
   const [soundOn, setSoundOn] = useState(false);
+  // Маршрут /b/{branch}/join отдаёт и сам узел, поэтому по умолчанию QR ведёт туда же, откуда открыто табло —
+  // с верным хостом и портом без ручной настройки. ?center=… — override на случай показа табло не с той же машины.
   const centerParam = useMemo(() => new URLSearchParams(window.location.search).get('center'), []);
-  const center = (centerParam ?? DEFAULT_CENTER).replace(/\/$/, '');
+  const center = (centerParam ?? window.location.origin).replace(/\/$/, '');
 
   const stream = useEventStream({
     url: '/api/v1/public/board/stream',
@@ -105,7 +106,6 @@ export function Board() {
             <div>Ждут: <strong>{waiting}</strong> {plural(waiting)}</div>
             {load?.expected_wait_min != null && <div>Ожидание ~<strong>{load.expected_wait_min}</strong> мин</div>}
           </div>
-          {!centerParam && <small className="warn-small">Адрес центра не задан (?center=…), QR ведёт на {DEFAULT_CENTER}</small>}
         </aside>
       </main>
 
