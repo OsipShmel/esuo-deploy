@@ -6,6 +6,7 @@ import honey.road.node.persistence.PolicyRepository;
 import honey.road.node.persistence.TicketRepository;
 import honey.road.node.persistence.WindowRepository;
 import honey.road.node.planning.LoadPlanner;
+import honey.road.node.planning.PlanningSource;
 import honey.road.node.queue.domain.PostalService;
 import honey.road.node.queue.domain.Ticket;
 import org.springframework.stereotype.Service;
@@ -67,14 +68,16 @@ public class Recommendations {
     private final CatalogRepository catalog;
     private final PolicyRepository policies;
     private final LoadPlanner planner;
+    private final PlanningSource planning;
     private final NodeProperties node;
     private final Clock clock;
 
     public Recommendations(WaitTimeEstimator estimator, TicketRepository tickets, WindowRepository windows,
                            CatalogRepository catalog, PolicyRepository policies, LoadPlanner planner,
-                           NodeProperties node, Clock clock) {
+                           PlanningSource planning, NodeProperties node, Clock clock) {
         this.estimator = estimator; this.tickets = tickets; this.windows = windows; this.catalog = catalog;
-        this.policies = policies; this.planner = planner; this.node = node; this.clock = clock;
+        this.policies = policies; this.planner = planner; this.planning = planning;
+        this.node = node; this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -139,6 +142,13 @@ public class Recommendations {
      */
     private LoadAdvice advice() {
         try {
+            if (!planning.current().usable()) {
+                // Без опубликованной секции планирования советов от него нет — и не «нехватка ноль».
+                // `needed` планировщик умеет считать и без конфигурации, из одного только потока, поэтому
+                // без этой проверки отделение, которое планирование не включало, вдруг получило бы новую
+                // причину в баннере: ровно то молчаливое изменение поведения, которое секция и сторожит.
+                return null;
+            }
             var snapshot = planner.snapshot();
             var w = snapshot.windows();
             int wanted = Math.max(w.planned(), w.needed());

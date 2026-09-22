@@ -4,7 +4,7 @@
 # Нужны: curl, jq, docker (сообщения публикуются в hub контейнером natsio/nats-box).
 set -uo pipefail
 
-NODE=${NODE:-http://localhost:8080}                  # b01
+NODE=${NODE:-http://172.20.10.9:8080}                  # b01
 HUB_FROM_DOCKER=${HUB_FROM_DOCKER:-nats://host.docker.internal:4222}   # hub, опубликованный на 127.0.0.1:4222
 NODE_CONTAINER=${NODE_CONTAINER:-esuo-node-b01}
 PG_CONTAINER=${PG_CONTAINER:-esuo-postgres-b01}
@@ -15,8 +15,8 @@ W1=00000000-0000-4000-8000-000000000003
 
 command -v jq >/dev/null || { echo "Нужен jq"; exit 2; }
 [ -f .env ] && { set -a; . ./.env; set +a; }
-OP_PASS=${DEMO_OPERATOR_PASSWORD:-operator123}
-ADMIN_PASS=${DEMO_ADMIN_PASSWORD:-admin123}
+OP_PASS=${DEMO_OPERATOR_PASSWORD:-operator}
+ADMIN_PASS=${DEMO_ADMIN_PASSWORD:-admin}
 
 PASS=0; FAIL=0
 green() { printf '\033[32m%s\033[0m\n' "$*"; }

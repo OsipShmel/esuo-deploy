@@ -94,6 +94,9 @@ public abstract class AbstractNodeIT {
         restoreDemoWindowServices();
         jdbc.update("DELETE FROM inbox_processed");
         jdbc.update("DELETE FROM handling_stats");            // stats affect ETA and heuristic scoring
+        // Уровень нагрузки переживает рестарт узла по замыслу (load-planning.md 4.2), поэтому между
+        // тестами его надо снимать руками: иначе перегрузка, поднятая одним тестом, достаётся следующему.
+        jdbc.update("DELETE FROM load_state");
         restoreConfig();
     }
 
@@ -116,8 +119,9 @@ public abstract class AbstractNodeIT {
     private void restoreConfig() {
         if (configSnapshot == null) {
             configSnapshot = jdbc.queryForMap("SELECT central_version, central_config::text AS c, effective_version FROM branch_config WHERE id=1");
-            return;
         }
+        // Сброс идёт и на первом тесте тоже: узел при старте кладёт в planning значения по умолчанию,
+        // и без этого самый первый тест прогона видел бы не то же, что все остальные.
         jdbc.update("""
                 UPDATE branch_config SET central_version=?, central_config=CAST(? AS jsonb), local_overrides='{}', bounds='{}', planning='{}',
                        model='{}', effective_version=? WHERE id=1

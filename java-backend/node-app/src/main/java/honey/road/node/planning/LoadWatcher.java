@@ -58,15 +58,26 @@ public class LoadWatcher {
     @Scheduled(fixedDelayString = LoadWatcher.INTERVAL, initialDelayString = "20s")
     public void tick() {
         try {
-            tx.executeWithoutResult(status -> apply());
+            apply();
         } catch (RuntimeException e) {
             // Планирование — надстройка над очередью: его падение не должно останавливать зал.
             log.error("load planning pass failed", e);
         }
     }
 
-    /** One pass; visible to tests, which drive it directly instead of waiting for the timer. */
+    /**
+     * One pass, in its own transaction.
+     *
+     * <p>The boundary belongs here rather than in {@link #tick()}: a pass writes the state and the event
+     * together, and that pairing is a property of the pass, not of who started it. With the transaction on the
+     * caller, every other caller — the demo console, a test — had to know to open one first, and the only
+     * feedback was {@code IllegalTransactionState} from deep inside the outbox.
+     */
     public LoadLevels.State apply() {
+        return tx.execute(status -> pass());
+    }
+
+    private LoadLevels.State pass() {
         var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         var config = planning.current();
         if (!config.usable()) {

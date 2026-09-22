@@ -180,10 +180,25 @@ class LoadPlanningIT extends AbstractNodeIT {
 
         assertThat(count("SELECT count(*) FROM outbox WHERE subject LIKE ?",
                 "%" + EventTypes.LOAD_LEVEL_CHANGED)).isEqualTo(1);
-        var payload = jdbc.queryForObject("SELECT payload::text FROM outbox WHERE subject LIKE ?", String.class,
-                "%" + EventTypes.LOAD_LEVEL_CHANGED);
-        assertThat(payload).contains("\"from\":\"normal\"").contains("\"to\":\"overload\"")
-                .contains("few_windows");
+        // Поля достаются запросом по JSON, а не поиском подстроки: узел печатает событие с отступами,
+        // и проверка текстом ловила бы форматирование вместо содержания.
+        assertThat(eventField("from")).isEqualTo(LoadLevel.NORMAL);
+        assertThat(eventField("to")).isEqualTo(LoadLevel.OVERLOAD);
+        assertThat(eventField("profile")).isEqualTo("normal");
+        assertThat(jdbc.queryForObject("""
+                SELECT payload->'data'->'causes' @> '[{"code":"few_windows"}]'::jsonb
+                  FROM outbox WHERE subject LIKE ?
+                """, Boolean.class, "%" + EventTypes.LOAD_LEVEL_CHANGED))
+                .as("причина уехала в журнал вместе с уровнем").isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT (payload->'data'->'windows'->>'open')::int FROM outbox WHERE subject LIKE ?
+                """, Integer.class, "%" + EventTypes.LOAD_LEVEL_CHANGED)).isEqualTo(1);
+    }
+
+    /** Поле {@code data} последнего события смены уровня. */
+    private String eventField(String name) {
+        return jdbc.queryForObject("SELECT payload->'data'->>CAST(? AS text) FROM outbox WHERE subject LIKE ?",
+                String.class, name, "%" + EventTypes.LOAD_LEVEL_CHANGED);
     }
 
     @Test
@@ -242,7 +257,6 @@ class LoadPlanningIT extends AbstractNodeIT {
         clearPlanning();
         openWindow(W1, E1, PARCEL, SEND);
         var result = recommendations.current();
-        assertThat(result.load()).isNotNull();
-        assertThat(result.load().shortOf()).as("профиля нет — плана нет — нехватки нет").isZero();
+        assertThat(result.load()).as("планирование не включали — советов от него нет").isNull();
     }
 }
