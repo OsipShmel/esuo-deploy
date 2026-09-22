@@ -7,6 +7,7 @@ import honey.road.node.persistence.PolicyRepository;
 import honey.road.node.persistence.TicketRepository;
 import honey.road.node.persistence.WindowRepository;
 import honey.road.node.queue.domain.PostalService;
+import honey.road.node.queue.domain.QueuePolicy;
 import honey.road.node.queue.domain.Ticket;
 import honey.road.node.queue.domain.TicketStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +61,13 @@ public class LoadPlanner {
 
     /** Windows: open now, planned by the profile, needed by the current inflow (sect 4.2). */
     public record Windows(int open, int planned, int needed) {
+    }
+
+    /**
+     * Effective booking quota for one hour of a date (sect 5.1): {@code hour_start}, the level the quota is based
+     * on, and the quota itself, 0..1.
+     */
+    public record HourQuota(Instant hourStart, int hour, String level, double quota) {
     }
 
     /**
@@ -110,15 +119,6 @@ public class LoadPlanner {
         var chosen = config.profileFor(today, today.equals(row.manualDay()) ? row.manualProfile() : null);
         var profile = chosen == null ? null : chosen.profile();
 
-        var serviceIds = new HashMap<String, UUID>();
-        for (PostalService service : catalog.services(branch)) {
-            serviceIds.put(service.code(), service.id());
-        }
-        var cache = new HashMap<String, Double>();
-        LoadForecast.MeanDuration duration = (code, category, hour) -> cache.computeIfAbsent(
-                code + "|" + category + "|" + hour,
-                key -> meanSeconds(serviceIds.get(code), category, hour, policy.defaultServiceDurationSec()));
-
         // ---------------------------------------------------------------- сейчас
         var openWindows = windows.all(branch).stream().filter(w -> "open".equals(w.status())).toList();
         var waiting = tickets.waiting(branch);
@@ -163,18 +163,9 @@ public class LoadPlanner {
         }
 
         // ---------------------------------------------------------------- день по часам
-        var booked = new HashMap<Integer, Integer>();
-        var bookedWork = new HashMap<Integer, Double>();
-        if (profile != null && !profile.closed()) {
-            var dayStart = today.atStartOfDay(zone).toInstant();
-            for (var ticket : tickets.bookedBetween(branch, dayStart, dayStart.plus(Duration.ofDays(1)))) {
-                int hour = ticket.slotStart().atZone(zone).getHour();
-                booked.merge(hour, 1, Integer::sum);
-                bookedWork.merge(hour, predictMean(ticket, null, hour, policy.defaultServiceDurationSec()) / 60.0,
-                        Double::sum);
-            }
-        }
-        var forecast = LoadForecast.of(config, profile, today, zone, duration, booked, bookedWork);
+        var day = dayForecast(config, profile, today, zone, policy, branch);
+        var forecast = day.hours();
+        var bookedWork = day.bookedWork();
 
         // ---------------------------------------------------------------- причины
         double forecastArrivals30 = profile == null ? 0
@@ -191,7 +182,7 @@ public class LoadPlanner {
         // хватило ли коэффициентов. Без единой услуги в справочнике спрашивать не о чем — и врать не о чем.
         String modelVersion = null;
         String modelBasis = null;
-        var sampleService = anyServiceId(serviceIds);
+        var sampleService = anyServiceId(branch);
         if (sampleService != null) {
             var sample = durations.predict(sampleService, "default", null, hourNow, null);
             modelVersion = sample.modelVersion();
@@ -202,6 +193,87 @@ public class LoadPlanner {
                 new Windows(openWindows.size(), planned, needed), causes, forecast,
                 modelVersion, modelBasis);
         return new Measured(snapshot, clearForLevel, ratioForLevel);
+    }
+
+    /**
+     * Hourly forecast for an arbitrary date (load-planning.md 5.1, 6.1): the booking quota needs the forecast for
+     * the appointment's own date, not just today's. Reuses {@link LoadForecast#of}; the manual profile override
+     * only ever applies to today (sect 3.1), so a future date always goes by the calendar and the weekday map.
+     */
+    @Transactional(readOnly = true)
+    public List<LoadForecast.Hour> forecastFor(LocalDate date) {
+        var config = planning.current();
+        var zone = ZoneId.of(node.timezone());
+        var now = clock.instant();
+        var today = now.atZone(zone).toLocalDate();
+        var manual = date.equals(today) ? manualFor(today, now) : null;
+        var chosen = config.profileFor(date, manual);
+        var profile = chosen == null ? null : chosen.profile();
+        return dayForecast(config, profile, date, zone, policies.current(), node.branchId()).hours();
+    }
+
+    /**
+     * Effective quota per hour of a date (sect 5.1): the raw forecast level, except for the current and next
+     * hour of today, where the live level counts too — whichever is worse. That way booking closes ahead of plan
+     * and again if the day is going worse than the plan said.
+     */
+    @Transactional(readOnly = true)
+    public List<HourQuota> bookingQuota(LocalDate date) {
+        var config = planning.current();
+        if (!config.usable()) {
+            return List.of();
+        }
+        var zone = ZoneId.of(node.timezone());
+        var now = clock.instant();
+        var today = now.atZone(zone).toLocalDate();
+        int hourNow = now.atZone(zone).getHour();
+        String liveLevel = state.load(now).state().level();
+        var out = new ArrayList<HourQuota>();
+        for (var hour : forecastFor(date)) {
+            String level = hour.level();
+            if (date.equals(today) && (hour.hourOfDay() == hourNow || hour.hourOfDay() == hourNow + 1)
+                    && LoadLevel.rank(liveLevel) > LoadLevel.rank(level)) {
+                level = liveLevel;
+            }
+            out.add(new HourQuota(hour.hourStart(), hour.hourOfDay(), level, config.levers().quotaFor(level)));
+        }
+        return List.copyOf(out);
+    }
+
+    /** Quota for one hour of a date; {@code 1.0} (unrestricted) when planning is off or the hour is not in it. */
+    public double quotaFor(LocalDate date, int hour) {
+        return bookingQuota(date).stream().filter(h -> h.hour() == hour)
+                .findFirst().map(HourQuota::quota).orElse(1.0);
+    }
+
+    /** One day's forecast plus the booked-work map {@link LoadCauses#of} needs for the current hour. */
+    private record DayForecast(List<LoadForecast.Hour> hours, Map<Integer, Double> bookedWork) {
+    }
+
+    private DayForecast dayForecast(PlanningConfig config, PlanningConfig.Profile profile, LocalDate date,
+                                    ZoneId zone, QueuePolicy policy, String branch) {
+        var serviceIds = new HashMap<String, UUID>();
+        for (PostalService service : catalog.services(branch)) {
+            serviceIds.put(service.code(), service.id());
+        }
+        var cache = new HashMap<String, Double>();
+        LoadForecast.MeanDuration duration = (code, category, hour) -> cache.computeIfAbsent(
+                code + "|" + category + "|" + hour,
+                key -> meanSeconds(serviceIds.get(code), category, hour, policy.defaultServiceDurationSec()));
+
+        var booked = new HashMap<Integer, Integer>();
+        var bookedWork = new HashMap<Integer, Double>();
+        if (profile != null && !profile.closed()) {
+            var dayStart = date.atStartOfDay(zone).toInstant();
+            for (var ticket : tickets.bookedBetween(branch, dayStart, dayStart.plus(Duration.ofDays(1)))) {
+                int hour = ticket.slotStart().atZone(zone).getHour();
+                booked.merge(hour, 1, Integer::sum);
+                bookedWork.merge(hour, predictMean(ticket, null, hour, policy.defaultServiceDurationSec()) / 60.0,
+                        Double::sum);
+            }
+        }
+        var hours = LoadForecast.of(config, profile, date, zone, duration, booked, bookedWork);
+        return new DayForecast(hours, Map.copyOf(bookedWork));
     }
 
     /**
@@ -252,8 +324,8 @@ public class LoadPlanner {
         return durations.predict(serviceId, category, null, hour, null).meanSeconds();
     }
 
-    private UUID anyServiceId(Map<String, UUID> serviceIds) {
-        return serviceIds.values().stream().findFirst().orElse(null);
+    private UUID anyServiceId(String branch) {
+        return catalog.services(branch).stream().findFirst().map(PostalService::id).orElse(null);
     }
 
     /**

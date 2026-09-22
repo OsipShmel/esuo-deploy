@@ -10,13 +10,14 @@ import { A11yToggles, Bar, Clock, ConnectionBanner, DeadlineHint, Icon, LoadLeve
 import { getBoard } from '../board/api';
 import { QrImage } from '../board/QrImage';
 import { getLoad, LOAD_CAUSE_TEXT } from '@shared/api/load';
-import { getCenterLink, setClock } from './api';
+import { getCenterLink, resetDemo, setClock } from './api';
 import { ScenarioHelp } from './ScenarioHelp';
 import { DecisionLog } from './DecisionLog';
 import { LOG_EVENTS, toLogEntry, type LogEntry } from './decisions';
 
 const MAX_LOG = 200;
 const RATES = [1, 10, 60, 180];
+const DAY_PROFILES: [string, string][] = [['', 'не менять'], ['normal', 'Обычный день'], ['pension', 'Пенсионные выплаты'], ['weekend', 'Выходной']];
 
 export function App() {
   return (
@@ -50,6 +51,7 @@ function Pult({ onLogout }: { onLogout: () => void }) {
   const link = useQuery({ queryKey: ['center-link'], queryFn: getCenterLink, refetchInterval: 10_000, retry: false });
   const clock = useQuery({ queryKey: ['demo-clock'], queryFn: getDemoClock, refetchInterval: 10_000, retry: false });
   const { now } = useClockNow();
+  const [resetProfile, setResetProfile] = useState('');
 
   const windows = live.windows ?? [];
   const queue = useMemo(() => live.queue ?? [], [live.queue]);
@@ -64,6 +66,15 @@ function Pult({ onLogout }: { onLogout: () => void }) {
   const control = useMutation({
     mutationFn: (fn: () => Promise<unknown>) => fn(),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['demo-clock'] }); live.refresh(); },
+  });
+  const reset = useMutation({
+    mutationFn: () => resetDemo(resetProfile || null),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['demo-clock'] });
+      void qc.invalidateQueries({ queryKey: ['load'] });
+      void qc.invalidateQueries({ queryKey: ['board'] });
+      live.refresh();
+    },
   });
 
   const byService = useMemo(() => {
@@ -87,6 +98,15 @@ function Pult({ onLogout }: { onLogout: () => void }) {
                 title={clockState?.enabled ? undefined : 'Демо-часы выключены (DEMO_MODE=false)'} onClick={() => control.mutate(() => setClock({ rate: r }))}>×{r}</button>
             ))}
           </div>
+          <label className="row" title="Профиль дня, который встанет после сброса (не обязателен)">
+            <span className="muted small">Профиль</span>
+            <select value={resetProfile} onChange={(e) => setResetProfile(e.target.value)}>
+              {DAY_PROFILES.map(([code, title]) => <option key={code} value={code}>{title}</option>)}
+            </select>
+          </label>
+          <button type="button" className="btn btn-sm btn-danger" disabled={reset.isPending}
+            title="Очищает очередь, окна и статистику; демо-часы возвращаются на реальное время. Требует DEMO_MODE=true на узле."
+            onClick={() => reset.mutate()}>{reset.isPending ? 'Сброс…' : 'Сброс'}</button>
           <span className="grow" />
           <ScenarioHelp />
           <A11yToggles />
@@ -106,7 +126,7 @@ function Pult({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <ConnectionBanner status={live.stream} tz={tz} />
-      <ProblemAlert error={live.error ?? command.error ?? control.error} />
+      <ProblemAlert error={live.error ?? command.error ?? control.error ?? reset.error} />
 
       <div className="pult-grid">
         <section className="card mini-board" aria-label="Табло">

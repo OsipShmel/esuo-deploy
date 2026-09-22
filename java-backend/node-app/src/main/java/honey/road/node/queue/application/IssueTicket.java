@@ -5,6 +5,8 @@ import honey.road.contracts.event.EventTypes;
 import honey.road.contracts.dto.TicketView;
 import honey.road.node.config.NodeProperties;
 import honey.road.node.persistence.*;
+import honey.road.node.planning.BookingQuota;
+import honey.road.node.planning.LoadPlanner;
 import honey.road.node.queue.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,12 +47,14 @@ public class IssueTicket {
     private final NodeProperties node;
     private final Clock clock;
     private final JsonCodec json;
+    private final LoadPlanner load;
 
     public IssueTicket(CatalogRepository catalog, PolicyRepository policies, IdempotencyRepository keys,
                        SlotRepository slots, TicketRepository tickets, EventRepository events, TicketViews views,
-                       UuidGenerator ids, NodeProperties node, Clock clock, JsonCodec json) {
+                       UuidGenerator ids, NodeProperties node, Clock clock, JsonCodec json, LoadPlanner load) {
         this.catalog=catalog; this.policies=policies; this.keys=keys; this.slots=slots; this.tickets=tickets;
         this.events=events; this.views=views; this.ids=ids; this.node=node; this.clock=clock; this.json=json;
+        this.load=load;
     }
 
     @Transactional
@@ -85,6 +89,18 @@ public class IssueTicket {
         if (command.source() == TicketSource.appointment) {
             validateSlot(command.slotStart(),service,policy,zone,now);
             slots.lock(service.id(),command.slotStart());
+            // Квота записи на пиковые часы (load-planning.md 5.1): уже принятые записи не отменяются никогда,
+            // новая запись на исчерпанный час отклоняется — тем же кодом на вебе и на пути из МП.
+            var slotDate=command.slotStart().atZone(zone).toLocalDate();
+            int slotHour=command.slotStart().atZone(zone).getHour();
+            double quota=load.quotaFor(slotDate,slotHour);
+            if (quota<1.0) {
+                var hourStart=slotDate.atStartOfDay(zone).plusHours(slotHour).toInstant();
+                long allowed=BookingQuota.allowed(service.slotDurationMin(),service.slotCapacity(),quota);
+                if (slots.occupancyForHour(service.id(),hourStart) >= allowed) {
+                    throw new DomainException("BOOKING_LIMITED","Запись на это время закрыта из-за высокой нагрузки");
+                }
+            }
             if (slots.occupancy(service.id(),command.slotStart()) >= service.slotCapacity()) {
                 throw new DomainException("SLOT_UNAVAILABLE","На выбранное время нет свободных мест");
             }

@@ -64,6 +64,12 @@ public class PublicTicketController {
         return queries.slots(service, date);
     }
 
+    /** Hours with a limited or closed booking quota on a date (load-planning.md 5.1, 6.1); empty when none are. */
+    @GetMapping("/booking-limits")
+    public List<TicketQueries.BookingLimitView> bookingLimits(@RequestParam LocalDate date) {
+        return queries.bookingLimits(date);
+    }
+
     @PostMapping("/appointments")
     @ResponseStatus(HttpStatus.CREATED)
     public TicketView appointment(@RequestHeader("Idempotency-Key") String key,

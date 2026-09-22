@@ -40,6 +40,11 @@ public class GatewayController {
         return responses.of(rpc.call(branch, "slots.list", Map.of("service_id", serviceId, "date", date), null));
     }
 
+    @GetMapping("/booking-limits")
+    public ResponseEntity<Object> bookingLimits(@PathVariable String branch, @RequestParam String date) {
+        return responses.of(rpc.call(branch, "booking.limits", Map.of("date", date), null));
+    }
+
     @PostMapping("/appointments")
     public ResponseEntity<Object> appointment(@PathVariable String branch, @RequestHeader("Idempotency-Key") String key,
                                               @RequestBody Map<String, Object> body) {

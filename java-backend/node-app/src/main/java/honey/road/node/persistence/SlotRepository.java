@@ -27,4 +27,12 @@ public class SlotRepository {
                 AND status NOT IN ('cancelled','no_show')
                 """, Long.class, serviceId, Timestamp.from(start));
     }
+
+    /** Appointments already taken across a whole hour, {@code [hourStart, hourStart+1h)} — the booking quota unit. */
+    public long occupancyForHour(UUID serviceId, Instant hourStart) {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM tickets WHERE service_id=? AND slot_start>=? AND slot_start<?
+                AND source='appointment' AND status NOT IN ('cancelled','no_show')
+                """, Long.class, serviceId, Timestamp.from(hourStart), Timestamp.from(hourStart.plusSeconds(3600)));
+    }
 }

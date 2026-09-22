@@ -34,6 +34,7 @@ public class RpcOperations {
     public record TokenRequest(UUID token) { }
     public record MpRequest(String mpAppointmentId) { }
     public record SlotsRequest(UUID serviceId, LocalDate date) { }
+    public record DateRequest(LocalDate date) { }
     public record PostponeRequest(UUID token, Integer minutes) { }
     public record CheckInRequest(UUID token, String qrCode) { }
 
@@ -44,6 +45,11 @@ public class RpcOperations {
                 var r = read(body, SlotsRequest.class);
                 require(r.serviceId() != null && r.date() != null, "service_id и date обязательны");
                 yield RpcReply.ok(200, api.slots(r.serviceId(), r.date()));
+            }
+            case "booking.limits" -> {
+                var r = read(body, DateRequest.class);
+                require(r.date() != null, "date обязателен");
+                yield RpcReply.ok(200, api.bookingLimits(r.date()));
             }
             case "appointment.create" -> RpcReply.ok(201, api.appointment(key(idempotencyKey),
                     valid(read(body, PublicTicketController.AppointmentRequest.class))));
