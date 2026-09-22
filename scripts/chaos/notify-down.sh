@@ -40,6 +40,14 @@ curl -s -o /dev/null -X POST "$NODE/api/v1/windows/$W1/open" "${A[@]}" "${J[@]}"
 walkins() { local i; for i in $(seq 1 "$1"); do
   curl -s -o /dev/null -X POST "$NODE/api/v1/windows/$W1/walkin" "${A[@]}" "${J[@]}" \
     -H "Idempotency-Key: nd-$RUN-$2-$i" -d "{\"service_id\":\"$S_PARCEL\"}"; done; }
+# «Очередь приближается» шлётся только клиентам в первых позициях (0..3). Если окно всю дорогу простаивает,
+# каждая новая фаза walkins встаёт позади невызванных прошлых — новые талоны из фазы «up» перестают попадать
+# в это окно и circuit breaker не набирает достаточно вызовов, чтобы закрыться. Разбираем очередь между фазами.
+drain_queue() { local i id; for i in $(seq 1 20); do
+  id=$(curl -s -X POST "$NODE/api/v1/windows/$W1/call-next" "${A[@]}" | jq -r '.ticket_id // empty')
+  [ -n "$id" ] || break
+  curl -s -o /dev/null -X POST "$NODE/api/v1/tickets/$id/complete" "${A[@]}" "${J[@]}" -d '{}'; done; }
+drain_queue                                     # чистое начало: убрать хвост прошлых прогонов
 BEFORE=$(status); echo "до: $BEFORE"
 SENT0=$(echo "$BEFORE" | jq '.counts.sent // 0'); DLQ0=$(echo "$BEFORE" | jq '.counts.dlq_open // 0')
 
@@ -56,10 +64,11 @@ poll "DLQ растёт (dlq_open > '"$DLQ0"')" 300 ".counts.dlq_open > $DLQ0"
 
 echo "== 2. Восстановление"
 chaos ok
+drain_queue                                     # позиции 0..3 свободны — новые талоны сразу попадут в окно уведомлений
 echo "  ждём перехода CB в HALF_OPEN (wait-in-open-state 30 с)"; sleep 31
-walkins 4 up
+walkins 8 up                                    # с запасом: часть может не попасть в позиции 0..3, если окно уже занято
 poll "новые уведомления доставлены (sent > $SENT0)" 120 ".counts.sent > $SENT0"
-poll "circuit breaker CLOSED" 60 '.circuit_breaker.state == "CLOSED"'
+poll "circuit breaker CLOSED" 150 '.circuit_breaker.state == "CLOSED"'
 
 echo "== 3. Повтор из DLQ"
 IDS=$(curl -s "$CENTER/api/v1/admin/dlq?kind=notification&status=open" | jq -r '.[].id')

@@ -212,15 +212,18 @@ export const getRecommendations = () => api<Recommendations>('/admin/recommendat
 
 export * from '@shared/api/load';
 
-/** Формат ответа `GET /admin/model` (ml-model.md 4.4): читаем то, что есть, лишнее показываем как есть. */
+/** Ответ `GET /admin/model` (AdminModelController): модель приходит из центра, обучение на узле не запускается. */
 export interface DurationModel {
   version: string | null;
-  status?: string;
+  /** `active` — применяется; `disabled` — выключена переопределением отделения; `none` — не публиковалась. */
+  status: 'active' | 'disabled' | 'none' | string;
   enabled?: boolean;
-  /** Обучение идёт офлайн, поэтому узел отвечает `false` — кнопку переобучения не показываем. */
-  trainable?: boolean;
   source?: string;
+  /** `false` — кнопку «Переобучить» не показываем. */
+  trainable?: boolean;
   trained_at?: string;
+  train_from?: string;
+  train_to?: string;
   observations?: number;
   metrics?: Record<string, unknown>;
 }

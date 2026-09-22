@@ -51,7 +51,11 @@ esuo:
         sliding-window-size: 10
         minimum-calls: 5
         wait-in-open-state: 30s
-        permitted-calls-in-half-open: 2
+        # NATS redelivers everything that hit CIRCUIT_OPEN after the same wait-in-open-state delay, so on recovery a whole
+        # backlog probes HALF_OPEN at once; with only 2 slots one stray failure among the burst reopens the breaker before
+        # the rest even get a turn (scripts/chaos/notify-down.sh flaked on this). 5 slots make the close/reopen call less
+        # sensitive to noise from a single concurrent failure.
+        permitted-calls-in-half-open: 5
     mp:                                         # sect 4.6, 13.2
       webhook-secret: ${MP_WEBHOOK_SECRET:}
       callback-url: ${MP_CALLBACK_URL:http://mp-simulator:8091/callback}

@@ -10,13 +10,13 @@ import { A11yToggles, Bar, Clock, ConnectionBanner, DeadlineHint, Icon, LoadLeve
 import { getBoard } from '../board/api';
 import { QrImage } from '../board/QrImage';
 import { getLoad, LOAD_CAUSE_TEXT } from '@shared/api/load';
-import { getCenterLink, resetDemo, setClock, startScenario, stopScenario } from './api';
+import { getCenterLink, setClock } from './api';
+import { ScenarioHelp } from './ScenarioHelp';
 import { DecisionLog } from './DecisionLog';
 import { LOG_EVENTS, toLogEntry, type LogEntry } from './decisions';
 
 const MAX_LOG = 200;
 const RATES = [1, 10, 60, 180];
-const SCENARIOS: [string, string][] = [['pension', 'Пенсионные выплаты'], ['normal', 'Обычный день'], ['weekend', 'Выходной']];
 
 export function App() {
   return (
@@ -74,7 +74,6 @@ function Pult({ onLogout }: { onLogout: () => void }) {
 
   const l = load.data;
   const clockState = clock.data;
-  const [scenario, setScenario] = useState(SCENARIOS[0]![0]);
 
   return (
     <div className="pult">
@@ -89,15 +88,7 @@ function Pult({ onLogout }: { onLogout: () => void }) {
             ))}
           </div>
           <span className="grow" />
-          <label className="row" title="Сценарии демо на узле пока не реализованы">
-            <span className="muted small">Сценарий</span>
-            <select value={scenario} onChange={(e) => setScenario(e.target.value)} disabled>
-              {SCENARIOS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
-            </select>
-          </label>
-          <button type="button" className="btn btn-sm" disabled title="Запуск сценария пока не реализован на узле" onClick={() => control.mutate(() => startScenario(scenario))}>Запустить</button>
-          <button type="button" className="btn btn-sm" disabled title="Остановка сценария пока не реализована" onClick={() => control.mutate(() => stopScenario())}>Стоп</button>
-          <button type="button" className="btn btn-sm" disabled title="Сброс демо пока не реализован" onClick={() => control.mutate(() => resetDemo(scenario))}>Сброс</button>
+          <ScenarioHelp />
           <A11yToggles />
           <button type="button" className="btn btn-sm" onClick={onLogout}>Выйти</button>
         </div>

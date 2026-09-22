@@ -54,7 +54,7 @@ public class OperatorQueries {
             throw DomainException.validation("status: booked | waiting | called | serving");
         }
         var zone = ZoneId.of(catalog.branch(node.branchId()).timezone());
-        var today = LocalDate.now(clock.withZone(zone));
+        var today = clock.instant().atZone(zone).toLocalDate();   // not clock.withZone: DemoClock is UTC only
         var services = catalog.services(node.branchId()).stream()
                 .collect(Collectors.toMap(PostalService::id, Function.identity()));
         var now = clock.instant();

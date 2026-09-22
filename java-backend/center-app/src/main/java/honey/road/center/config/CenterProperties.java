@@ -55,7 +55,7 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
             slidingWindowSize = slidingWindowSize < 1 ? 10 : slidingWindowSize;
             minimumCalls = minimumCalls < 1 ? 5 : minimumCalls;
             waitInOpenState = waitInOpenState == null ? Duration.ofSeconds(30) : waitInOpenState;
-            permittedCallsInHalfOpen = permittedCallsInHalfOpen < 1 ? 2 : permittedCallsInHalfOpen;
+            permittedCallsInHalfOpen = permittedCallsInHalfOpen < 1 ? 5 : permittedCallsInHalfOpen;
         }
     }
 
