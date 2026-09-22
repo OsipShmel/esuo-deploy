@@ -34,10 +34,18 @@ public final class EventTypes {
      */
     public static final String MODEL_TRAINED = "model.trained";
 
+    /**
+     * Branch load level changed (load-planning.md 4.2, 6.2). Carries {@code from}, {@code to}, the numbers that
+     * moved it and the causes, because the level alone is not reviewable afterwards: the whole point of the
+     * decision journal is that a person can see why booking was closed for an hour and whether that was right.
+     */
+    public static final String LOAD_LEVEL_CHANGED = "load.level_changed";
+
     public static final String AGGREGATE_TICKET = "ticket";
     public static final String AGGREGATE_WINDOW = "window";
     public static final String AGGREGATE_INCIDENT = "incident";
     public static final String AGGREGATE_MP = "mp_appointment";
     public static final String AGGREGATE_CONFIG = "config";
     public static final String AGGREGATE_MODEL = "duration_model";
+    public static final String AGGREGATE_LOAD = "load";
 }

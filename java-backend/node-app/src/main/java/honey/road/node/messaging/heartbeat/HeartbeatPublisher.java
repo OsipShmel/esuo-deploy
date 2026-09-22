@@ -8,6 +8,7 @@ import honey.road.node.config.NodeProperties;
 import honey.road.node.messaging.nats.NatsGateway;
 import honey.road.node.messaging.outbox.OutboxWorker;
 import honey.road.node.persistence.CatalogRepository;
+import honey.road.node.planning.LoadPlanner;
 import honey.road.node.persistence.PolicyRepository;
 import honey.road.node.persistence.TicketRepository;
 import honey.road.node.persistence.WindowRepository;
@@ -38,15 +39,16 @@ public class HeartbeatPublisher {
     private final WindowRepository windows;
     private final TicketRepository tickets;
     private final PolicyRepository policies;
+    private final LoadPlanner planner;
     private final OutboxWorker outbox;
     private final JsonCodec json;
     private final Clock clock;
 
     public HeartbeatPublisher(NatsGateway nats, NodeProperties node, CatalogRepository catalog, WindowRepository windows,
-                              TicketRepository tickets, PolicyRepository policies, OutboxWorker outbox, JsonCodec json,
-                              Clock clock) {
+                              TicketRepository tickets, PolicyRepository policies, LoadPlanner planner,
+                              OutboxWorker outbox, JsonCodec json, Clock clock) {
         this.nats = nats; this.node = node; this.catalog = catalog; this.windows = windows; this.tickets = tickets;
-        this.policies = policies; this.outbox = outbox; this.json = json; this.clock = clock;
+        this.policies = policies; this.planner = planner; this.outbox = outbox; this.json = json; this.clock = clock;
     }
 
     @Scheduled(fixedDelayString = "${esuo.nats.heartbeat-interval:10s}", initialDelayString = "2s")
@@ -93,9 +95,35 @@ public class HeartbeatPublisher {
         hb.put("overdue", waiting.stream().filter(t -> !t.dueAt().isAfter(now)).count());
         hb.put("oldest_wait_sec", waiting.stream().map(t -> Duration.between(t.issuedAt(), now).toSeconds())
                 .max(Long::compare).orElse(0L));
+        putLoad(hb);
         hb.put("services", catalog.services(node.branchId()).stream().filter(s -> s.active())
                 .map(s -> Map.of("id", s.id(), "code", s.code(), "name", s.name(), "number_prefix", s.numberPrefix()))
                 .toList());
         return hb;
+    }
+
+    /**
+     * Load for the network overview (load-planning.md 6.2).
+     *
+     * <p>{@code load_level_since} travels with the level so the center can raise the {@code overload} anomaly
+     * for a branch stuck there longer than fifteen minutes without keeping a history of levels of its own. The
+     * branch already knows that moment exactly — it survives a restart in {@code load_state} — and a derived
+     * value is better sent than recomputed from a stream of heartbeats that a link outage can interrupt.
+     *
+     * <p>Planning is an addition to the queue, so its failure must not cost the center its heartbeat: without
+     * these fields the overview shows what it showed before planning existed.
+     */
+    private void putLoad(Map<String, Object> hb) {
+        try {
+            var load = planner.snapshot();
+            hb.put("load_level", load.level());
+            hb.put("load_level_since", load.levelSince());
+            hb.put("clear_time_min", load.clearTimeMin());
+            if (load.profile() != null) {
+                hb.put("day_profile", load.profile().profile().code());
+            }
+        } catch (RuntimeException e) {
+            log.debug("heartbeat without load fields: {}", e.toString());
+        }
     }
 }

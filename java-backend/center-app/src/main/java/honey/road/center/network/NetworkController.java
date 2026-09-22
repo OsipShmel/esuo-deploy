@@ -52,6 +52,43 @@ public class NetworkController {
         return result;
     }
 
+    /** Сколько отделение должно провисеть в перегрузке, чтобы это стало аномалией (load-planning.md 6.2). */
+    private static final Duration OVERLOAD_ANOMALY_AFTER = Duration.ofMinutes(15);
+
+    /**
+     * A branch stuck in {@code overload} longer than fifteen minutes (load-planning.md 6.2).
+     *
+     * <p>The moment the level was entered comes from the branch itself ({@code load_level_since}) rather than
+     * being counted here from a run of heartbeats: a link outage interrupts that run, and the branch keeps
+     * working and keeps its own level through it — so counting centrally would reset the clock exactly when the
+     * branch is worst off. A branch that does not send the field yet simply never raises this anomaly.
+     *
+     * <p>The branch clock may be a demo clock running at speed, so the comparison uses the branch's own
+     * {@code sent_at} rather than the center's wall clock; falling back to the center's only when it is absent.
+     */
+    private boolean overloadedFor(JsonNode hb, Instant now) {
+        if (!"overload".equals(hb.path("load_level").asString(null))) {
+            return false;
+        }
+        var since = instant(hb.path("load_level_since").asString(null));
+        if (since == null) {
+            return false;
+        }
+        var reference = instant(hb.path("sent_at").asString(null));
+        return Duration.between(since, reference == null ? now : reference).compareTo(OVERLOAD_ANOMALY_AFTER) > 0;
+    }
+
+    private static Instant instant(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     @GetMapping("/api/v1/network/overview")
     public Map<String, Object> overview() {
         var now = clock.instant();
@@ -70,6 +107,7 @@ public class NetworkController {
             if (overdue > 5) { anomalies.add("overdue_tickets"); }
             if (hb.path("windows_open").asLong(0) == 0 && waiting > 0) { anomalies.add("no_open_windows"); }
             if (hb.path("outbox_lag_sec").asLong(0) > 60) { anomalies.add("outbox_lag"); }
+            if (isOnline && overloadedFor(hb, now)) { anomalies.add("overload"); }
             int hbConfig = hb.path("config_version").asInt(0);
             Integer published = b.configPublishedVersion();
             int applied = Math.max(hbConfig, b.configAppliedVersion() == null ? 0 : b.configAppliedVersion());

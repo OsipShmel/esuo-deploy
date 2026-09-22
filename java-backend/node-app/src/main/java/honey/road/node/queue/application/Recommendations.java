@@ -5,6 +5,7 @@ import honey.road.node.persistence.CatalogRepository;
 import honey.road.node.persistence.PolicyRepository;
 import honey.road.node.persistence.TicketRepository;
 import honey.road.node.persistence.WindowRepository;
+import honey.road.node.planning.LoadPlanner;
 import honey.road.node.queue.domain.PostalService;
 import honey.road.node.queue.domain.Ticket;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,15 @@ public class Recommendations {
     public static final String REASON_ETA_OVERRUN = "eta_overrun";
     public static final String REASON_OVERDUE_COUNT = "overdue_count";
     public static final String REASON_NO_OPEN_WINDOW = "no_open_window";
+    /**
+     * Load planning says the hour needs more windows than are open (load-planning.md 5, lever 1).
+     *
+     * <p>Unlike the other three, this reason does not wait for the queue to go wrong: the other reasons fire on
+     * damage already done — a deadline missed, tickets overdue — while this one fires on the forecast, before
+     * the clients arrive. That is the whole value of planning, and also why it only ever recommends: a window
+     * is a person, and the system does not staff shifts.
+     */
+    public static final String REASON_LOAD_FORECAST = "load_forecast";
 
     public record SuggestedWindow(UUID windowId, String name) {
     }
@@ -43,8 +53,12 @@ public class Recommendations {
                                         List<SuggestedWindow> suggestedWindows) {
     }
 
+    /** Branch-level part of the advice: how many windows the current hour is short of (sect 5). */
+    public record LoadAdvice(String level, int open, int planned, int needed, int shortOf) {
+    }
+
     public record Result(Instant generatedAt, boolean recommendOpenWindow, int overdueMin, int overdueCount,
-                         List<ServiceRecommendation> services) {
+                         List<ServiceRecommendation> services, LoadAdvice load) {
     }
 
     private final WaitTimeEstimator estimator;
@@ -52,13 +66,15 @@ public class Recommendations {
     private final WindowRepository windows;
     private final CatalogRepository catalog;
     private final PolicyRepository policies;
+    private final LoadPlanner planner;
     private final NodeProperties node;
     private final Clock clock;
 
     public Recommendations(WaitTimeEstimator estimator, TicketRepository tickets, WindowRepository windows,
-                           CatalogRepository catalog, PolicyRepository policies, NodeProperties node, Clock clock) {
+                           CatalogRepository catalog, PolicyRepository policies, LoadPlanner planner,
+                           NodeProperties node, Clock clock) {
         this.estimator = estimator; this.tickets = tickets; this.windows = windows; this.catalog = catalog;
-        this.policies = policies; this.node = node; this.clock = clock;
+        this.policies = policies; this.planner = planner; this.node = node; this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -75,6 +91,8 @@ public class Recommendations {
         var byService = new HashMap<UUID, List<Ticket>>();
         waiting.forEach(t -> byService.computeIfAbsent(t.serviceId(), k -> new ArrayList<>()).add(t));
 
+        // Планирование нагрузки — отдельный источник совета: оно смотрит вперёд, а не на уже сломанное.
+        var load = advice();
         var result = new ArrayList<ServiceRecommendation>();
         for (var entry : byService.entrySet()) {
             var serviceId = entry.getKey();
@@ -94,6 +112,7 @@ public class Recommendations {
             if (maxOverrun > policy.recommendOverdueMin() * 60L) { reasons.add(REASON_ETA_OVERRUN); }
             if (overdue > policy.recommendOverdueCount()) { reasons.add(REASON_OVERDUE_COUNT); }
             if (open == 0) { reasons.add(REASON_NO_OPEN_WINDOW); }
+            if (load != null && load.shortOf() > 0) { reasons.add(REASON_LOAD_FORECAST); }
             if (reasons.isEmpty()) { continue; }
 
             var suggested = allWindows.stream()
@@ -106,6 +125,26 @@ public class Recommendations {
         }
         result.sort(Comparator.comparingLong(ServiceRecommendation::maxEtaOverrunSec).reversed()
                 .thenComparing(ServiceRecommendation::serviceName));
-        return new Result(now, !result.isEmpty(), policy.recommendOverdueMin(), policy.recommendOverdueCount(), List.copyOf(result));
+        // Совет остаётся советом и тогда, когда очередь ещё цела: не хватает окон на этот час — уже повод.
+        boolean recommend = !result.isEmpty() || (load != null && load.shortOf() > 0);
+        return new Result(now, recommend, policy.recommendOverdueMin(), policy.recommendOverdueCount(),
+                List.copyOf(result), load);
+    }
+
+    /**
+     * Window shortage from the load planner, or {@code null} when planning is off.
+     *
+     * <p>Planning must never be able to break the recommendation the branch had before it existed, so a failure
+     * here degrades to "no load advice" instead of an error on the admin screen.
+     */
+    private LoadAdvice advice() {
+        try {
+            var snapshot = planner.snapshot();
+            var w = snapshot.windows();
+            int wanted = Math.max(w.planned(), w.needed());
+            return new LoadAdvice(snapshot.level(), w.open(), w.planned(), w.needed(), Math.max(0, wanted - w.open()));
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 }

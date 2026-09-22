@@ -198,6 +198,39 @@ public class TicketRepository {
                 new MapSqlParameterSource().addValue("b", branch).addValue("st", statuses), MAPPER);
     }
 
+    /**
+     * Appointments for a period, for the hourly forecast (load-planning.md 4.1).
+     *
+     * <p>Cancelled and no-show bookings are excluded: they bring no work and their slot is free again.
+     * A booking whose client already checked in is still counted — the work is ahead either way, and the
+     * status it moved to says nothing about the hour it was booked for.
+     */
+    public List<Ticket> bookedBetween(String branch, Instant from, Instant to) {
+        return jdbc.query("""
+                SELECT * FROM tickets WHERE branch_id=:b AND source='appointment'
+                   AND slot_start >= :from AND slot_start < :to
+                   AND status NOT IN ('cancelled','no_show')
+                 ORDER BY slot_start
+                """, Map.of("b", branch, "from", Timestamp.from(from), "to", Timestamp.from(to)), MAPPER);
+    }
+
+    /** Tickets issued in a period: the actual inflow, against which the profile forecast is judged (sect 4.3). */
+    public List<Ticket> issuedBetween(String branch, Instant from, Instant to) {
+        return jdbc.query("""
+                SELECT * FROM tickets WHERE branch_id=:b AND issued_at >= :from AND issued_at < :to
+                 ORDER BY issued_at
+                """, Map.of("b", branch, "from", Timestamp.from(from), "to", Timestamp.from(to)), MAPPER);
+    }
+
+    /** Services completed in a period, for comparing measured duration with the forecast (sect 4.3). */
+    public List<Ticket> completedBetween(String branch, Instant from, Instant to) {
+        return jdbc.query("""
+                SELECT * FROM tickets WHERE branch_id=:b AND status='done'
+                   AND completed_at >= :from AND completed_at < :to AND serving_started_at IS NOT NULL
+                 ORDER BY completed_at
+                """, Map.of("b", branch, "from", Timestamp.from(from), "to", Timestamp.from(to)), MAPPER);
+    }
+
     /** Latest calls (board). */
     public List<Ticket> recentCalls(String branch, int limit) {
         return jdbc.query("""

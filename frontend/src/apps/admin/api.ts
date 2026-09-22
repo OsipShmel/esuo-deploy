@@ -183,7 +183,7 @@ export const deleteEmployee = (id: string) => api<EmployeeItem>(`/admin/employee
 
 // ------------------------------------------------------------------ рекомендации
 
-export type RecommendationReason = 'eta_overrun' | 'overdue_count' | 'no_open_window';
+export type RecommendationReason = 'eta_overrun' | 'overdue_count' | 'no_open_window' | 'load_forecast';
 
 export interface RecommendationService {
   service_id: string;
@@ -202,6 +202,8 @@ export interface Recommendations {
   overdue_min: number;
   overdue_count: number;
   services: RecommendationService[];
+  /** Нехватка окон по прогнозу нагрузки; отсутствует, пока планирование не включено (load-planning.md 5). */
+  load?: { level: string; open: number; planned: number; needed: number; short_of: number } | null;
 }
 
 export const getRecommendations = () => api<Recommendations>('/admin/recommendations');

@@ -1,0 +1,136 @@
+{
+  "_comment": [
+    "Значения по умолчанию секции planning (load-planning.md 3.1). Нода применяет их при первом",
+    "старте, если центр ещё ничего не публиковал: иначе экран нагрузки пуст на чистом стенде.",
+    "Публикация из центра (PUT /api/v1/config/global) перекрывает этот файл целиком.",
+    "Календарь здесь пуст намеренно: даты выплат протухают, их привозит центр из planning.json",
+    "генератора, а разово профиль выбирается вручную через PUT /api/v1/admin/load/profile."
+  ],
+  "planning": {
+    "base_arrivals_per_day": 100,
+    "utilization_target": 0.85,
+    "weekdays": {
+      "mon": "normal",
+      "tue": "normal",
+      "wed": "normal",
+      "thu": "normal",
+      "fri": "normal",
+      "sat": "weekend",
+      "sun": "closed"
+    },
+    "calendar": [],
+    "profiles": {
+      "normal": {
+        "name": "Обычный день",
+        "flow_multiplier": 1.0,
+        "opening_time": "09:00",
+        "closing_time": "18:00",
+        "hourly_curve": {
+          "09": 0.7,
+          "10": 0.9,
+          "11": 1.0,
+          "12": 1.3,
+          "13": 1.5,
+          "14": 1.1,
+          "15": 0.9,
+          "16": 1.0,
+          "17": 1.2
+        },
+        "service_mix": {
+          "parcel": 0.45,
+          "send": 0.35,
+          "finance": 0.2
+        },
+        "category_mix": {
+          "default": 0.81,
+          "pensioner": 0.15,
+          "special": 0.04
+        },
+        "planned_windows": {
+          "09": 2,
+          "12": 3,
+          "15": 2,
+          "17": 3
+        }
+      },
+      "weekend": {
+        "name": "Выходной",
+        "flow_multiplier": 0.85,
+        "opening_time": "10:00",
+        "closing_time": "16:00",
+        "hourly_curve": {
+          "10": 1.0,
+          "11": 1.4,
+          "12": 1.3,
+          "13": 1.0,
+          "14": 0.8,
+          "15": 0.6
+        },
+        "service_mix": {
+          "parcel": 0.6,
+          "send": 0.3,
+          "finance": 0.1
+        },
+        "category_mix": {
+          "default": 0.85,
+          "pensioner": 0.12,
+          "special": 0.03
+        },
+        "planned_windows": {
+          "10": 2
+        }
+      },
+      "pension": {
+        "name": "Пенсионные выплаты",
+        "flow_multiplier": 1.8,
+        "opening_time": "09:00",
+        "closing_time": "18:00",
+        "hourly_curve": {
+          "09": 1.8,
+          "10": 1.7,
+          "11": 1.5,
+          "12": 1.1,
+          "13": 1.0,
+          "14": 0.8,
+          "15": 0.7,
+          "16": 0.7,
+          "17": 0.7
+        },
+        "service_mix": {
+          "parcel": 0.35,
+          "send": 0.25,
+          "finance": 0.4
+        },
+        "category_mix": {
+          "default": 0.52,
+          "pensioner": 0.45,
+          "special": 0.03
+        },
+        "planned_windows": {
+          "09": 3
+        }
+      },
+      "closed": {
+        "name": "Выходной день отделения",
+        "closed": true
+      }
+    },
+    "thresholds": {
+      "high_ratio": 0.85,
+      "overload_ratio": 1.1,
+      "high_clear_min": 15,
+      "overload_clear_min": 30,
+      "down_factor": 0.8,
+      "down_hold_min": 10,
+      "up_hold_min": 2
+    },
+    "levers": {
+      "booking_quota": {
+        "normal": 1.0,
+        "high": 0.5,
+        "overload": 0.0
+      },
+      "warn_walkin_from": "high"
+    }
+  }
+}
