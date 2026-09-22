@@ -18,11 +18,12 @@ docker compose up -d --build              # центр + b01 + b02 + mp-simulato
 ./scripts/demo/run.sh doctor
 ```
 
-`doctor` ничего не меняет. Красная строка сорвёт запись, жёлтая — только один сценарий (например, без Java 25 не запустится
-`analytics`). Центр должен видеть оба отделения на связи: сразу после `up` подождите около 30 секунд, пока придут первые
+`doctor` ничего не меняет. Красная строка сорвёт запись, жёлтая — только один сценарий (например, без mp-simulator
+не запустится `mp`). Центр должен видеть оба отделения на связи: сразу после `up` подождите около 30 секунд, пока придут первые
 heartbeat.
 
-Нужны `curl`, `jq`, `python3` (3.9+), `docker`; для `analytics` — Java 25 (`java -version`). На маке: `brew install jq`.
+Нужны `curl`, `jq`, `python3` (3.9+), `docker`. На маке: `brew install jq`. Java для `analytics` не обязательна: без Java 21+
+генератор истории запускается в docker (образ `eclipse-temurin:25-jdk`, скачается один раз).
 
 ---
 
@@ -140,7 +141,7 @@ cd python-ai-service && uv run pytest -v                   # модель: 42 т
 |---|---|
 | «Демо-часы выключены» / `pension-ab` не стартует | `DEMO_MODE=true` в `.env`, затем `docker compose up -d node-b01 node-b02` |
 | Проверки с «статус 000», «центр видит оба отделения — ✘» | центр не поднят: `docker compose up -d center-app`, логи — `docker logs esuo-center-app` |
-| `analytics`: «файл истории не создан» | в `PATH` не Java 25 — скрипт покажет ошибку генератора |
+| `analytics`: «файл истории не создан» | скрипт покажет ошибку генератора; при старой Java генератор идёт через docker — проверьте `docker pull eclipse-temurin:25-jdk` |
 | `pension-ab`: «конфигурация не доехала за 60 с» | нет связи нода ↔ центр: `./scripts/demo/run.sh doctor`, `docker compose ps` |
 | `pension-ab`: «нет history.sql» | `cd python-ai-service && uv run esuo-ml generate --end-day 2026-09-20` |
 | Экраны нагрузки показывают «Пенсионные выплаты» в другом сценарии | после `pension-ab` не вернули стенд: `./scripts/demo/run.sh normal` |

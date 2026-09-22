@@ -75,8 +75,13 @@ ok "ноды $BRANCH и $BRANCH2, центр и БД на месте, демо-�
 
 # ---------------------------------------------------------------- 1. конфигурация центра
 step "Публикую конфигурацию: planning всем, model только $BRANCH2"
-put_center /api/v1/config/global "$(jq -c '. + {model: null}' "$SC/planning.json")"
-ok "planning.json → глобально (секция model глобально снята)"
+# Центр заменяет секцию queue целиком, поэтому берём текущую и дописываем в неё только цели ожидания.
+# Трасса ведёт всех трёх категорий клиентов (default, pensioner, special); на стенде, чья центральная конфигурация
+# собрана до появления special в queue-defaults.yml, нода отвергала бы таких клиентов «Неизвестная категория».
+QUEUE=$(curl -sf "$CENTER/api/v1/config" | jq -c '.global.queue // {}') || die "не читается GET $CENTER/api/v1/config"
+TARGET_WAIT='{"target_wait_min":{"qr":{"default":20,"pensioner":15,"special":10},"walkin":{"default":30,"pensioner":20,"special":15}}}'
+put_center /api/v1/config/global "$(jq -c --argjson q "$QUEUE" --argjson t "$TARGET_WAIT" '. + {model: null, queue: ($q * $t)}' "$SC/planning.json")"
+ok "planning.json и цели ожидания трёх категорий → глобально (секция model глобально снята)"
 # Не null, а явное выключение: пустую секцию нода читает как «ничего не менять» и оставила бы модель,
 # если та когда-то уже доехала до b01 (BranchConfigService.applyCentral).
 put_center "/api/v1/config/branches/$BRANCH" '{"model": {"enabled": false}}'

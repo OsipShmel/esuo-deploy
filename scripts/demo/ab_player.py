@@ -177,6 +177,7 @@ class Node:
         self.levels = []                       # смена уровней: (время, уровень)
         self.errors = 0
         self.last_error = ""
+        self.error_kinds = []                  # первые разные ошибки — в факты прогона, для разбора
 
     # ---------------------------------------------------------------- доступ
 
@@ -333,6 +334,8 @@ class Node:
     def fail(self, text: str):
         self.errors += 1
         self.last_error = text
+        if len(self.error_kinds) < 3 and text[:60] not in [k[:60] for k in self.error_kinds]:
+            self.error_kinds.append(text)
 
     # ---------------------------------------------------------------- поток отделения
 
@@ -669,6 +672,7 @@ def main() -> int:
     for n, s in ((a, sa), (b, sb)):
         if s["errors"]:
             say(c("33", f"   {n.code}: {s['errors']} ошибок API, последняя: {n.last_error}"))
+            fact(f"ошибки API проигрывателя {n.code}", f"{s['errors']}: " + " | ".join(n.error_kinds))
     check("проигрыватель отработал без ошибок API", sa["errors"] + sb["errors"] == 0,
           f"{sa['errors'] + sb['errors']} ошибок")
 

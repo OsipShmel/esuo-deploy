@@ -1,0 +1,37 @@
+{
+  "scenario": "link-cut",
+  "title": "Обрыв связи с центром посреди дня",
+  "started": "2026-09-22T19:52:21Z",
+  "finished": "2026-09-22T19:53:09Z",
+  "commit": "2371c15",
+  "pass": 7,
+  "fail": 1,
+  "signature": "9a7b9f192fee",
+  "facts": {},
+  "checks": [
+    "PASS Окно 1 (b01) открыто",
+    "PASS центр видит отделение на связи",
+    "PASS центр показывает отделение «нет связи»",
+    "PASS клиент из интернета получает понятный отказ 503",
+    "PASS табло отделения работает без центра",
+    "PASS центр снова видит отделение",
+    "PASS накопленные события доехали (очередь отправки пуста)",
+    "FAIL клиент, выданный во время обрыва, обслужен (a8) (ждали done, получили waiting)"
+  ],
+  "events": [
+    "window|b01|Окно 1|open",
+    "arrive|b01|a1|qr|посылка|default",
+    "arrive|b01|a2|qr|посылка|default",
+    "arrive|b01|a3|qr|посылка|default",
+    "call|b01|Окно 1|a1",
+    "cmd|b01|a1|start",
+    "cmd|b01|a1|complete",
+    "chaos|link|cut",
+    "arrive|b01|a4|qr|посылка|default",
+    "arrive|b01|a5|qr|посылка|default",
+    "arrive|b01|a6|qr|посылка|default",
+    "arrive|b01|a7|qr|посылка|default",
+    "arrive|b01|a8|qr|посылка|default",
+    "chaos|link|restore"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "scenario": "three-sources",
+  "title": "Три источника талонов в одной очереди",
+  "started": "2026-09-22T16:13:42Z",
+  "finished": "2026-09-22T16:13:52Z",
+  "commit": "846a724",
+  "pass": 3,
+  "fail": 0,
+  "signature": "737d379d27be",
+  "facts": {
+    "источники в очереди": "[\"qr\",\"walkin\"]"
+  },
+  "checks": [
+    "PASS Окно 1 (b01) открыто",
+    "PASS запись через центр создана (источник appointment)",
+    "PASS в очереди рядом QR и живой (запись на завтра ждёт своего дня)"
+  ],
+  "events": [
+    "window|b01|Окно 1|open",
+    "arrive|b01|c-web|appointment|посылка|default",
+    "arrive|b01|c-qr|qr|посылка|default",
+    "arrive|b01|c-desk|walkin|отправка|default",
+    "call|b01|Окно 1|c-qr",
+    "cmd|b01|c-qr|start",
+    "cmd|b01|c-qr|complete",
+    "call|b01|Окно 1|c-desk",
+    "cmd|b01|c-desk|start",
+    "cmd|b01|c-desk|complete"
+  ]
+}

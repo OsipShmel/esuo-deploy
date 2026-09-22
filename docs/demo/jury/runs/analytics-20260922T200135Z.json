@@ -1,0 +1,15 @@
+{
+  "scenario": "analytics",
+  "title": "Аналитика руководителя на истории",
+  "started": "2026-09-22T20:01:34Z",
+  "finished": "2026-09-22T20:01:35Z",
+  "commit": "2371c15",
+  "pass": 0,
+  "fail": 1,
+  "signature": "e3b0c44298fc",
+  "facts": {},
+  "checks": [
+    "FAIL файл истории создан (ждали yes, получили no)"
+  ],
+  "events": []
+}
