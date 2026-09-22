@@ -210,10 +210,14 @@ export const getRecommendations = () => api<Recommendations>('/admin/recommendat
 
 export * from '@shared/api/load';
 
-/** Формат ответа `GET /admin/model` в дизайн-доке не расписан: читаем то, что есть, лишнее показываем как есть. */
+/** Формат ответа `GET /admin/model` (ml-model.md 4.4): читаем то, что есть, лишнее показываем как есть. */
 export interface DurationModel {
-  version: string;
+  version: string | null;
   status?: string;
+  enabled?: boolean;
+  /** Обучение идёт офлайн, поэтому узел отвечает `false` — кнопку переобучения не показываем. */
+  trainable?: boolean;
+  source?: string;
   trained_at?: string;
   observations?: number;
   metrics?: Record<string, unknown>;

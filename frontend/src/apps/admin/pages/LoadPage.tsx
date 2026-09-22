@@ -172,10 +172,10 @@ function ModelCard() {
       <div className="row">
         <h2 style={{ margin: 0 }}>Модель длительности обслуживания</h2>
         <span className="grow" />
-        {m && <button type="button" className="btn" disabled={train.isPending} onClick={() => train.mutate()}>{train.isPending ? 'Обучаем…' : 'Переобучить'}</button>}
+        {m && m.trainable !== false && <button type="button" className="btn" disabled={train.isPending} onClick={() => train.mutate()}>{train.isPending ? 'Обучаем…' : 'Переобучить'}</button>}
       </div>
       <ProblemAlert error={model.error ?? train.error} />
-      {!m ? <p className="muted">Модель длительности на узле пока не включена: ожидание считается по средним значениям услуг.</p> : (
+      {!m || !m.version ? <p className="muted">Модель длительности не опубликована: ожидание считается по средним значениям услуг. Это рабочее состояние, а не ошибка.</p> : (
         <>
           <p>Версия <strong>{m.version}</strong>{m.status && <> · статус: {m.status}</>}{m.trained_at && <> · обучена {formatDateTime(m.trained_at, tz)}</>}{m.observations != null && <> · наблюдений: {m.observations}</>}</p>
           {m.metrics && Object.keys(m.metrics).length > 0 && (
