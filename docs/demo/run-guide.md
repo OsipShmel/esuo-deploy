@@ -84,5 +84,3 @@ cd python-ai-service && uv run pytest               # 42 теста модели
 | [`jury/repeatability.md`](jury/repeatability.md) | три прогона подряд — одинаковая подпись хода событий |
 | [`jury/ab-report.md`](jury/ab-report.md) | отчёт последнего `pension-ab` |
 | [`ml-report.md`](ml-report.md) | модель длительности в цифрах |
-
-Если что-то не запускается — раздел «Если что-то пошло не так» в [`video-guide.md`](video-guide.md).

@@ -153,6 +153,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ServiceView"
+  /api/v1/admin/load/profile:
+    put:
+      tags:
+      - admin-load-controller
+      operationId: putProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetProfile"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
   /api/v1/admin/employees/{id}:
     get:
       tags:
@@ -797,6 +816,23 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/EmployeeView"
+  /api/v1/admin/demo/reset:
+    post:
+      tags:
+      - demo-reset-controller
+      operationId: reset
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Result"
   /api/v1/admin/incidents/{id}:
     patch:
       tags:
@@ -968,6 +1004,18 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SlotView"
+  /api/v1/public/demo/status:
+    get:
+      tags:
+      - demo-status-controller
+      operationId: status
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Status"
   /api/v1/public/demo/clock:
     get:
       tags:
@@ -993,6 +1041,27 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+  /api/v1/public/booking-limits:
+    get:
+      tags:
+      - public-ticket-controller
+      operationId: bookingLimits
+      parameters:
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BookingLimitView"
   /api/v1/public/board:
     get:
       tags:
@@ -1053,6 +1122,32 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Result"
+  /api/v1/admin/model:
+    get:
+      tags:
+      - admin-model-controller
+      operationId: get_5
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+  /api/v1/admin/load:
+    get:
+      tags:
+      - admin-load-controller
+      operationId: get_6
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
   /api/v1/admin/analytics/windows:
     get:
       tags:
@@ -1229,6 +1324,13 @@ components:
           format: int32
         active:
           type: boolean
+    SetProfile:
+      type: object
+      properties:
+        profile:
+          type:
+          - string
+          - "null"
     EmployeeRequest:
       type: object
       properties:
@@ -1283,7 +1385,25 @@ components:
           type: boolean
         float:
           type: boolean
+        pojo:
+          type: boolean
         integral_number:
+          type: boolean
+        floating_point_number:
+          type: boolean
+        short:
+          type: boolean
+        value_node:
+          type: boolean
+        container:
+          type: boolean
+        missing_node:
+          type: boolean
+        int:
+          type: boolean
+        long:
+          type: boolean
+        double:
           type: boolean
         node_type:
           type: string
@@ -1299,22 +1419,6 @@ components:
           - STRING
         string:
           type: boolean
-        missing_node:
-          type: boolean
-        value_node:
-          type: boolean
-        container:
-          type: boolean
-        pojo:
-          type: boolean
-        short:
-          type: boolean
-        int:
-          type: boolean
-        long:
-          type: boolean
-        double:
-          type: boolean
         big_decimal:
           type: boolean
         big_integer:
@@ -1325,8 +1429,6 @@ components:
         boolean:
           type: boolean
         binary:
-          type: boolean
-        floating_point_number:
           type: boolean
         number:
           type: boolean
@@ -1588,6 +1690,22 @@ components:
           - string
           - "null"
           format: uuid
+    ResetRequest:
+      type: object
+      properties:
+        scenario:
+          type:
+          - string
+          - "null"
+    Result:
+      type: object
+      properties:
+        reset:
+          type: boolean
+        scenario:
+          type:
+          - string
+          - "null"
     ResolveRequest:
       type: object
       properties:
@@ -1663,6 +1781,22 @@ components:
         remaining_capacity:
           type: integer
           format: int64
+    Status:
+      type: object
+      properties:
+        center_link:
+          type: boolean
+    BookingLimitView:
+      type: object
+      properties:
+        hour_start:
+          type: string
+          format: date-time
+        level:
+          type: string
+        quota:
+          type: number
+          format: double
     Board:
       type: object
       properties:
@@ -1699,60 +1833,6 @@ components:
         call_count:
           type: integer
           format: int32
-    Result:
-      type: object
-      properties:
-        generated_at:
-          type: string
-          format: date-time
-        recommend_open_window:
-          type: boolean
-        overdue_min:
-          type: integer
-          format: int32
-        overdue_count:
-          type: integer
-          format: int32
-        services:
-          type: array
-          items:
-            $ref: "#/components/schemas/ServiceRecommendation"
-    ServiceRecommendation:
-      type: object
-      properties:
-        service_id:
-          type: string
-          format: uuid
-        service_name:
-          type: string
-        waiting:
-          type: integer
-          format: int32
-        overdue:
-          type: integer
-          format: int32
-        max_eta_overrun_sec:
-          type: integer
-          format: int64
-        open_windows:
-          type: integer
-          format: int32
-        reasons:
-          type: array
-          items:
-            type: string
-        suggested_windows:
-          type: array
-          items:
-            $ref: "#/components/schemas/SuggestedWindow"
-    SuggestedWindow:
-      type: object
-      properties:
-        window_id:
-          type: string
-          format: uuid
-        name:
-          type: string
     WindowStat:
       type: object
       properties:

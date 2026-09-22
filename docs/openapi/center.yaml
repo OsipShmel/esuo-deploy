@@ -497,6 +497,29 @@ paths:
             '*/*':
               schema:
                 type: object
+  /api/v1/branches/{branch}/booking-limits:
+    get:
+      tags:
+      - gateway-controller
+      operationId: bookingLimits
+      parameters:
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
   /api/v1/admin/notifications/status:
     get:
       tags:
@@ -711,6 +734,9 @@ components:
         planning:
           type: object
           additionalProperties: {}
+        model:
+          type: object
+          additionalProperties: {}
     SectionsView:
       type: object
       properties:
@@ -721,6 +747,9 @@ components:
           type: object
           additionalProperties: {}
         planning:
+          type: object
+          additionalProperties: {}
+        model:
           type: object
           additionalProperties: {}
         updated_at:
@@ -827,15 +856,15 @@ components:
           type: boolean
         float:
           type: boolean
-        container:
-          type: boolean
         missing_node:
-          type: boolean
-        binary:
           type: boolean
         value_node:
           type: boolean
+        container:
+          type: boolean
         integral_number:
+          type: boolean
+        floating_point_number:
           type: boolean
         node_type:
           type: string
@@ -870,7 +899,7 @@ components:
           deprecated: true
         boolean:
           type: boolean
-        floating_point_number:
+        binary:
           type: boolean
         number:
           type: boolean
