@@ -21,8 +21,6 @@ from .generate import Observation
 from .predict import ModelParams
 from .world import World
 
-NEWCOMER_STEPS = (5, 10, 25)
-NEWCOMER_HOLDOUT = 150
 PENSION_BIAS = 1.3                                     # «день пошёл хуже плана», как в демо A/B
 
 
@@ -47,7 +45,7 @@ def write_report(world: World, observations: list[Observation], path: Path,
         _header(world, params, evaluation, seed),
         _headline(plans.get(headline_title), eta, _accuracy_numbers(world, params, train, evaluation)),
         _by_day(plans),
-        _accuracy(world, params, train, evaluation, observations),
+        _accuracy(world, params, train, evaluation),
         _criteria(world, params, evaluation),
         _footer(),
     ]
@@ -64,8 +62,7 @@ def _plan_rows(world: World, params: ModelParams, cascade: CascadeBaseline, day:
     Длительности в прогоне берутся из мира, выбор талона — одна и та же логика во всех руках:
     различается только то, сколько окон руководитель поставил по прогнозу.
     """
-    from .benchmark import (cascade_predictor, forecast_work_min, model_predictor, needed_windows, run_branch,
-                            uniform_predictor, _shift)
+    from .benchmark import forecast_work_min, model_predictor, needed_windows, run_branch, uniform_predictor, _shift
 
     def oracle(service_code: str, category: str, employee_id: str, hour: int) -> float:
         return world.mean_duration_sec(service_code, category, employee_id, hour, world.windows[0].id)
@@ -73,8 +70,8 @@ def _plan_rows(world: World, params: ModelParams, cascade: CascadeBaseline, day:
     target = float(world.planning.get("utilization_target", 0.85))
     shift = _shift(world, day, seed)
     out = {}
-    for key, predict in (("uniform", uniform_predictor(world)), ("cascade", cascade_predictor(cascade)),
-                         ("model", model_predictor(params, cascade)), ("oracle", oracle)):
+    for key, predict in (("uniform", uniform_predictor(world)), ("model", model_predictor(params, cascade)),
+                         ("oracle", oracle)):
         plan = needed_windows(forecast_work_min(world, day, predict, bias, shift), target)
         result = run_branch(world, day, seed, model_predictor(params, cascade), bias, key, staffing=plan)
         out[key] = {"window_hours": sum(plan.values()), "avg": result.avg_wait_sec / 60,
@@ -85,11 +82,10 @@ def _plan_rows(world: World, params: ModelParams, cascade: CascadeBaseline, day:
 
 def _eta(world: World, params: ModelParams, cascade: CascadeBaseline, day: date, seed: int) -> dict:
     """Ошибка обещанного клиенту времени вызова (как считает `WaitTimeEstimator`) в тот же день."""
-    from .benchmark import cascade_predictor, eta_error_min, model_predictor, run_branch, uniform_predictor
+    from .benchmark import eta_error_min, model_predictor, run_branch, uniform_predictor
 
     out = {}
-    for key, predict in (("uniform", uniform_predictor(world)), ("cascade", cascade_predictor(cascade)),
-                         ("model", model_predictor(params, cascade))):
+    for key, predict in (("uniform", uniform_predictor(world)), ("model", model_predictor(params, cascade))):
         result = run_branch(world, day, seed, predict, flow_bias=1.0, arm=key)
         if result.served:
             out[key] = eta_error_min(world, result.clients, predict, result.shift, result.active)
@@ -108,33 +104,9 @@ def _accuracy_numbers(world: World, params: ModelParams, train: list[Observation
     return {
         "oracle": mae(evaluation, oracle),
         "model": mae(evaluation, model_p50),
-        "cascade": mae(evaluation, CascadeBaseline(train).predict),
         "service": mae(evaluation, ServiceMeanBaseline(train).predict),
         "const": mae(evaluation, ConstantBaseline().predict),
     }
-
-
-def _newcomer(world: World, observations: list[Observation]) -> list[tuple[int, float, float]]:
-    """Новый сотрудник: модель против каскада на первых наблюдениях (ml-model.md 3.1, сжатие вместо порога)."""
-    newcomer = max(world.employees, key=lambda e: e.multiplier)
-    days = sorted({o.day for o in observations})[-28:]
-    period = [o for o in observations if o.day in days]
-    others = [o for o in period if o.employee_id != newcomer.id]
-    his = sorted([o for o in period if o.employee_id == newcomer.id], key=lambda o: o.started_at)
-    if len(his) < NEWCOMER_HOLDOUT + 30:
-        return []
-    holdout, pool = his[-NEWCOMER_HOLDOUT:], his[:-NEWCOMER_HOLDOUT]
-    options = FitOptions(train_days=999, holdout_days=0, min_observations=1)
-    rows = []
-    for n in [s for s in NEWCOMER_STEPS if s <= len(pool)]:
-        sample = others + pool[:n]
-        params = fit(sample, options, version=f"dm-newcomer-{n}").params
-
-        def model(o: Observation, p=params) -> float:
-            prediction = p.predict(o.service_code, o.client_category, o.employee_id, o.hour, o.window_id)
-            return prediction.p50_sec if prediction else 300.0
-        rows.append((n, mae(holdout, CascadeBaseline(sample).predict), mae(holdout, model)))
-    return rows
 
 
 # ---------------------------------------------------------------------- разделы
@@ -155,7 +127,9 @@ def _headline(plan: dict | None, eta: dict, acc: dict) -> str:
     lines = [
         "## Главное: прогноз против его отсутствия", "",
         "Пенсионный день: самый нагруженный профиль, почти половина клиентов — пенсионеры с платежами.",
-        "«Без прогноза» — отделение без модели и без истории: 300 с на любое обслуживание.", "",
+        "«Без прогноза» — отделение без модели и без истории: 300 с на любое обслуживание.",
+        "«С прогнозом» — модель длительности; она работает в паре со статистикой отделения, которая",
+        "подхватывает прогноз там, где модели сказать нечего (незнакомая услуга, модель ещё не приехала).", "",
         "| | Без прогноза | С прогнозом | Итог |",
         "|---|---:|---:|---|",
         f"| Ошибка прогноза одного обслуживания, с | {acc['const']:.0f} | **{acc['model']:.0f}** | "
@@ -195,27 +169,19 @@ def _by_day(plans: dict) -> str:
     return "\n".join(lines)
 
 
-def _accuracy(world: World, params: ModelParams, train: list[Observation], evaluation: list[Observation],
-              observations: list[Observation]) -> str:
+def _accuracy(world: World, params: ModelParams, train: list[Observation], evaluation: list[Observation]) -> str:
     a = _accuracy_numbers(world, params, train, evaluation)
     lines = ["## Точность одного прогноза", "",
              "Ошибка на обслуживаниях, которых модель не видела при обучении (MAE, секунды).", "",
              "| Способ прогноза | MAE, с | Против константы 300 с |", "|---|---:|---:|",
              f"| Предел точности: знает истинные параметры мира | {_n(a['oracle'])} | {_signed(a['oracle'], a['const'])} |",
              f"| **Модель** | **{_n(a['model'])}** | **{_signed(a['model'], a['const'])}** |",
-             f"| Средние по истории (`handling_stats`) | {_n(a['cascade'])} | {_signed(a['cascade'], a['const'])} |",
              f"| Среднее по услуге | {_n(a['service'])} | {_signed(a['service'], a['const'])} |",
              f"| Константа 300 с | {_n(a['const'])} | — |", ""]
-    lines.append(f"Модель упёрлась в предел ({_n(a['model'])} против {_n(a['oracle'])} с): точнее на этих данных не может быть никто —")
-    lines.append("остаток ошибки это случайность самого обслуживания. Средние по истории близки к модели там,")
-    lines.append("где история есть; модель выигрывает там, где её мало:")
-    rows = _newcomer(world, observations)
-    if rows:
-        lines += ["", "| Новый сотрудник, наблюдений | Средние по истории, с | Модель, с | Модель точнее |",
-                  "|---:|---:|---:|---:|"]
-        for n, cascade_mae, model_mae in rows:
-            gain = (1 - model_mae / cascade_mae) * 100 if cascade_mae else 0.0
-            lines.append(f"| {n} | {cascade_mae:.0f} | **{model_mae:.0f}** | {gain:+.0f} % |")
+    lines += [f"Модель упёрлась в предел ({_n(a['model'])} против {_n(a['oracle'])} с): точнее на этих данных "
+              "не может быть никто — остаток ошибки это случайность самого обслуживания.", "",
+              "В отделении модель работает в паре со статистикой обслуживаний: модель → средние по истории "
+              "отделения → 300 с. Поэтому прогноз не пропадает ни на новой услуге, ни до первой публикации модели."]
     return "\n".join(lines)
 
 
