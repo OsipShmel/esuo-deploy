@@ -66,7 +66,7 @@ test('талон по QR через узел (без центра): выдача
 
   await page.getByRole('button', { name: 'Отложить' }).click();
   await page.getByRole('button', { name: '10 мин' }).click();
-  await expect(page.getByText(/Вызов: около/)).toBeVisible();
+  await expect(page.getByText(/Вызов:/)).toBeVisible();          // с открытым окном «около N мин», с закрытым — «когда откроется окно»
   await expect(page.getByRole('button', { name: '10 мин' })).toBeHidden();   // ответ получен, панель закрылась
 
   await page.getByRole('button', { name: 'Отменить талон' }).click();

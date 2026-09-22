@@ -53,7 +53,7 @@ expect "summary: кривая дата → 400" 400 '.code == "VALIDATION_ERROR"
 req GET /api/v1/admin/analytics/windows "${AA[@]}"
 expect "windows: массив со статистикой окон" 200 'type=="array" and length>0 and .[0].utilization != null'
 req GET /api/v1/admin/analytics/deviations "${AA[@]}"
-expect "deviations: counts по 6 типам" 200 '(.counts|keys|length)==6 and (.items|type=="array")'
+expect "deviations: counts по 7 типам" 200 '(.counts|keys|length)==7 and (.items|type=="array")'
 req GET /api/v1/admin/analytics/unfinished "${AA[@]}"
 expect "unfinished: массив" 200 'type=="array"'
 req GET /api/v1/admin/analytics/summary "${AO[@]}"

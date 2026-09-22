@@ -42,3 +42,12 @@ html, body { min-height: 100%; }
 .log-row time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .log-detail { padding: 8px 4px 12px 76px; display: grid; gap: 8px; }
 .log-detail pre { margin: 0; max-height: 220px; overflow: auto; padding: 8px; background: var(--surface-2); border-radius: 8px; font-size: 0.75rem; }
+
+.scenarios { position: relative; }
+.scenarios summary { list-style: none; cursor: pointer; }
+.scenarios summary::-webkit-details-marker { display: none; }
+.scenarios-body { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: min(720px, 92vw); display: grid; gap: 10px; box-shadow: var(--shadow); }
+.scenario-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.scenario-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.scenario-list .cmd { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); font-size: 0.8125rem; user-select: all; white-space: nowrap; }
+@media (max-width: 720px) { .scenario-list li { grid-template-columns: 1fr; } .scenario-list .cmd { white-space: normal; overflow-wrap: anywhere; } }

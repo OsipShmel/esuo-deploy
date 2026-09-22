@@ -210,11 +210,18 @@ export const getRecommendations = () => api<Recommendations>('/admin/recommendat
 
 export * from '@shared/api/load';
 
-/** Формат ответа `GET /admin/model` в дизайн-доке не расписан: читаем то, что есть, лишнее показываем как есть. */
+/** Ответ `GET /admin/model` (AdminModelController): модель приходит из центра, обучение на узле не запускается. */
 export interface DurationModel {
-  version: string;
-  status?: string;
+  version: string | null;
+  /** `active` — применяется; `disabled` — выключена переопределением отделения; `none` — не публиковалась. */
+  status: 'active' | 'disabled' | 'none' | string;
+  enabled?: boolean;
+  source?: string;
+  /** `false` — кнопку «Переобучить» не показываем. */
+  trainable?: boolean;
   trained_at?: string;
+  train_from?: string;
+  train_to?: string;
   observations?: number;
   metrics?: Record<string, unknown>;
 }

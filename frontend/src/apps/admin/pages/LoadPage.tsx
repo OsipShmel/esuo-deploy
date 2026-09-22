@@ -147,14 +147,34 @@ function Forecast({ l, tz }: { l: LoadState; tz: string }) {
   );
 }
 
-const METRIC_LABEL: Record<string, string> = {
-  mae_sec: 'Ошибка модели (MAE), с', mae: 'Ошибка модели (MAE), с',
-  baseline_const_mae_sec: 'Константа 300 с, MAE', baseline_service_mae_sec: 'Среднее по услуге, MAE', baseline_cascade_mae_sec: 'Каскад handling_stats, MAE',
-  p90_coverage: 'Покрытие p90', observations: 'Наблюдений', dropped_outliers: 'Отброшено выбросов',
+const MODEL_STATUS: Record<string, { tone: string; text: string }> = {
+  active: { tone: 'ok', text: 'Применяется' },
+  disabled: { tone: 'warn', text: 'Выключена в отделении' },
+  none: { tone: 'muted', text: 'Не публиковалась' },
 };
 
-function metricValue(v: unknown): string {
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',');
+type MetricKind = 'sec' | 'pct' | 'count';
+/** Подписи метрик обучателя (`python-ai-service/fit.py`); неизвестные ключи показываем как есть. */
+const METRICS: [string, string, MetricKind][] = [
+  ['mae_sec', 'Ошибка модели (MAE), медиана', 'sec'],
+  ['baseline_service_mae_sec', 'Ошибка: среднее по услуге', 'sec'],
+  ['baseline_cascade_mae_sec', 'Ошибка: каскад handling_stats', 'sec'],
+  ['baseline_const_mae_sec', 'Ошибка: константа 300 с', 'sec'],
+  ['gain_over_service_mean', 'Выигрыш против среднего по услуге', 'pct'],
+  ['p90_coverage', 'Покрытие интервала p90 (цель 85–95%)', 'pct'],
+  ['observations', 'Наблюдений в обучении', 'count'],
+  ['holdout_observations', 'Наблюдений на контроле', 'count'],
+  ['dropped_outliers', 'Отброшено выбросов', 'count'],
+  ['groups_shrunk_over_half', 'Групп со сжатием более 50%', 'count'],
+];
+const HIDDEN_METRICS = new Set(['point', 'mae_mean_sec', 'min_observations', 'previous_mae_sec']);
+
+function metricValue(v: unknown, kind?: MetricKind): string {
+  if (typeof v === 'number') {
+    if (kind === 'pct') return `${(v * 100).toFixed(1).replace('.', ',')}%`;
+    if (kind === 'sec') return `${v.toFixed(1).replace('.', ',')} с`;
+    return Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',');
+  }
   if (v === null || v === undefined) return '—';
   return typeof v === 'object' ? JSON.stringify(v) : String(v);
 }
@@ -167,24 +187,39 @@ function ModelCard() {
 
   if (model.isLoading) return <Loading rows={2} />;
   const m: DurationModel | null | undefined = model.data;
+  const status = m ? MODEL_STATUS[m.status] ?? { tone: 'muted', text: m.status } : null;
+  const metrics = m?.metrics ?? {};
+  const known = METRICS.filter(([key]) => key in metrics);
+  const extra = Object.keys(metrics).filter((k) => !METRICS.some(([key]) => key === k) && !HIDDEN_METRICS.has(k));
+
   return (
     <section className="card stack">
       <div className="row">
         <h2 style={{ margin: 0 }}>Модель длительности обслуживания</h2>
+        {status && <span className={`chip tone-${status.tone}`}>{status.text}</span>}
         <span className="grow" />
-        {m && <button type="button" className="btn" disabled={train.isPending} onClick={() => train.mutate()}>{train.isPending ? 'Обучаем…' : 'Переобучить'}</button>}
+        {m?.trainable && <button type="button" className="btn" disabled={train.isPending} onClick={() => train.mutate()}>{train.isPending ? 'Обучаем…' : 'Переобучить'}</button>}
       </div>
       <ProblemAlert error={model.error ?? train.error} />
       {!m ? <p className="muted">Модель длительности на узле пока не включена: ожидание считается по средним значениям услуг.</p> : (
         <>
-          <p>Версия <strong>{m.version}</strong>{m.status && <> · статус: {m.status}</>}{m.trained_at && <> · обучена {formatDateTime(m.trained_at, tz)}</>}{m.observations != null && <> · наблюдений: {m.observations}</>}</p>
-          {m.metrics && Object.keys(m.metrics).length > 0 && (
+          {m.status === 'none' && <p className="muted">Центр модель не публиковал: время обслуживания оценивается по средним из истории отделения (`handling_stats`).</p>}
+          {m.version && (
+            <p>Версия <strong>{m.version}</strong>{m.trained_at && <> · обучена {formatDateTime(m.trained_at, tz)}</>}{m.observations != null && <> · наблюдений: {m.observations}</>}
+              {m.source === 'center' && <> · получена из центра</>}</p>
+          )}
+          {m.status === 'disabled' && <p className="muted">Коэффициенты получены, но в этом отделении модель выключена настройкой; используется каскад средних.</p>}
+          {(known.length > 0 || extra.length > 0) && (
             <div className="table-wrap"><table>
               <thead><tr><th>Показатель</th><th className="num">Значение</th></tr></thead>
-              <tbody>{Object.entries(m.metrics).map(([k, v]) => <tr key={k}><td>{METRIC_LABEL[k] ?? k}</td><td className="num">{metricValue(v)}</td></tr>)}</tbody>
+              <tbody>
+                {known.map(([key, label, kind]) => <tr key={key}><td>{label}</td><td className="num">{metricValue(metrics[key], kind)}</td></tr>)}
+                {extra.map((key) => <tr key={key}><td>{key}</td><td className="num">{metricValue(metrics[key])}</td></tr>)}
+              </tbody>
             </table></div>
           )}
-          <p className="muted small">Метрики посчитаны на контрольных днях, не участвовавших в обучении.</p>
+          {m.version && <p className="muted small">Метрики посчитаны на контрольных днях, не участвовавших в обучении; данные синтетические.</p>}
+          {m.trainable === false && <p className="muted small">Обучение выполняется в центре, новая версия приходит в отделение конфигурацией.</p>}
         </>
       )}
     </section>
