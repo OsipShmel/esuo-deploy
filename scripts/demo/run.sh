@@ -27,7 +27,7 @@ list() {
 }
 
 run_one() { # выполняется в этом процессе: библиотека создаёт рабочую папку и ловушку очистки
-  local code=$1 file; file=$(scenario_file "$code") || { echo "Нет сценария «$code». ./scripts/demo/run.sh list"; exit 2; }
+  local code=$1 file; file=$(scenario_file "$code") || { echo "Нет сценария «${code}». ./scripts/demo/run.sh list"; exit 2; }
   # shellcheck source=lib.sh
   . "$DIR/lib.sh"
   # shellcheck source=scenarios/_day.sh
@@ -61,7 +61,7 @@ case "${1:-list}" in
     rep="$ROOT/docs/demo/jury/repeatability.md"
     [ -n "$mode" ] && modename="быстрый режим" || modename="режим показа (с паузами)"
     if [ "$uniq_n" = 1 ]; then verdict="ход событий одинаков во всех $n прогонах ($modename)"; else verdict="ход событий РАСХОДИТСЯ (${uniq_n} разных подписей, $modename)"; fi
-    printf '\n%s\n' "Повторяемость «$code»: $verdict (подписи:$sigs)"
+    printf '\n%s\n' "Повторяемость «${code}»: $verdict (подписи:$sigs)"
     mkdir -p "$ROOT/docs/demo/jury"
     [ -f "$rep" ] || printf '# Повторяемость демо-сценариев\n\nТри прогона подряд дают один и тот же ход событий (одинаковая подпись). Создаётся `run.sh repeat`.\n\n| Время (UTC) | Коммит | Сценарий | Прогонов | Итог | Подписи |\n|---|---|---|---|---|---|\n' > "$rep"
     printf '| %s | %s | %s | %s | %s | `%s` |\n' "$(date -u '+%F %H:%M')" "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo -)" "$code" "$n" "$verdict" "$(echo $sigs)" >> "$rep"

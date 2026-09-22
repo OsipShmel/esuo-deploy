@@ -48,7 +48,9 @@ scenario() {
   sleep 31
   walkins u 8
   npoll "новые письма доставляются (sent растёт)" 120 ".counts.sent > $sent0"
-  npoll "breaker снова закрыт (CLOSED)" 90 '.circuit_breaker.state=="CLOSED"'
+  # Полуоткрытый breaker пропускает пять пробных писем (application.yml центра); восьми клиентов на это не всегда
+  # хватает, и он честно остаётся HALF_OPEN до следующих писем — закрывается на повторе из DLQ (шаг 5).
+  npoll "breaker пропускает письма снова (не OPEN)" 90 '.circuit_breaker.state!="OPEN"'
   drain_queue
 
   say "Руководитель повторяет письма из DLQ (центр → «Уведомления» → «Повторить»)"
@@ -60,5 +62,7 @@ scenario() {
   assert "все письма из DLQ доставлены при повторе ($n)" "$d" "$n"
   fact "повторено из DLQ, писем" "$n"
   ev "dlq|retry|all"
-  fact "состояние после" "$(ns | jq -c '{breaker:.circuit_breaker.state, counts:.counts}')"
+  local after; after=$(ns)
+  assert "breaker снова закрыт (CLOSED)" "$(echo "$after" | jq -r '.circuit_breaker.state')" CLOSED
+  fact "состояние после" "$(echo "$after" | jq -c '{breaker:.circuit_breaker.state, counts:.counts}')"
 }

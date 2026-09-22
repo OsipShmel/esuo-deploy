@@ -28,8 +28,8 @@ if command -v python3 >/dev/null && ! python3 -c 'import sys; sys.exit(sys.versi
 fi
 if command -v java >/dev/null; then
   jv=$(java -version 2>&1 | grep -m1 ' version ' | sed -E 's/.*version "(1\.)?([0-9]+).*/\2/')
-  if [ "${jv:-0}" -ge 25 ] 2>/dev/null; then ok "java $jv"; else warn "java ${jv:-?}: сценарию analytics нужна Java 25"; fi
-else warn "нет java: не запустится только сценарий analytics"; fi
+  if [ "${jv:-0}" -ge 21 ] 2>/dev/null; then ok "java $jv"; else ok "java ${jv:-?}: analytics запустит генератор истории в docker (eclipse-temurin:25)"; fi
+else ok "java нет: analytics запустит генератор истории в docker (eclipse-temurin:25)"; fi
 
 hdr ".env"
 if [ ! -f "$ROOT/.env" ]; then bad "нет .env — cp .env.example .env и заполните"

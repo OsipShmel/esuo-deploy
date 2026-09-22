@@ -96,7 +96,7 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [ "$applied" = 1 ] || die "конфигурация не доехала за 60 с: $BRANCH модель=$v1, $BRANCH2 модель=$v2 (ждали none и $MODEL_VERSION). Связь с центром? GET $CENTER/api/v1/network/overview"
-ok "$BRANCH: модели нет; $BRANCH2: модель $MODEL_VERSION; профиль «$PROFILE» есть у обеих"
+ok "$BRANCH: модели нет; $BRANCH2: модель $MODEL_VERSION; профиль «${PROFILE}» есть у обеих"
 
 # ---------------------------------------------------------------- 2. сброс
 step "Сбрасываю ноды (талоны, окна, статистика, уровень нагрузки), профиль дня — $PROFILE"
