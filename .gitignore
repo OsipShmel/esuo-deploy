@@ -11,6 +11,7 @@ Icon_
 *.hide/
 *.local/
 *.zip
+/backups/
 
 
 # IDE
