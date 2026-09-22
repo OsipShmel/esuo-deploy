@@ -28,6 +28,11 @@ DEFAULT_SEED = 42
 # Эталон для Java-теста `DurationModelTest`: нода обязана считать тот же прогноз, что обучатель.
 # Файлы коммитятся в тестовые ресурсы ноды, чтобы Java-тесту не нужен был Python.
 FIXTURES_DIR = "../java-backend/node-app/src/test/resources/model"
+# Трассы и секция planning едут к разработчику проигрывателя по гиту, поэтому не в build/ (он под
+# .gitignore), а в каталог стенда рядом с остальной инфраструктурой демо.
+SYNTH_DIR = "../infrastructure/demo/scenarios"
+# Поток сценария относительно профиля: 1.0 — день по плану. Вводная прогона, а не константа кода.
+DEFAULT_FLOW_BIAS = {"normal": 1.0, "weekend": 1.0, "pension": 1.3}
 FIXTURE_DAY = "2026-09-20"
 FIXTURE_DAYS = 42
 FIXTURE_SEED = 42
@@ -45,8 +50,12 @@ def main(argv: list[str] | None = None) -> int:
     common.add_argument("--end-day", default=None, help="последний день истории, ГГГГ-ММ-ДД (по умолчанию вчера)")
 
     generate = subparsers.add_parser("generate", parents=[common], help="справочники, история, трассы, выборка")
-    generate.add_argument("--out", default="build/synth", help="каталог для файлов")
+    generate.add_argument("--out", default=SYNTH_DIR, help="каталог для файлов")
     generate.add_argument("--holdout-rows", type=int, default=200, help="строк в читаемой выборке")
+    generate.add_argument("--flow-bias", default=None, metavar="СЦЕНАРИЙ=ЧИСЛО,…",
+                          help="отклонение фактического потока от профиля, например "
+                               "'pension=1.3': день пошёл хуже плана (по умолчанию "
+                               + ",".join(f"{s}={b}" for s, b in DEFAULT_FLOW_BIAS.items()) + ")")
 
     fit_parser = subparsers.add_parser("fit", parents=[common], help="обучить модель")
     fit_parser.add_argument("--out", default="build/model-params.json", help="файл параметров")
@@ -99,6 +108,9 @@ def _end_day(args) -> date:
 
 def _generate(args) -> int:
     world = load_world(args.world)
+    # Вводные разбираются до первой записи: опечатка в ключе не должна оставлять каталог
+    # наполовину перезаписанным — иначе трассы и planning.json окажутся из разных прогонов.
+    flow_bias = _flow_bias(args.flow_bias)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     end_day = _end_day(args)
@@ -109,7 +121,7 @@ def _generate(args) -> int:
     rows = holdout_csv(observations, out / "holdout.csv", args.holdout_rows)
     write_json(out / "planning.json", planning_section(world, today=end_day))
 
-    for scenario, bias in (("normal", 1.0), ("weekend", 1.0), ("pension", 1.3)):
+    for scenario, bias in flow_bias.items():
         day = _scenario_day(world, scenario, end_day)
         day_observations = simulate_period(world, day, 1, args.seed, flow_bias=bias)
         write_json(out / f"scenario-{scenario}.json",
@@ -123,6 +135,26 @@ def _generate(args) -> int:
     print(f"  {out}/scenario-*.json  трассы демо-сценариев")
     print(f"\nПрименить историю: docker exec -i esuo-postgres-b01 psql -U esuo -d esuo < {out/'history.sql'}")
     return 0
+
+
+def _flow_bias(raw: str | None) -> dict[str, float]:
+    """`--flow-bias pension=1.3,normal=1.1` поверх значений по умолчанию."""
+    bias = dict(DEFAULT_FLOW_BIAS)
+    for part in (raw or "").split(","):
+        if not part.strip():
+            continue
+        scenario, _, value = part.partition("=")
+        scenario = scenario.strip()
+        if scenario not in bias:
+            raise SystemExit(f"--flow-bias: неизвестный сценарий {scenario!r}; "
+                             f"допустимы: {', '.join(bias)}")
+        try:
+            bias[scenario] = float(value)
+        except ValueError:
+            raise SystemExit(f"--flow-bias: {value!r} не число") from None
+        if bias[scenario] <= 0:
+            raise SystemExit(f"--flow-bias: {scenario} должен быть больше нуля")
+    return bias
 
 
 def _scenario_day(world, scenario: str, end_day: date) -> date:

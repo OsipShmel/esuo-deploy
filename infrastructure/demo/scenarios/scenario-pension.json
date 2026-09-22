@@ -1,0 +1,1427 @@
+{
+  "scenario": "pension",
+  "world": "standard",
+  "seed": 42,
+  "date": "2026-09-13",
+  "profile": "pension",
+  "flow_bias": 1.3,
+  "branch_id": "b01",
+  "timezone": "Europe/Moscow",
+  "opening_time": "09:00",
+  "closing_time": "18:00",
+  "_comment": [
+    "Трасса демо-сценария (load-planning.md 7.1): моменты прихода, заранее вытянутый шум",
+    "длительности, смена дня и истинные множители мира. Файл самодостаточен: проигрывателю",
+    "не нужен ни worlds/*.json, ни обученная модель — иначе демо доказывало бы само себя.",
+    "Одинаковые вводные (seed, мир, flow_bias) дают одинаковый прогон."
+  ],
+  "duration_truth": {
+    "_comment": [
+      "Правда мира (ml-model.md 6.1). Отсутствующий ключ читается как 1.0.",
+      "Проигрыватель не берёт длительность из GET /admin/model: модель — то, что мы проверяем."
+    ],
+    "formula": "median_sec = base[service_code] * category[service_code][client_category] * employee[employee_id] * employee_service[employee_id][service_code] * hour[HH] * window[window_id];  фактическая = median_sec * noise",
+    "sigma": 0.35,
+    "base": {
+      "parcel": 240.0,
+      "send": 420.0,
+      "finance": 600.0
+    },
+    "category": {
+      "parcel": {
+        "default": 1.0,
+        "pensioner": 1.2,
+        "special": 1.0
+      },
+      "send": {
+        "default": 1.0,
+        "pensioner": 1.3,
+        "special": 1.0
+      },
+      "finance": {
+        "default": 1.0,
+        "pensioner": 1.5,
+        "special": 1.0
+      }
+    },
+    "employee": {
+      "00000000-0000-4000-8000-000000000002": 0.75,
+      "00000000-0000-4000-8000-000000000006": 1.0,
+      "00000000-0000-4000-8000-000000000009": 1.0,
+      "00000000-0000-4000-8000-00000000000a": 1.35
+    },
+    "employee_service": {
+      "00000000-0000-4000-8000-00000000000a": {
+        "finance": 1.2
+      }
+    },
+    "hour": {
+      "14": 1.1,
+      "15": 1.1
+    },
+    "window": {
+      "00000000-0000-4000-8000-000000000003": 1.0,
+      "00000000-0000-4000-8000-000000000007": 1.0,
+      "00000000-0000-4000-8000-000000000008": 1.0,
+      "00000000-0000-4000-8000-00000000000b": 1.0,
+      "00000000-0000-4000-8000-00000000000c": 1.0
+    }
+  },
+  "shift": [
+    {
+      "from": "09:00",
+      "windows": [
+        {
+          "window_id": "00000000-0000-4000-8000-000000000003",
+          "window_name": "Окно 1",
+          "employee_id": "00000000-0000-4000-8000-000000000009",
+          "employee_name": "Сидорова О."
+        },
+        {
+          "window_id": "00000000-0000-4000-8000-000000000007",
+          "window_name": "Окно 2",
+          "employee_id": "00000000-0000-4000-8000-000000000006",
+          "employee_name": "Петрова М."
+        },
+        {
+          "window_id": "00000000-0000-4000-8000-000000000008",
+          "window_name": "Окно 3",
+          "employee_id": "00000000-0000-4000-8000-00000000000a",
+          "employee_name": "Козлов Д."
+        }
+      ]
+    }
+  ],
+  "arrivals": [
+    {
+      "at": "2026-09-13T09:02:20.680495+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "special",
+      "noise": 0.7237
+    },
+    {
+      "at": "2026-09-13T09:03:31.591485+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.7052
+    },
+    {
+      "at": "2026-09-13T09:05:16.605571+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.0355
+    },
+    {
+      "at": "2026-09-13T09:06:31.674534+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.7454
+    },
+    {
+      "at": "2026-09-13T09:06:44.034820+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.6456
+    },
+    {
+      "at": "2026-09-13T09:06:44.142126+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.6971
+    },
+    {
+      "at": "2026-09-13T09:07:31.158093+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.964
+    },
+    {
+      "at": "2026-09-13T09:08:19.355252+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.8482
+    },
+    {
+      "at": "2026-09-13T09:10:13.437471+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.8553
+    },
+    {
+      "at": "2026-09-13T09:10:51.138131+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.4209
+    },
+    {
+      "at": "2026-09-13T09:10:58.565721+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.5369
+    },
+    {
+      "at": "2026-09-13T09:13:18.959828+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.8927
+    },
+    {
+      "at": "2026-09-13T09:14:45.387643+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.6016
+    },
+    {
+      "at": "2026-09-13T09:16:12.856991+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.9961
+    },
+    {
+      "at": "2026-09-13T09:16:58.076979+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.5816
+    },
+    {
+      "at": "2026-09-13T09:18:30.880351+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.5917
+    },
+    {
+      "at": "2026-09-13T09:20:02.407463+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.7827
+    },
+    {
+      "at": "2026-09-13T09:20:19.718097+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.8058
+    },
+    {
+      "at": "2026-09-13T09:21:48.519789+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.1435
+    },
+    {
+      "at": "2026-09-13T09:22:13.406114+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.0898
+    },
+    {
+      "at": "2026-09-13T09:22:24.639414+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.0246
+    },
+    {
+      "at": "2026-09-13T09:23:00.989293+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.6127
+    },
+    {
+      "at": "2026-09-13T09:27:27.055194+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.6143
+    },
+    {
+      "at": "2026-09-13T09:27:35.493118+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.7876
+    },
+    {
+      "at": "2026-09-13T09:28:12.735377+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9136
+    },
+    {
+      "at": "2026-09-13T09:28:57.944974+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.3737
+    },
+    {
+      "at": "2026-09-13T09:30:26.681955+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.8243
+    },
+    {
+      "at": "2026-09-13T09:30:36.790769+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.6049
+    },
+    {
+      "at": "2026-09-13T09:34:05.450235+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.007
+    },
+    {
+      "at": "2026-09-13T09:34:34.500511+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "special",
+      "noise": 0.8767
+    },
+    {
+      "at": "2026-09-13T09:36:20.394860+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.0416
+    },
+    {
+      "at": "2026-09-13T09:36:23.868951+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.4186
+    },
+    {
+      "at": "2026-09-13T09:36:26.542841+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.8767
+    },
+    {
+      "at": "2026-09-13T09:36:43.359605+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.8195
+    },
+    {
+      "at": "2026-09-13T09:38:18.207523+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.2539
+    },
+    {
+      "at": "2026-09-13T09:39:42.806142+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.6591
+    },
+    {
+      "at": "2026-09-13T09:40:51.602737+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.0178
+    },
+    {
+      "at": "2026-09-13T09:46:15.097325+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.785
+    },
+    {
+      "at": "2026-09-13T09:46:18.161310+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.9438
+    },
+    {
+      "at": "2026-09-13T09:48:08.253786+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "special",
+      "noise": 1.7861
+    },
+    {
+      "at": "2026-09-13T09:53:34.773959+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.8469
+    },
+    {
+      "at": "2026-09-13T09:53:46.343406+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.7421
+    },
+    {
+      "at": "2026-09-13T09:54:04.332754+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.0794
+    },
+    {
+      "at": "2026-09-13T09:54:10.605087+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.7648
+    },
+    {
+      "at": "2026-09-13T09:55:46.594603+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.5286
+    },
+    {
+      "at": "2026-09-13T10:03:57.023667+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.8128
+    },
+    {
+      "at": "2026-09-13T10:04:58.563556+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.2356
+    },
+    {
+      "at": "2026-09-13T10:06:17.998792+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.476
+    },
+    {
+      "at": "2026-09-13T10:06:28.964300+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.1096
+    },
+    {
+      "at": "2026-09-13T10:07:16.644362+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.9524
+    },
+    {
+      "at": "2026-09-13T10:08:24.591464+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.8535
+    },
+    {
+      "at": "2026-09-13T10:11:05.531251+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.3013
+    },
+    {
+      "at": "2026-09-13T10:11:11.035837+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.7663
+    },
+    {
+      "at": "2026-09-13T10:12:02.814391+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.608
+    },
+    {
+      "at": "2026-09-13T10:12:25.455739+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.9877
+    },
+    {
+      "at": "2026-09-13T10:12:54.806200+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.4029
+    },
+    {
+      "at": "2026-09-13T10:13:51.087685+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.6299
+    },
+    {
+      "at": "2026-09-13T10:14:49.905244+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.1859
+    },
+    {
+      "at": "2026-09-13T10:17:26.678024+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.9244
+    },
+    {
+      "at": "2026-09-13T10:17:35.499316+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.4162
+    },
+    {
+      "at": "2026-09-13T10:22:19.509311+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.8342
+    },
+    {
+      "at": "2026-09-13T10:23:00.120288+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.9129
+    },
+    {
+      "at": "2026-09-13T10:24:25.822406+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.9865
+    },
+    {
+      "at": "2026-09-13T10:26:30.057534+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.4249
+    },
+    {
+      "at": "2026-09-13T10:28:55.839141+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9959
+    },
+    {
+      "at": "2026-09-13T10:29:27.561919+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.6347
+    },
+    {
+      "at": "2026-09-13T10:30:15.083584+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.0495
+    },
+    {
+      "at": "2026-09-13T10:30:55.555752+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.0854
+    },
+    {
+      "at": "2026-09-13T10:31:14.206881+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.0276
+    },
+    {
+      "at": "2026-09-13T10:35:06.970831+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.8868
+    },
+    {
+      "at": "2026-09-13T10:35:53.755632+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.1106
+    },
+    {
+      "at": "2026-09-13T10:36:15.888768+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.2357
+    },
+    {
+      "at": "2026-09-13T10:39:23.719020+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.0142
+    },
+    {
+      "at": "2026-09-13T10:40:15.852644+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.1347
+    },
+    {
+      "at": "2026-09-13T10:40:17.591272+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.8573
+    },
+    {
+      "at": "2026-09-13T10:42:28.701332+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.2568
+    },
+    {
+      "at": "2026-09-13T10:47:34.182356+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.0674
+    },
+    {
+      "at": "2026-09-13T10:48:27.391403+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.7187
+    },
+    {
+      "at": "2026-09-13T10:48:53.882699+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "special",
+      "noise": 1.383
+    },
+    {
+      "at": "2026-09-13T10:50:40.087958+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.428
+    },
+    {
+      "at": "2026-09-13T10:52:27.429724+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.3544
+    },
+    {
+      "at": "2026-09-13T10:52:39.357123+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.7909
+    },
+    {
+      "at": "2026-09-13T10:54:19.468916+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.6472
+    },
+    {
+      "at": "2026-09-13T10:54:34.059957+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.7232
+    },
+    {
+      "at": "2026-09-13T10:55:34.764855+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.1104
+    },
+    {
+      "at": "2026-09-13T10:57:46.556017+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.4507
+    },
+    {
+      "at": "2026-09-13T10:58:19.015979+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9858
+    },
+    {
+      "at": "2026-09-13T10:59:09.668455+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.563
+    },
+    {
+      "at": "2026-09-13T11:00:35.289881+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.1534
+    },
+    {
+      "at": "2026-09-13T11:01:19.393902+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.3767
+    },
+    {
+      "at": "2026-09-13T11:01:56.526677+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.3188
+    },
+    {
+      "at": "2026-09-13T11:06:07.703574+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.6616
+    },
+    {
+      "at": "2026-09-13T11:07:13.903780+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.7975
+    },
+    {
+      "at": "2026-09-13T11:12:55.255348+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9268
+    },
+    {
+      "at": "2026-09-13T11:14:41.254779+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.8651
+    },
+    {
+      "at": "2026-09-13T11:20:03.477563+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 2.3299
+    },
+    {
+      "at": "2026-09-13T11:20:39.664268+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.7334
+    },
+    {
+      "at": "2026-09-13T11:20:46.947594+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.0061
+    },
+    {
+      "at": "2026-09-13T11:21:07.283951+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.8197
+    },
+    {
+      "at": "2026-09-13T11:23:42.572960+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.6733
+    },
+    {
+      "at": "2026-09-13T11:23:58.427264+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.8246
+    },
+    {
+      "at": "2026-09-13T11:25:37.597110+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.6111
+    },
+    {
+      "at": "2026-09-13T11:26:52.593987+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.6721
+    },
+    {
+      "at": "2026-09-13T11:29:04.557358+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.0044
+    },
+    {
+      "at": "2026-09-13T11:29:10.873877+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.6106
+    },
+    {
+      "at": "2026-09-13T11:29:40.929657+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.8439
+    },
+    {
+      "at": "2026-09-13T11:31:17.795798+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.9673
+    },
+    {
+      "at": "2026-09-13T11:32:33.896399+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.1331
+    },
+    {
+      "at": "2026-09-13T11:32:39.834374+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.8356
+    },
+    {
+      "at": "2026-09-13T11:33:32.907482+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.3279
+    },
+    {
+      "at": "2026-09-13T11:34:27.636848+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.0828
+    },
+    {
+      "at": "2026-09-13T11:34:34.528035+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.1031
+    },
+    {
+      "at": "2026-09-13T11:38:28.394948+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.8354
+    },
+    {
+      "at": "2026-09-13T11:39:05.668286+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.4611
+    },
+    {
+      "at": "2026-09-13T11:41:10.587146+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.3292
+    },
+    {
+      "at": "2026-09-13T11:43:23.253670+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.6476
+    },
+    {
+      "at": "2026-09-13T11:46:53.728333+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.8211
+    },
+    {
+      "at": "2026-09-13T11:47:44.310648+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.8038
+    },
+    {
+      "at": "2026-09-13T11:47:53.875224+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.7788
+    },
+    {
+      "at": "2026-09-13T11:48:16.271569+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.3365
+    },
+    {
+      "at": "2026-09-13T11:49:16.038431+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.7383
+    },
+    {
+      "at": "2026-09-13T11:49:24.495870+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.255
+    },
+    {
+      "at": "2026-09-13T11:49:34.065116+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "special",
+      "noise": 0.9355
+    },
+    {
+      "at": "2026-09-13T11:49:52.797203+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.5579
+    },
+    {
+      "at": "2026-09-13T11:51:12.771664+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.4531
+    },
+    {
+      "at": "2026-09-13T11:52:53.091335+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.6336
+    },
+    {
+      "at": "2026-09-13T12:04:21.409721+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.7328
+    },
+    {
+      "at": "2026-09-13T12:08:14.297722+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9585
+    },
+    {
+      "at": "2026-09-13T12:09:16.475548+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.8262
+    },
+    {
+      "at": "2026-09-13T12:10:35.197134+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.849
+    },
+    {
+      "at": "2026-09-13T12:12:37.937778+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 2.1261
+    },
+    {
+      "at": "2026-09-13T12:13:03.518495+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.5581
+    },
+    {
+      "at": "2026-09-13T12:13:29.020795+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.9562
+    },
+    {
+      "at": "2026-09-13T12:13:46.804127+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.4954
+    },
+    {
+      "at": "2026-09-13T12:14:31.467036+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.0652
+    },
+    {
+      "at": "2026-09-13T12:17:44.994546+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.021
+    },
+    {
+      "at": "2026-09-13T12:19:35.659369+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.5733
+    },
+    {
+      "at": "2026-09-13T12:23:25.525068+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.0706
+    },
+    {
+      "at": "2026-09-13T12:24:42.882419+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.487
+    },
+    {
+      "at": "2026-09-13T12:25:27.012177+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.8917
+    },
+    {
+      "at": "2026-09-13T12:26:25.840946+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.3243
+    },
+    {
+      "at": "2026-09-13T12:27:35.883598+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.6019
+    },
+    {
+      "at": "2026-09-13T12:30:28.489594+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.7515
+    },
+    {
+      "at": "2026-09-13T12:31:32.695593+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.8071
+    },
+    {
+      "at": "2026-09-13T12:42:31.476565+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.5795
+    },
+    {
+      "at": "2026-09-13T12:46:35.199787+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.6321
+    },
+    {
+      "at": "2026-09-13T12:46:35.671837+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9265
+    },
+    {
+      "at": "2026-09-13T12:47:36.387260+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.8721
+    },
+    {
+      "at": "2026-09-13T12:49:09.224950+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.1199
+    },
+    {
+      "at": "2026-09-13T12:49:21.014643+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.0541
+    },
+    {
+      "at": "2026-09-13T12:54:28.970997+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.5908
+    },
+    {
+      "at": "2026-09-13T12:58:45.195068+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 0.7014
+    },
+    {
+      "at": "2026-09-13T12:59:25.920268+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.1769
+    },
+    {
+      "at": "2026-09-13T12:59:55.119237+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.2759
+    },
+    {
+      "at": "2026-09-13T13:01:07.809622+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.5948
+    },
+    {
+      "at": "2026-09-13T13:04:51.369011+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.498
+    },
+    {
+      "at": "2026-09-13T13:06:57.989103+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.1779
+    },
+    {
+      "at": "2026-09-13T13:08:58.715317+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.6964
+    },
+    {
+      "at": "2026-09-13T13:11:01.492275+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.4011
+    },
+    {
+      "at": "2026-09-13T13:16:02.536549+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.6779
+    },
+    {
+      "at": "2026-09-13T13:17:12.491386+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.4975
+    },
+    {
+      "at": "2026-09-13T13:18:01.252953+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 1.0918
+    },
+    {
+      "at": "2026-09-13T13:18:28.523516+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.838
+    },
+    {
+      "at": "2026-09-13T13:31:33.672444+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9984
+    },
+    {
+      "at": "2026-09-13T13:35:37.563161+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 1.0793
+    },
+    {
+      "at": "2026-09-13T13:36:37.239717+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.0901
+    },
+    {
+      "at": "2026-09-13T13:39:52.843531+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 0.7675
+    },
+    {
+      "at": "2026-09-13T13:40:37.344378+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 2.0722
+    },
+    {
+      "at": "2026-09-13T13:41:01.861156+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.1208
+    },
+    {
+      "at": "2026-09-13T13:41:49.123746+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.9401
+    },
+    {
+      "at": "2026-09-13T13:44:30.167978+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.5911
+    },
+    {
+      "at": "2026-09-13T13:52:05.272443+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.5245
+    },
+    {
+      "at": "2026-09-13T13:52:32.665100+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.4896
+    },
+    {
+      "at": "2026-09-13T13:54:03.016318+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.2426
+    },
+    {
+      "at": "2026-09-13T13:55:35.416420+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.3129
+    },
+    {
+      "at": "2026-09-13T13:56:11.498767+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "special",
+      "noise": 0.7943
+    },
+    {
+      "at": "2026-09-13T13:56:34.367476+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 0.5109
+    },
+    {
+      "at": "2026-09-13T13:56:40.327387+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.6785
+    },
+    {
+      "at": "2026-09-13T13:57:43.716522+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.2404
+    },
+    {
+      "at": "2026-09-13T14:00:31.932754+03:00",
+      "source": "qr",
+      "service_code": "finance",
+      "client_category": "pensioner",
+      "noise": 1.6961
+    },
+    {
+      "at": "2026-09-13T14:00:39.356129+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "special",
+      "noise": 1.3518
+    },
+    {
+      "at": "2026-09-13T14:05:42.860688+03:00",
+      "source": "walkin",
+      "service_code": "finance",
+      "client_category": "default",
+      "noise": 0.9511
+    },
+    {
+      "at": "2026-09-13T14:05:46.609279+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.5824
+    },
+    {
+      "at": "2026-09-13T14:06:54.517641+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.3822
+    },
+    {
+      "at": "2026-09-13T14:07:23.108836+03:00",
+      "source": "qr",
+      "service_code": "parcel",
+      "client_category": "pensioner",
+      "noise": 1.2102
+    },
+    {
+      "at": "2026-09-13T14:07:25.623172+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "default",
+      "noise": 0.5272
+    },
+    {
+      "at": "2026-09-13T14:10:37.212082+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.1854
+    },
+    {
+      "at": "2026-09-13T14:16:59.978159+03:00",
+      "source": "walkin",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 0.5827
+    },
+    {
+      "at": "2026-09-13T14:20:08.268797+03:00",
+      "source": "qr",
+      "service_code": "send",
+      "client_category": "pensioner",
+      "noise": 1.5683
+    },
+    {
+      "at": "2026-09-13T14:22:53.167154+03:00",
+      "source": "walkin",
+      "service_code": "parcel",
+      "client_category": "default",
+      "noise": 1.2128
+    }
+  ]
+}

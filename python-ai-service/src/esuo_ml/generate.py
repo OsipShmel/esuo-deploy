@@ -138,6 +138,24 @@ def assign_shifts(world: World, day: date, rnd: random.Random) -> dict[str, str]
     return {w.id: employees[i % len(employees)] for i, w in enumerate(world.windows)}
 
 
+def day_shifts(world: World, day: date, seed: int) -> dict[str, str]:
+    """Смена этого дня без прогона симуляции — для трассы сценария.
+
+    Повторяет первый шаг `simulate_day`: тот же ключ зерна и `assign_shifts` как первый потребитель
+    свежего `Random`, поэтому отображение окно → сотрудник совпадает с тем, что получит симуляция.
+    Связь неявная, и её стережёт тест `test_trace_shift_matches_simulation`: он сверяет смену трассы
+    с парами (окно, сотрудник) из самих наблюдений, так что расхождение всплывёт сразу.
+    """
+    return assign_shifts(world, day, random.Random(f"{seed}:{day.isoformat()}"))
+
+
+def open_window_ids(world: World, profile: dict, hour: int) -> list[str]:
+    """Окна, открытые по плану профиля в этот час. Одна точка правды для симуляции и для трассы."""
+    ids = [w.id for w in world.windows]
+    count = max(1, min(len(ids), planned_windows_at(profile, hour)))
+    return ids[:count]
+
+
 # ---------------------------------------------------------------------- день
 
 
@@ -180,8 +198,7 @@ def simulate_day(world: World, day: date, seed: int, flow_bias: float = 1.0) -> 
 
     for arrived, service_code, category, source in clients:
         local_hour = arrived.astimezone(zone).hour
-        open_count = max(1, min(len(window_ids), planned_windows_at(profile, local_hour)))
-        candidates = window_ids[:open_count]
+        candidates = open_window_ids(world, profile, local_hour)
         window_id = min(candidates, key=lambda wid: (free_at[wid], wid))
         started = max(free_at[window_id], arrived)
         if started >= closing + timedelta(hours=1):

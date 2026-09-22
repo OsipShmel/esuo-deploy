@@ -22,8 +22,8 @@ from .world import World
 # Целевые времена ожидания из infrastructure/config/queue-defaults.yml (дизайн-док 6.9).
 # Нужны только для правдоподобного `due_at` в истории: на длительность обслуживания они не влияют.
 TARGET_WAIT_MIN = {
-    "qr": {"default": 20, "pensioner": 15, "svo": 5},
-    "walkin": {"default": 30, "pensioner": 20, "svo": 5},
+    "qr": {"default": 20, "pensioner": 15, "special": 10},
+    "walkin": {"default": 30, "pensioner": 20, "special": 15},
 }
 
 NAMESPACE = uuid.UUID("00000000-0000-4000-8000-0000000000ff")
@@ -160,24 +160,88 @@ class Trace:
     date: str
     profile: str
     flow_bias: float
+    branch_id: str
+    timezone: str
+    opening_time: str
+    closing_time: str
+    duration_truth: dict
+    shift: list[dict]
     arrivals: list[dict]
 
     def to_json(self) -> dict:
         return {
             "scenario": self.scenario, "world": self.world, "seed": self.seed, "date": self.date,
             "profile": self.profile, "flow_bias": self.flow_bias,
-            "_comment": "Трасса демо-сценария (load-planning.md 7.1): моменты прихода и заранее вытянутый "
-                        "шум длительности. Одинаковый seed даёт одинаковый прогон.",
+            "branch_id": self.branch_id, "timezone": self.timezone,
+            "opening_time": self.opening_time, "closing_time": self.closing_time,
+            "_comment": [
+                "Трасса демо-сценария (load-planning.md 7.1): моменты прихода, заранее вытянутый шум",
+                "длительности, смена дня и истинные множители мира. Файл самодостаточен: проигрывателю",
+                "не нужен ни worlds/*.json, ни обученная модель — иначе демо доказывало бы само себя.",
+                "Одинаковые вводные (seed, мир, flow_bias) дают одинаковый прогон.",
+            ],
+            "duration_truth": self.duration_truth,
+            "shift": self.shift,
             "arrivals": self.arrivals,
         }
 
 
+def duration_truth(world: World) -> dict:
+    """Истинные множители мира — всё, что нужно проигрывателю, чтобы получить длительность.
+
+    Именно множители, а не готовые длительности: длительность зависит от того, кто в итоге вызовет
+    клиента, а это решается во время прогона. Поэтому одну трассу можно проиграть с другим составом
+    смены, и результат честно изменится — в этом и смысл демонстрации.
+    """
+    return {
+        "_comment": [
+            "Правда мира (ml-model.md 6.1). Отсутствующий ключ читается как 1.0.",
+            "Проигрыватель не берёт длительность из GET /admin/model: модель — то, что мы проверяем.",
+        ],
+        "formula": "median_sec = base[service_code] * category[service_code][client_category]"
+                   " * employee[employee_id] * employee_service[employee_id][service_code]"
+                   " * hour[HH] * window[window_id];  фактическая = median_sec * noise",
+        "sigma": world.sigma,
+        "base": {s.code: s.base_sec for s in world.services},
+        "category": {code: dict(by_category) for code, by_category in world.category_multipliers.items()},
+        "employee": {e.id: e.multiplier for e in world.employees},
+        "employee_service": {e.id: dict(e.per_service) for e in world.employees if e.per_service},
+        "hour": {f"{hour:02d}": value for hour, value in sorted(world.hour_multipliers.items())},
+        "window": {w.id: w.multiplier for w in world.windows},
+    }
+
+
+def shift_plan(world: World, profile: dict, shifts: dict[str, str]) -> list[dict]:
+    """Кто и с какого часа сидит в окнах: ступенчатая функция, как `planned_windows` профиля.
+
+    Без неё три прогона подряд не сходятся: множитель сотрудника решает длительность, и «три окна»
+    без имён — это три разных дня. Состав задаётся здесь, а не додумывается проигрывателем.
+    """
+    from .generate import open_window_ids
+
+    names = {w.id: w.name for w in world.windows}
+    employees = {e.id: e.name for e in world.employees}
+    steps = sorted(int(hour) for hour in profile.get("planned_windows", {}))
+    plan = []
+    for hour in steps:
+        plan.append({
+            "from": f"{hour:02d}:00",
+            "windows": [{
+                "window_id": window_id,
+                "window_name": names.get(window_id, window_id),
+                "employee_id": shifts[window_id],
+                "employee_name": employees.get(shifts[window_id], shifts[window_id]),
+            } for window_id in open_window_ids(world, profile, hour)],
+        })
+    return plan
+
+
 def trace(world: World, day: date, scenario: str, seed: int, flow_bias: float,
           observations: list[Observation]) -> Trace:
-    """Трасса: что подаёт `DemoScenarioRunner` — приходы и истинная длительность каждого обслуживания."""
-    from .generate import profile_for
+    """Трасса: что подаёт проигрыватель — приходы, шум, смена дня и правда мира."""
+    from .generate import day_shifts, profile_for
 
-    profile_code, _ = profile_for(world, day)
+    profile_code, profile = profile_for(world, day)
     # `noise`, а не готовая длительность: она зависит от того, кто будет обслуживать, а это решается
     # уже во время прогона. Проигрыватель считает длительность как медиана(услуга, категория,
     # сотрудник окна, час) × noise — поэтому одну трассу можно проиграть с разными сменами.
@@ -188,7 +252,12 @@ def trace(world: World, day: date, scenario: str, seed: int, flow_bias: float,
         "client_category": o.client_category,
         "noise": round(o.noise, 4),
     } for o in observations]
-    return Trace(scenario, world.code, seed, day.isoformat(), profile_code, flow_bias, arrivals)
+    return Trace(
+        scenario, world.code, seed, day.isoformat(), profile_code, flow_bias,
+        world.branch_id, world.timezone,
+        profile.get("opening_time", "09:00"), profile.get("closing_time", "18:00"),
+        duration_truth(world), shift_plan(world, profile, day_shifts(world, day, seed)), arrivals,
+    )
 
 
 # ---------------------------------------------------------------------- секции конфигурации

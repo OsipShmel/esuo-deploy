@@ -7,7 +7,7 @@
 
 Порядок работы:
 
-    uv run esuo-ml generate --world worlds/standard.json --out build/synth
+    uv run esuo-ml generate --world worlds/standard.json --out ../infrastructure/demo/scenarios
     uv run esuo-ml fit      --world worlds/standard.json --out build/model-params.json
     uv run esuo-ml report   --world worlds/standard.json --out ../docs/demo/ml-report.md
 """
