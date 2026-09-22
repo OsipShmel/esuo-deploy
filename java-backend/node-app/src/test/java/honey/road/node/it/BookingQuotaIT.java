@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Booking quota end to end (load-planning.md 5.1, 6.1). {@code PARCEL} in the demo catalog is 15-minute slots,
@@ -175,6 +176,8 @@ class BookingQuotaIT extends AbstractNodeIT {
         state.save(new LoadLevels.State(LoadLevel.OVERLOAD, now, now, null), now);   // но сейчас реально overload
         var today = now.atZone(ZONE).toLocalDate();
         int hourNow = now.atZone(ZONE).getHour();
+        // «Следующий час» после 23:00 — уже завтра, и quotaFor(today, 0) спрашивает о другом часе: тест про день, не про полночь.
+        assumeTrue(hourNow <= 21, "у полуночи по Москве тест неприменим");
 
         assertThat(load.quotaFor(today, hourNow)).as("текущий час: живой уровень перекрывает прогноз").isZero();
         assertThat(load.quotaFor(today, (hourNow + 1) % 24)).as("следующий час — тоже").isZero();

@@ -5,18 +5,21 @@ import honey.road.node.queue.application.IssueTicketCommand;
 import honey.road.node.queue.domain.DomainException;
 import honey.road.node.queue.domain.TicketSource;
 import honey.road.node.scheduler.QueueTimers;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Booking check-in and expiry (sect 5.4, 6.3, S6–S8): early, on time, late (per {@code late_policy}), past
@@ -28,6 +31,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class CheckInIT extends AbstractNodeIT {
     private static final ZoneId ZONE = ZoneId.of("Europe/Moscow");
+
+    /**
+     * Слоты здесь отсчитываются от «сейчас» на ±90 минут, а check-in разрешён только в день записи:
+     * у полуночи по Москве слот уезжает в соседний день, и тест проверял бы границу суток, а не check-in.
+     */
+    @BeforeEach
+    void notAroundMidnight() {
+        var t = LocalTime.now(ZONE);
+        assumeTrue(t.isAfter(LocalTime.of(1, 45)) && t.isBefore(LocalTime.of(23, 15)),
+                "у полуночи по Москве (23:15–01:45) тесты check-in неприменимы");
+    }
     private final Actor operator = Actor.operator(E1.toString());
 
     @Autowired QueueTimers timers;
