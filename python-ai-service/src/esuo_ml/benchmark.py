@@ -32,8 +32,8 @@ from .world import World
 
 # Целевые времена ожидания из queue-defaults.yml: due_at = приход + значение (дизайн-док 6.3).
 TARGET_WAIT_MIN = {
-    "qr": {"default": 20, "pensioner": 15, "svo": 5},
-    "walkin": {"default": 30, "pensioner": 20, "svo": 5},
+    "qr": {"default": 20, "pensioner": 15, "special": 10},
+    "walkin": {"default": 30, "pensioner": 20, "special": 15},
 }
 SLACK_MIN = 5
 

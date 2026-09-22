@@ -1,12 +1,14 @@
 # Default queue coefficients (doc section 6.9).
 # config-version is incremented whenever the file is modified.
 queue:
-  config-version: 6
+  config-version: 7
   target-wait-min:              # due_at = issued_at + value (стоит пересмотреть)
-    # svo добавлена: дизайн-док 6.9 её указывает, профили нагрузки и синтетический мир
-    # выдают клиентов этой категории, а QueuePolicy.targetWait падает на незнакомой категории.
-    qr: {default: 20, pensioner: 15, svo: 5}
-    walkin: {default: 30, pensioner: 20, svo: 5}
+    # special — спец-категория (дизайн-док 6.9): профили нагрузки и синтетический мир выдают
+    # клиентов этой категории, а QueuePolicy.targetWait падает на незнакомой категории.
+    # Приоритет выше пенсионера, но не настолько, чтобы талон был просрочен в момент выдачи:
+    # при 5 мин due_at наступал раньше, чем клиент доходил до зала, и EDF ставил его первым всегда.
+    qr: {default: 20, pensioner: 15, special: 10}
+    walkin: {default: 30, pensioner: 20, special: 15}
   early-checkin-min: 15         # how early before the slot a booking becomes eligible
   grace-late-min: 10            # lateness without losing priority (тоже стоит пересмотреть, как и всю механику очереди)
   late-policy: convert_to_qr    # convert_to_qr | reject

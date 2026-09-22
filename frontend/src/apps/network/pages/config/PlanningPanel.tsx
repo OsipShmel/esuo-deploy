@@ -5,7 +5,7 @@ import { isEmpty } from '../../configModel';
 
 type Profile = Section;
 const DAYS: [string, string][] = [['mon', 'Пн'], ['tue', 'Вт'], ['wed', 'Ср'], ['thu', 'Чт'], ['fri', 'Пт'], ['sat', 'Сб'], ['sun', 'Вс']];
-const CATEGORIES: [string, string][] = [['default', 'обычные'], ['pensioner', 'пенсионеры']];
+const CATEGORIES: [string, string][] = [['default', 'обычные'], ['pensioner', 'пенсионеры'], ['special', 'спец-категория']];
 const LEVELS: [string, string][] = [['normal', 'нормально'], ['high', 'высокая'], ['overload', 'перегрузка']];
 const THRESHOLDS: [string, string][] = [
   ['high_ratio', 'Порог «высокая»: загрузка'], ['overload_ratio', 'Порог «перегрузка»: загрузка'],

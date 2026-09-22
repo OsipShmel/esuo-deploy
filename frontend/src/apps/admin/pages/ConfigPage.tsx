@@ -13,7 +13,7 @@ const TITLES: Record<string, string> = {
   grace_late_min: 'Опоздание без потери приоритета, мин',
 };
 const SOURCE: Record<string, string> = { qr: 'QR', walkin: 'Живая очередь', appointment: 'Запись' };
-const CATEGORY: Record<string, string> = { default: 'обычный', pensioner: 'пенсионер' };
+const CATEGORY: Record<string, string> = { default: 'обычный', pensioner: 'пенсионер', special: 'спец-категория' };
 
 interface Leaf { path: string[]; central: number | null; effective: number | null }
 

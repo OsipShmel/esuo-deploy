@@ -1,4 +1,4 @@
-const TITLES: Record<string, string> = { default: 'Обычный клиент', pensioner: 'Пенсионер' };
+const TITLES: Record<string, string> = { default: 'Обычный клиент', pensioner: 'Пенсионер', special: 'Спец-категория' };
 
 /** Категория клиента влияет на приоритет (дедлайн). Проверка права на категорию вне рамок MVP (дизайн-док 22.1). */
 export function CategoryPicker({ categories, value, onChange }: { categories: string[]; value: string; onChange: (c: string) => void }) {

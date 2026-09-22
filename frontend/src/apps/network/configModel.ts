@@ -13,7 +13,7 @@ export interface FieldDef {
 }
 
 const SOURCES: [string, string][] = [['qr', 'QR'], ['walkin', 'Живая очередь']];
-const CATEGORIES: [string, string][] = [['default', 'обычный'], ['pensioner', 'пенсионер']];
+const CATEGORIES: [string, string][] = [['default', 'обычный'], ['pensioner', 'пенсионер'], ['special', 'спец-категория']];
 
 const targetWait: FieldDef[] = SOURCES.flatMap(([s, sl]) => CATEGORIES.map(([c, cl]): FieldDef => ({
   key: 'target_wait_min', path: ['target_wait_min', s, c], label: `Целевое ожидание: ${sl}, ${cl}`, unit: 'мин', kind: 'int',
