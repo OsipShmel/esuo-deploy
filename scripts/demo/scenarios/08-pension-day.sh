@@ -19,7 +19,7 @@ scenario() {
   fi
   adm "$NODE" GET /api/v1/admin/recommendations
   check "рекомендации руководителя отвечают" 200 'has("recommend_open_window")'
-  note "Реакции системы на перегрузку (уровень «перегрузка», закрытие записи) появятся вместе с блоком планирования нагрузки."
+  note "Как система реагирует на перегрузку (уровень, закрытие записи, смена по прогнозу) — сценарий pension-ab."
   adm "$NODE" GET /api/v1/admin/analytics/deviations
   check "отклонения за день отвечают" 200 '.counts != null'
   fact "отклонения за день" "$(echo "$BODY" | jq -c '.counts')"

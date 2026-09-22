@@ -3,9 +3,12 @@
 #   ./scripts/demo/run.sh list                      — список сценариев
 #   ./scripts/demo/run.sh normal-day                — запустить один сценарий (смотрите табло/оператора/сеть на экране)
 #   ./scripts/demo/run.sh normal-day --fast         — без пауз (для проверки повторяемости)
+#   ./scripts/demo/run.sh pension-ab --rate 120     — скорость демо-часов (×60 по умолчанию; для записи видео — любая)
+#   ./scripts/demo/run.sh pension-ab --from 09:00 --to 11:00 — отрезок дня (только pension-ab)
 #   ./scripts/demo/run.sh repeat normal-day [3] [--paced] — N прогонов подряд, сравнение хода событий (--paced: с паузами)
 #   ./scripts/demo/run.sh all [--with-chaos]        — все сценарии подряд (chaos = обрыв связи и отказ уведомлений, долго)
-# Настройки (окружение): NODE, NODE2, CENTER, MP, PACE (пауза, с), SEED (зерно потока), DEMO_*_PASSWORD (или .env).
+# Настройки (окружение): NODE, NODE2, CENTER, MP, PACE (пауза, с), SEED (зерно потока), CLOCK_RATE (скорость демо-часов),
+#   AB_START/AB_END (отрезок дня pension-ab), AB_SKIP_PREPARE=1 (не готовить стенд заново), DEMO_*_PASSWORD (или .env).
 # Результаты: docs/demo/jury/runs.md и docs/demo/jury/runs/*.json — отдельно от результатов тестов (docs/demo/results.md).
 set -o pipefail   # без -u: в bash 3.2 (macOS) пустые "${@}" считаются неопределёнными
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -60,8 +63,8 @@ case "${1:-list}" in
     printf '| %s | %s | %s | %s | %s | `%s` |\n' "$(date -u '+%F %H:%M')" "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo -)" "$code" "$n" "$verdict" "$(echo $sigs)" >> "$rep"
     [ "$uniq_n" = 1 ] && [ "$okall" = 1 ] ;;
   all)
-    rc=0; set_="normal-day three-sources mp disputes analytics pension-day"
-    [ "${2:-}" = "--with-chaos" ] && set_="normal-day three-sources mp disputes link-cut notify-down analytics pension-day"
+    rc=0; set_="normal-day three-sources mp disputes analytics pension-day pension-ab"
+    [ "${2:-}" = "--with-chaos" ] && set_="normal-day three-sources mp disputes link-cut notify-down analytics pension-day pension-ab"
     for code in $set_; do "$0" "$code" || rc=1; done
     exit "$rc" ;;
   *)
@@ -71,6 +74,9 @@ case "${1:-list}" in
         --fast) export FAST=1 ;;
         --pace) export PACE=$2; shift ;;
         --seed) export SEED=$2; shift ;;
+        --rate) export CLOCK_RATE=$2; shift ;;
+        --from) export AB_START=$2; shift ;;
+        --to)   export AB_END=$2; shift ;;
         *) echo "Неизвестный параметр $1"; exit 2 ;;
       esac; shift
     done
