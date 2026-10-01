@@ -96,7 +96,11 @@ docker compose up -d --build         # центр + отделения b01 и b0
 ./scripts/demo/run.sh repeat pension-ab 3     # три прогона подряд — одинаковый ход событий
 ./scripts/demo/run.sh normal                  # вернуть стенд в обычный режим после pension-ab
 
+docker compose --profile demo up -d --build   # + пульт сценариев: вкладка «Сценарии» на /demo запускает их кнопкой
+                                              # (сервис demo-runner получает сокет Docker — только на демо-стенде)
+
 cd java-backend && ./mvnw -pl node-app -am test   # автотесты отделения (Testcontainers, нужен Docker)
+python3 tools/demo-runner/test_runner.py           # проверки пульта сценариев (без стенда)
 cd python-ai-service && uv run pytest              # модель длительности
 ```
 

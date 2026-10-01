@@ -51,3 +51,20 @@ html, body { min-height: 100%; }
 .scenario-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .scenario-list .cmd { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); font-size: 0.8125rem; user-select: all; white-space: nowrap; }
 @media (max-width: 720px) { .scenario-list li { grid-template-columns: 1fr; } .scenario-list .cmd { white-space: normal; overflow-wrap: anywhere; } }
+
+.tabs-inline { display: flex; gap: 6px; }
+.runner-grid { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, 1.6fr); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .runner-grid { grid-template-columns: 1fr; } }
+.stack { display: grid; gap: 12px; align-content: start; }
+.runner-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.runner-card { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.runner-card.active { border-color: var(--accent); }
+.runner-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.runner-log { list-style: none; margin: 0; padding: 8px 12px; max-height: 62vh; overflow-y: auto; border-radius: 8px; background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8125rem; line-height: 1.5; }
+.runner-log li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.runner-log .k-step, .runner-log .k-title { font-weight: 700; margin-top: 8px; }
+.runner-log .k-step { color: var(--accent); }
+.runner-log .k-pass { color: var(--ok); }
+.runner-log .k-fail { color: var(--danger); font-weight: 700; }
+.runner-log .k-watch, .runner-log .k-note, .runner-log .k-text { color: var(--text-muted); }

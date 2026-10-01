@@ -4,6 +4,7 @@ import honey.road.node.api.publicapi.QrProperties;
 import honey.road.node.messaging.nats.NatsProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import honey.road.node.demo.DemoClock;
+import honey.road.node.demo.DemoRunnerProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,7 +15,8 @@ import java.time.Clock;
 
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties({QueueProperties.class, NodeProperties.class, NatsProperties.class, QrProperties.class})
+@EnableConfigurationProperties({QueueProperties.class, NodeProperties.class, NatsProperties.class, QrProperties.class,
+        DemoRunnerProperties.class})
 public class DomainConfiguration {
     /** Real time: JWT, RPC deadlines. */
     @Bean

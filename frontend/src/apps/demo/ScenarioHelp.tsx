@@ -28,7 +28,8 @@ export function ScenarioHelp() {
       <summary className="btn btn-sm">Сценарии для показа</summary>
       <div className="scenarios-body card">
         <p className="muted small">
-          Сценарии запускаются в терминале и идут по шагам, а на экране пульта всё видно. Результаты и подпись хода событий
+          Сценарии запускаются кнопкой на вкладке «Сценарии» (если на стенде поднят demo-runner) или в терминале и идут по
+          шагам, а на экране пульта всё видно. Результаты и подпись хода событий
           пишутся отдельно от тестов: <code>docs/demo/jury/runs.md</code>. Повторяемость: <code>repeat КОД 3</code>.
         </p>
         <ul className="scenario-list">

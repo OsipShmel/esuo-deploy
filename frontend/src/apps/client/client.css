@@ -34,6 +34,12 @@ body { -webkit-tap-highlight-color: transparent; }
 .callscreen { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; gap: 12px; padding: 24px; text-align: center;
   background: var(--accent); color: var(--accent-contrast); animation: callpulse 2s ease-in-out infinite; }
 .callscreen .big { font-size: 2rem; font-weight: 700; }
-.callscreen .number { font-size: 4.5rem; font-weight: 700; line-height: 1; }
+.callscreen .label { font-size: 1.5rem; font-weight: 500; }
+.callscreen .number { font-size: clamp(6rem, 38vw, 12rem); font-weight: 700; line-height: 1; }
+.callscreen .number.name { font-size: clamp(2.5rem, 12vw, 5rem); overflow-wrap: anywhere; }
+.callscreen .btn { min-height: 64px; font-size: 1.25rem; margin-top: 16px; }
 .callscreen .btn { background: var(--accent-contrast); color: var(--accent); border-color: var(--accent-contrast); }
 @keyframes callpulse { 50% { filter: brightness(1.12); } }
+/* Крупный шрифт и высокий контраст: без пульсации, чёрное на белом/белое на чёрном вместо акцентного фона. */
+:root[data-a11y='large'] .callscreen { animation: none; background: var(--text); color: var(--bg); }
+:root[data-a11y='large'] .callscreen .btn { background: var(--bg); color: var(--text); border-color: var(--bg); }

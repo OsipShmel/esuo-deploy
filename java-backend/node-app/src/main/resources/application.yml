@@ -48,6 +48,9 @@ esuo:
     jwt-secret: ${JWT_SECRET:?Задайте JWT_SECRET в .env}
     jwt-ttl: 12h
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
+  demo-runner:                               # scenario console of /demo (tools/demo-runner); demo stands only
+    url: ${DEMO_RUNNER_URL:}                 # empty => console is off
+    token: ${DEMO_RUNNER_TOKEN:}
   demo-users:                                # only with demo-data=true; empty password => user is not created
     operator-password: ${DEMO_OPERATOR_PASSWORD:}
     admin-password: ${DEMO_ADMIN_PASSWORD:}

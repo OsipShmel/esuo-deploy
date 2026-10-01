@@ -3,6 +3,7 @@ package honey.road.node.api.publicapi;
 import honey.road.node.config.NodeProperties;
 import honey.road.node.messaging.nats.LeafLinkMonitor;
 import honey.road.node.queue.application.BoardQueries;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.net.URLEncoder;
@@ -25,6 +26,7 @@ public class JoinLinks {
     private final QrCodes codes;
     private final BooleanSupplier linked;
 
+    @Autowired
     public JoinLinks(NodeProperties node, QrProperties props, QrCodes codes, LeafLinkMonitor leaf) {
         this(node.branchId(), props, codes, leaf::linked);
     }

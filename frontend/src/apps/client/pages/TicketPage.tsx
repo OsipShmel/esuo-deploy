@@ -7,7 +7,7 @@ import { useEventStream } from '@shared/sse/useEventStream';
 import { formatTime } from '@shared/format/time';
 import { ConnectionBanner, EmptyState, EtaText, Loading, ProblemAlert, SourceBadge, StatusChip } from '@shared/ui';
 import { useBranchApi } from '../App';
-import { beep, notificationsSupported, systemNotify, vibrate } from '../alerts';
+import { enableSound, notificationsSupported, soundEnabled, soundSupported, systemNotify, useCallSignal, useTitleBlink, useWakeLock } from '../alerts';
 import { CheckInPanel } from '../CheckInPanel';
 import type { ClientTicket } from '../branchApi';
 import { CLIENT_PHRASES } from '../phrases';
@@ -36,6 +36,8 @@ export function TicketPage() {
   const [dismissedCall, setDismissedCall] = useState<string | null>(null);
   const [panel, setPanelRaw] = useState<null | 'postpone' | 'cancel' | 'checkin'>(null);
   const [notifyAsked, setNotifyAsked] = useState(false);
+  const [soundOn, setSoundOn] = useState(soundEnabled);
+  const [recalls, setRecalls] = useState(0);
   const [action, setAction] = useState<{ busy: boolean; error: unknown }>({ busy: false, error: null });
   /** Смена панели убирает ошибку прошлого действия: она относилась не к новой панели. */
   const setPanel = (next: null | 'postpone' | 'cancel' | 'checkin') => { setPanelRaw(next); setAction((a) => (a.busy ? a : { busy: false, error: null })); };
@@ -53,8 +55,9 @@ export function TicketPage() {
       if (name === 'branch_unavailable') { setBranchOffline(true); return; }
       if (name === 'ticket.recalled') {
         const w = windowName(data);
-        vibrate(); beep(); systemNotify('Вас вызывают', w ? `Подойдите к окну ${w}` : 'Подойдите к окну');
+        systemNotify('Вас вызывают', w ? `Подойдите к окну ${w}` : 'Подойдите к окну');
         setDismissedCall(null);
+        setRecalls((n) => n + 1);
       }
     },
   });
@@ -70,14 +73,20 @@ export function TicketPage() {
   useEffect(() => { if (t) saveTicket({ branch: b, token, number: t.display_number }); }, [t?.display_number, b, token]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (q.error instanceof ApiError && q.error.code === 'TICKET_NOT_FOUND') forgetTicket(); }, [q.error]);
 
-  // Вызов: вибрация, звук, системное уведомление — один раз при переходе в `called`.
+  // Системное уведомление — один раз при переходе в `called`; вибрация и звук идут от экрана вызова, пока он открыт.
   useEffect(() => {
     if (!t) return;
     if (t.status === 'called' && lastStatus.current !== 'called') {
-      vibrate(); beep(); systemNotify('Вас вызывают', t.window ? `Подойдите к окну ${t.window.name}` : 'Подойдите к окну');
+      systemNotify('Вас вызывают', t.window ? `Подойдите к окну ${t.window.name}` : 'Подойдите к окну');
     }
     lastStatus.current = t.status;
   }, [t?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const callShown = t?.status === 'called' && dismissedCall !== (t.called_at ?? '');
+  const windowLabel = t?.window?.name ?? 'Окно';
+  useCallSignal(callShown, `${t?.called_at ?? ''}|${recalls}`);
+  useTitleBlink(callShown, `🔔 Вас вызывают · ${windowLabel}`);
+  useWakeLock(t?.status === 'waiting' || t?.status === 'called');
 
   async function run(fn: () => Promise<ClientTicket>) {
     setAction({ busy: true, error: null });
@@ -106,7 +115,8 @@ export function TicketPage() {
   const terminal = TERMINAL.has(t.status);
   const farOff = t.eta !== null && new Date(t.eta).getTime() > Date.now() + 5 * 60_000;
   const soon = t.status === 'waiting' && t.position !== null && t.position <= 3 && !farOff;
-  const callShown = called && dismissedCall !== (t.called_at ?? '');
+  // «Окно 3» → подпись «Окно» и крупная цифра; окно с собственным названием показываем целиком.
+  const windowNumber = /^Окно\s*(\S+)$/i.exec(windowLabel)?.[1] ?? null;
 
   return (
     <div className="stack">
@@ -114,11 +124,16 @@ export function TicketPage() {
       {branchOffline && <div className="banner tone-warn" role="status">Отделение не на связи. Ваш талон сохранён.</div>}
 
       {callShown && (
-        <div className="callscreen" role="alertdialog" aria-live="assertive" aria-label="Вас вызывают">
-          <div className="big">Подойдите к окну</div>
-          <div className="number">{t.window?.name.replace(/^Окно\s*/i, '') || '—'}</div>
-          <div className="big">{t.display_number}</div>
-          <button type="button" className="btn btn-block" onClick={() => setDismissedCall(t.called_at ?? '')}>Иду</button>
+        <div className="callscreen" role="alertdialog" aria-live="assertive" aria-label={`Вас вызывают, ${windowLabel}`}>
+          <div className="big">Вас вызывают</div>
+          {windowNumber ? (
+            <>
+              <div className="label">Окно</div>
+              <div className="number">{windowNumber}</div>
+            </>
+          ) : <div className="number name">{windowLabel}</div>}
+          <div className="label">Талон {t.display_number}</div>
+          <button type="button" className="btn btn-block" autoFocus onClick={() => setDismissedCall(t.called_at ?? '')}>Иду</button>
         </div>
       )}
 
@@ -175,6 +190,10 @@ export function TicketPage() {
             </div>
           )}
 
+          {soundSupported() && !soundOn && (
+            <button type="button" className="btn btn-block" onClick={() => void enableSound().then(setSoundOn)}>Включить звук вызова</button>
+          )}
+          {soundOn && <p className="muted small" style={{ textAlign: 'center', margin: 0 }}>Звук вызова включён — не выключайте звук на телефоне.</p>}
           {notificationsSupported() && !notifyAsked && Notification.permission === 'default' && (
             <button type="button" className="btn btn-block" onClick={() => void Notification.requestPermission().then(() => setNotifyAsked(true))}>Включить уведомления о вызове</button>
           )}

@@ -105,6 +105,28 @@ services:
     networks: [center]
     restart: unless-stopped
 
+  # Пульт демо-сценариев (вкладка «Сценарии» в /demo): запускает scripts/demo/run.sh и отдаёт вывод построчно.
+  # Только для демо-стенда: docker compose --profile demo up -d. У контейнера сокет Docker (обрыв связи, заливка
+  # данных), поэтому порт наружу не публикуется — браузер ходит через ноду под входом руководителя.
+  demo-runner:
+    build: tools/demo-runner
+    container_name: esuo-demo-runner
+    profiles: [demo]
+    environment:
+      DEMO_RUNNER_TOKEN: ${DEMO_RUNNER_TOKEN:-${JWT_SECRET}}
+      NODE: http://node-b01:8080
+      NODE2: http://node-b02:8080
+      CENTER: http://center-app:8080
+      MP: http://mp-simulator:8091
+      NOTIFY: http://notify-mock:8090
+      HUB_MONITOR: http://nats-hub:8222
+      TZ: ${BRANCH_TIMEZONE:-Europe/Moscow}
+    volumes:
+      - .:/repo
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [center, b01, b02]
+    restart: unless-stopped
+
   # ------------------------------------------------------------------ отделение b01
   nats-leaf-b01:
     <<: *leaf
@@ -157,6 +179,9 @@ services:
       QR_PUBLIC_BASE_URL: ${QR_PUBLIC_BASE_URL:-${CENTER_PUBLIC_URL:-http://localhost:8081}}
       QR_LOCAL_BASE_URL: ${QR_LOCAL_BASE_URL:-}
       QR_SECRET: ${QR_SECRET:-}
+      # Пульт сценариев на /demo: работает при DEMO_MODE=true и запущенном demo-runner (профиль demo)
+      DEMO_RUNNER_URL: ${DEMO_RUNNER_URL:-http://demo-runner:8099}
+      DEMO_RUNNER_TOKEN: ${DEMO_RUNNER_TOKEN:-${JWT_SECRET}}
     ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
     depends_on:
       postgres-b01: {condition: service_healthy}

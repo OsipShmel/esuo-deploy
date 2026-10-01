@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AuthGate } from '@shared/auth/AuthGate';
 import { callNext, closeWindow, openWindow } from '@shared/api/commands';
@@ -12,12 +12,16 @@ import { QrImage } from '@shared/ui/QrImage';
 import { getLoad, LOAD_CAUSE_TEXT } from '@shared/api/load';
 import { getCenterLink, resetDemo, setClock } from './api';
 import { ScenarioHelp } from './ScenarioHelp';
+import { ScenarioRunner } from './ScenarioRunner';
 import { DecisionLog } from './DecisionLog';
 import { LOG_EVENTS, toLogEntry, type LogEntry } from './decisions';
 
 const MAX_LOG = 200;
 const RATES = [1, 10, 60, 180];
 const DAY_PROFILES: [string, string][] = [['', 'не менять'], ['normal', 'Обычный день'], ['pension', 'Пенсионные выплаты'], ['weekend', 'Выходной']];
+
+type View = 'pult' | 'scenarios';
+const viewFromHash = (): View => (window.location.hash === '#scenarios' ? 'scenarios' : 'pult');
 
 export function App() {
   return (
@@ -52,6 +56,12 @@ function Pult({ onLogout }: { onLogout: () => void }) {
   const clock = useQuery({ queryKey: ['demo-clock'], queryFn: getDemoClock, refetchInterval: 10_000, retry: false });
   const { now } = useClockNow();
   const [resetProfile, setResetProfile] = useState('');
+  const [view, setView] = useState<View>(viewFromHash);
+  useEffect(() => {
+    const onHash = () => setView(viewFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   const windows = live.windows ?? [];
   const queue = useMemo(() => live.queue ?? [], [live.queue]);
@@ -92,6 +102,10 @@ function Pult({ onLogout }: { onLogout: () => void }) {
         <div className="row">
           <strong className="title">ЕСУО · {branch.data?.name ?? 'Отделение'}</strong>
           <span className="clock"><Clock tz={tz} seconds /></span>
+          <div className="tabs-inline" role="tablist" aria-label="Раздел пульта">
+            <button type="button" role="tab" className="btn btn-sm" aria-selected={view === 'pult'} aria-pressed={view === 'pult'} onClick={() => { window.location.hash = ''; }}>Пульт</button>
+            <button type="button" role="tab" className="btn btn-sm" aria-selected={view === 'scenarios'} aria-pressed={view === 'scenarios'} onClick={() => { window.location.hash = 'scenarios'; }}>Сценарии</button>
+          </div>
           <div className="row" role="group" aria-label="Скорость демо-часов">
             {RATES.map((r) => (
               <button key={r} type="button" className="btn btn-sm" aria-pressed={clockState?.rate === r} disabled={!clockState?.enabled || control.isPending}
@@ -128,7 +142,9 @@ function Pult({ onLogout }: { onLogout: () => void }) {
       <ConnectionBanner status={live.stream} tz={tz} />
       <ProblemAlert error={live.error ?? command.error ?? control.error ?? reset.error} />
 
-      <div className="pult-grid">
+      {view === 'scenarios' && <ScenarioRunner />}
+
+      {view === 'pult' && <div className="pult-grid">
         <section className="card mini-board" aria-label="Табло">
           <h2>Табло</h2>
           <ul className="mini-calls">
@@ -184,9 +200,9 @@ function Pult({ onLogout }: { onLogout: () => void }) {
             ))}
           </div>
         </section>
-      </div>
+      </div>}
 
-      <DecisionLog entries={shownLog} paused={paused} onPause={setPause} tz={tz} />
+      {view === 'pult' && <DecisionLog entries={shownLog} paused={paused} onPause={setPause} tz={tz} />}
     </div>
   );
 }
