@@ -48,6 +48,11 @@ services:
       DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      QR_MODE: ${QR_MODE:-auto}
+      QR_PUBLIC_BASE_URL: ${QR_PUBLIC_BASE_URL:-}
+      QR_LOCAL_BASE_URL: ${QR_LOCAL_BASE_URL:-}
+      QR_SECRET: ${QR_SECRET:-}
+      QR_STICKER_KEY_VERSION: ${QR_STICKER_KEY_VERSION:-1}
     ports: ["${NODE_BIND:-0.0.0.0}:${NODE_PORT:-8080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}

@@ -152,6 +152,11 @@ services:
       DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      # QR в зале: auto — на центр, пока leaf связан с хабом, иначе на узел (адрес, с которого открыто табло)
+      QR_MODE: ${QR_MODE:-auto}
+      QR_PUBLIC_BASE_URL: ${QR_PUBLIC_BASE_URL:-${CENTER_PUBLIC_URL:-http://localhost:8081}}
+      QR_LOCAL_BASE_URL: ${QR_LOCAL_BASE_URL:-}
+      QR_SECRET: ${QR_SECRET:-}
     ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
     depends_on:
       postgres-b01: {condition: service_healthy}

@@ -51,8 +51,16 @@ esuo:
   demo-users:                                # only with demo-data=true; empty password => user is not created
     operator-password: ${DEMO_OPERATOR_PASSWORD:}
     admin-password: ${DEMO_ADMIN_PASSWORD:}
+  qr:                                        # hall QR: where it leads and how the code is signed
+    mode: ${QR_MODE:auto}                    # center | local | auto (center while the leaf is linked to the hub)
+    public-base-url: ${QR_PUBLIC_BASE_URL:}  # public center address; empty => always local
+    local-base-url: ${QR_LOCAL_BASE_URL:}    # node address for the hall; empty => the address the board is opened from
+    secret: ${QR_SECRET:}                    # HMAC key, >= 32 chars; required with demo-data=false
+    rotation: 120s
+    sticker-key-version: ${QR_STICKER_KEY_VERSION:1}   # bump to revoke printed stickers
   nats:
     url: ${NATS_URL:nats://localhost:4222}   # branch leaf; only the leaf knows the center's address
+    leaf-monitor-url: ${LEAF_MONITOR_URL:}   # leaf /leafz; empty => NATS host, port 8222
     heartbeat-interval: 10s
     outbox:
       poll-interval: 200ms

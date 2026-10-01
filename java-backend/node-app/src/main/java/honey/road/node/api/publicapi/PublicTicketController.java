@@ -43,15 +43,17 @@ public class PublicTicketController {
     private final TicketCommands commands;
     private final BoardQueries board;
     private final QrCodes qr;
+    private final JoinLinks links;
 
     public PublicTicketController(IssueTicket issue, TicketQueries queries, CancelTicket cancel,
-                                  TicketCommands commands, BoardQueries board, QrCodes qr) {
+                                  TicketCommands commands, BoardQueries board, QrCodes qr, JoinLinks links) {
         this.issue = issue;
         this.queries = queries;
         this.cancel = cancel;
         this.commands = commands;
         this.board = board;
         this.qr = qr;
+        this.links = links;
     }
 
     @GetMapping("/branch")
@@ -108,9 +110,10 @@ public class PublicTicketController {
         return commands.postpone(token, request.minutes());
     }
 
+    /** Board snapshot; {@code join_url} and {@code qr_mode_effective} tell the board where its QR leads. */
     @GetMapping("/board")
     public BoardQueries.Board board() {
-        return board.board(qr.current());
+        return board.board(links.board());
     }
 
     public record CheckInRequest(@NotBlank @Size(max = 256) String qrCode) {

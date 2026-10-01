@@ -27,10 +27,18 @@ public class BoardQueries {
     public record Call(String displayNumber, UUID windowId, String windowName, String status, Instant calledAt, int callCount) {
     }
 
-    public record Board(String branchId, String branchName, List<Call> calls, Map<String, Long> waitingByService, String qrCode) {
+    /**
+     * Hall QR: code, ready join link (absolute, or relative to the board address) and the mode in effect
+     * ({@code center} | {@code local}).
+     */
+    public record Qr(String code, String joinUrl, String modeEffective) {
     }
 
-    public Board board(String qrCode) {
+    public record Board(String branchId, String branchName, List<Call> calls, Map<String, Long> waitingByService,
+                        String qrCode, String joinUrl, String qrModeEffective) {
+    }
+
+    public Board board(Qr qr) {
         var calls = tickets.recentCalls(node.branchId(), 10).stream()
                 .map(t -> new Call(t.displayNumber(), t.windowId(), catalog.windowName(t.windowId()), t.status().name(),
                         t.calledAt(), t.callCount()))
@@ -39,6 +47,7 @@ public class BoardQueries {
                 .collect(Collectors.toMap(s -> s.id(), s -> s.name()));
         var waiting = tickets.waiting(node.branchId()).stream()
                 .collect(Collectors.groupingBy(t -> names.getOrDefault(t.serviceId(), "?"), Collectors.counting()));
-        return new Board(node.branchId(), catalog.branch(node.branchId()).name(), calls, waiting, qrCode);
+        return new Board(node.branchId(), catalog.branch(node.branchId()).name(), calls, waiting,
+                qr.code(), qr.joinUrl(), qr.modeEffective());
     }
 }

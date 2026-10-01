@@ -7,8 +7,8 @@ import { getBranch, type QueueItem, type WindowView } from '@shared/api/node';
 import { useLiveQueue } from '@shared/api/useLiveQueue';
 import { formatTime } from '@shared/format/time';
 import { A11yToggles, Bar, Clock, ConnectionBanner, DeadlineHint, Icon, LoadLevelBadge, ProblemAlert, SourceBadge, TicketNumber, WindowStatusChip } from '@shared/ui';
-import { getBoard } from '../board/api';
-import { QrImage } from '../board/QrImage';
+import { boardJoinUrl, getBoard } from '../board/api';
+import { QrImage } from '@shared/ui/QrImage';
 import { getLoad, LOAD_CAUSE_TEXT } from '@shared/api/load';
 import { getCenterLink, resetDemo, setClock } from './api';
 import { ScenarioHelp } from './ScenarioHelp';
@@ -31,7 +31,7 @@ function Pult({ onLogout }: { onLogout: () => void }) {
   const qc = useQueryClient();
   const branch = useQuery({ queryKey: ['branch'], queryFn: getBranch, staleTime: 300_000 });
   const tz = branch.data?.timezone ?? 'Europe/Moscow';
-  const center = useMemo(() => (new URLSearchParams(window.location.search).get('center') ?? 'http://localhost:8081').replace(/\/$/, ''), []);
+  const centerParam = useMemo(() => new URLSearchParams(window.location.search).get('center'), []);
 
   // Журнал: события того же потока, что и очередь. «Пауза» замораживает показ, события продолжают копиться.
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -137,7 +137,10 @@ function Pult({ onLogout }: { onLogout: () => void }) {
             ))}
             {(board.data?.calls ?? []).length === 0 && <li className="muted">Вызовов пока нет</li>}
           </ul>
-          {board.data && <QrImage value={`${center}/b/${board.data.branch_id}/join?code=${encodeURIComponent(board.data.qr_code)}`} size={180} />}
+          {board.data && <QrImage value={boardJoinUrl(board.data, centerParam)} size={180} />}
+          {board.data?.qr_mode_effective && !centerParam && (
+            <span className="muted small">QR ведёт {board.data.qr_mode_effective === 'center' ? 'на центр (интернет)' : 'на узел (Wi-Fi отделения)'}</span>
+          )}
         </section>
 
         <section className="card" aria-label="Очередь">

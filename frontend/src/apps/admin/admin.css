@@ -36,3 +36,18 @@ tr.overdue td:first-child { box-shadow: inset 4px 0 0 var(--danger); }
 .hours-head { font-size: 0.8125rem; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .hours-row.current { background: var(--surface-2); border-radius: 8px; }
 .hours-row .ratio { min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.sticker-sheet { display: grid; justify-items: center; gap: 12px; text-align: center; padding: 32px 24px; }
+.sticker-branch { font-size: 1.25rem; color: var(--text-muted); }
+.sticker-title { margin: 0; font-size: 2rem; }
+.sticker-qr { width: min(100%, 420px); height: auto; background: #fff; }
+.sticker-hint { margin: 0; font-size: 1.125rem; max-width: 36em; }
+.sticker-url { margin: 0; font-size: 0.8125rem; color: var(--text-muted); overflow-wrap: anywhere; }
+
+@media print {
+  .app-header, .tabs, .banner, .no-print { display: none !important; }
+  main.page { padding: 0; max-width: none; }
+  .sticker-sheet { border: 0; box-shadow: none; background: #fff; color: #000; }
+  .sticker-qr { width: 12cm; }
+  .sticker-branch, .sticker-url { color: #333; }
+}

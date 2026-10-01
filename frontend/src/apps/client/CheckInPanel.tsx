@@ -6,8 +6,9 @@ interface Detector { detect(source: CanvasImageSource): Promise<{ rawValue: stri
 declare const BarcodeDetector: (new (opts: { formats: string[] }) => Detector) | undefined;
 
 /**
- * Check-in записи: сканирование QR на табло камерой (`BarcodeDetector`), а если камеры или API нет — поле для кода
- * (постановка client). Код `demo:b01` виден на табло мелким текстом под QR.
+ * Check-in записи: сканирование QR на табло или наклейке камерой (`BarcodeDetector`), а если камеры или API нет —
+ * поле для кода (постановка client). Подписанный код табло меняется каждые 2 минуты, вручную удобно вводить только
+ * демо-код `demo:b01`.
  */
 export function CheckInPanel({ busy, error, onSubmit, onClose }: { busy: boolean; error: unknown; onSubmit: (code: string) => void; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -56,7 +57,7 @@ export function CheckInPanel({ busy, error, onSubmit, onClose }: { busy: boolean
   );
 }
 
-/** QR табло — ссылка вида `…/join?code=demo:b01`; из неё берём значение `code`, иначе — как есть. */
+/** QR табло — ссылка вида `…/join?code=q1.b01.…`; из неё берём значение `code`, иначе — как есть. */
 function extractCode(raw: string): string {
   try { return new URL(raw).searchParams.get('code') ?? raw; } catch { return raw; }
 }

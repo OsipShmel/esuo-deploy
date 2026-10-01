@@ -11,6 +11,7 @@ import { IncidentsPage } from './pages/IncidentsPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { LoadPage } from './pages/LoadPage';
+import { StickerPage } from './pages/StickerPage';
 
 const TABS = [
   { id: 'queue', title: 'Очередь' },
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'incidents', title: 'Инциденты' },
   { id: 'config', title: 'Настройки' },
   { id: 'catalog', title: 'Справочники' },
+  { id: 'qr', title: 'QR-наклейка' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
@@ -75,6 +77,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {tab === 'incidents' && <IncidentsPage />}
         {tab === 'config' && <ConfigPage />}
         {tab === 'catalog' && <CatalogPage />}
+        {tab === 'qr' && <StickerPage />}
       </main>
     </BranchContext.Provider>
   );

@@ -4,8 +4,8 @@ import { Icon } from '@shared/ui';
 import { Clock } from '@shared/ui/Clock';
 import { useEventStream } from '@shared/sse/useEventStream';
 import { formatTime } from '@shared/format/time';
-import { getBoard, getBranchLoad, type BoardSnapshot } from './api';
-import { QrImage } from './QrImage';
+import { QrImage } from '@shared/ui/QrImage';
+import { boardJoinUrl, getBoard, getBranchLoad, type BoardSnapshot } from './api';
 import { enableSound } from './sound';
 import { useAnnouncements } from './useAnnouncements';
 
@@ -16,10 +16,9 @@ const DONE_TTL_MS = 2 * 60_000;
 export function Board() {
   const qc = useQueryClient();
   const [soundOn, setSoundOn] = useState(false);
-  // Маршрут /b/{branch}/join отдаёт и сам узел, поэтому по умолчанию QR ведёт туда же, откуда открыто табло —
-  // с верным хостом и портом без ручной настройки. ?center=… — override на случай показа табло не с той же машины.
+  // Куда ведёт QR, решает узел (esuo.qr.mode: center | local | auto) и присылает готовый join_url вместе с кодом,
+  // который ротируется. ?center=… — ручной override на случай показа табло не с той же машины.
   const centerParam = useMemo(() => new URLSearchParams(window.location.search).get('center'), []);
-  const center = (centerParam ?? window.location.origin).replace(/\/$/, '');
 
   const stream = useEventStream({
     url: '/api/v1/public/board/stream',
@@ -55,7 +54,8 @@ export function Board() {
   const waiting = Object.values(data?.waiting_by_service ?? {}).reduce((a, b) => a + b, 0);
   const showLoad = load && (load.level === 'high' || load.level === 'overload');
 
-  const joinUrl = data ? `${center}/b/${data.branch_id}/join?code=${encodeURIComponent(data.qr_code)}` : null;
+  const joinUrl = data ? boardJoinUrl(data, centerParam) : null;
+  const viaWifi = !centerParam && data?.qr_mode_effective === 'local';
 
   if (!soundOn) {
     return (
@@ -102,6 +102,7 @@ export function Board() {
         <aside className="side">
           <h2>Встаньте в очередь с телефона</h2>
           <QrImage value={joinUrl} />
+          {viaWifi && <div className="qr-hint">Через Wi-Fi отделения</div>}
           <div className="facts">
             <div>Ждут: <strong>{waiting}</strong> {plural(waiting)}</div>
             {load?.expected_wait_min != null && <div>Ожидание ~<strong>{load.expected_wait_min}</strong> мин</div>}

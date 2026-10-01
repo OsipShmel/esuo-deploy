@@ -230,3 +230,19 @@ export interface DurationModel {
 
 export const getModel = () => optional(() => api<DurationModel>('/admin/model'));
 export const trainModel = () => api<DurationModel>('/admin/model/train', { method: 'POST' });
+
+// ------------------------------------------------------------------ QR для наклейки
+
+/** Ответ `GET /admin/qr/sticker` (AdminQrController): долгоживущий код, отзывается повышением версии ключа. */
+export interface QrSticker {
+  code: string;
+  /** `false` — демо-код `demo:{b}`: наклейка работает только на демо-стенде. */
+  signed: boolean;
+  key_version: number;
+  /** Страница входа на центре; `null` — публичный адрес центра не задан. */
+  center_url: string | null;
+  /** Страница входа на узле; относительная, если адрес узла не задан. */
+  local_url: string;
+}
+
+export const getQrSticker = () => api<QrSticker>('/admin/qr/sticker');

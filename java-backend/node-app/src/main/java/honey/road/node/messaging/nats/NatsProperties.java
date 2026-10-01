@@ -2,6 +2,7 @@ package honey.road.node.messaging.nats;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.net.URI;
 import java.time.Duration;
 
 /**
@@ -15,7 +16,8 @@ public record NatsProperties(
         Duration publishTimeout,
         Outbox outbox,
         Duration heartbeatInterval,
-        Duration eventRetention
+        Duration eventRetention,
+        String leafMonitorUrl
 ) {
     public NatsProperties {
         url = url == null || url.isBlank() ? "nats://localhost:4222" : url;
@@ -25,6 +27,18 @@ public record NatsProperties(
         outbox = outbox == null ? new Outbox(null, 0, null, null) : outbox;
         heartbeatInterval = heartbeatInterval == null ? Duration.ofSeconds(10) : heartbeatInterval;
         eventRetention = eventRetention == null ? Duration.ofDays(7) : eventRetention;
+        leafMonitorUrl = leafMonitorUrl == null || leafMonitorUrl.isBlank()
+                ? defaultMonitorUrl(url) : leafMonitorUrl.trim().replaceAll("/+$", "");
+    }
+
+    /** Leaf monitoring port on the same host as its client port: {@code nats://nats-leaf:4222} => {@code http://nats-leaf:8222}. */
+    static String defaultMonitorUrl(String natsUrl) {
+        try {
+            var host = URI.create(natsUrl).getHost();
+            return "http://" + (host == null ? "localhost" : host) + ":8222";
+        } catch (IllegalArgumentException e) {
+            return "http://localhost:8222";
+        }
     }
 
     /**

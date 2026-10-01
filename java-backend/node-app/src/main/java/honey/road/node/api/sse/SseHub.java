@@ -4,7 +4,7 @@ import honey.road.contracts.event.EventEnvelope;
 import honey.road.contracts.event.EventTypes;
 import honey.road.node.messaging.DomainEventCommitted;
 import honey.road.node.queue.application.BoardQueries;
-import honey.road.node.api.publicapi.QrCodes;
+import honey.road.node.api.publicapi.JoinLinks;
 import honey.road.node.queue.application.TicketQueries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +32,8 @@ import java.util.concurrent.Executors;
     * <li>{@code ticket}: subscribers of your ticket. If there is any change in the department queue, each person waiting
     * receives a new {@code snapshot} (position and ETA recalculated), when changing his ticket -
     * also the event itself.</li>
-    * <li>{@code board}: scoreboard - snapshot of the scoreboard during calls.</li>
+    * <li>{@code board}: scoreboard - snapshot of the scoreboard during calls and whenever its QR changes (code
+    * rotation, center/local switch).</li>
     * <li>{@code operator}: AWS and admin panel - all department events as is (envelope 10.2).</li>
     * </ul>
     * Each message: {@code id} = event_id, {@code event} = event_type. First message - {@code snapshot},
@@ -54,9 +55,10 @@ public class SseHub {
 
     private final TicketQueries ticketQueries;
     private final BoardQueries boardQueries;
-    private final QrCodes qr;
+    private final JoinLinks qr;
+    private volatile BoardQueries.Qr lastBoardQr;
 
-    public SseHub(TicketQueries ticketQueries, BoardQueries boardQueries, QrCodes qr) {
+    public SseHub(TicketQueries ticketQueries, BoardQueries boardQueries, JoinLinks qr) {
         this.ticketQueries = ticketQueries;
         this.boardQueries = boardQueries;
         this.qr = qr;
@@ -76,7 +78,7 @@ public class SseHub {
     }
 
     public SseEmitter subscribeBoard() {
-        return register(boards, boardQueries.board(qr.current()));
+        return register(boards, boardQueries.board(qr.board()));
     }
 
     public SseEmitter subscribeOperator(Object snapshot) {
@@ -122,7 +124,18 @@ public class SseHub {
             }
         });
         if (BOARD_EVENTS.contains(envelope.eventType()) && !boards.isEmpty()) {
-            broadcast(boards, "snapshot", envelope.eventId().toString(), boardQueries.board(qr.current()));
+            broadcast(boards, "snapshot", envelope.eventId().toString(), boardQueries.board(qr.board()));
+        }
+    }
+
+    /** The board QR rotates and follows the leaf link without queue events: push a snapshot when it changes. */
+    @Scheduled(fixedDelayString = "PT1S")
+    public void refreshBoardQr() {
+        var current = qr.board();
+        if (current.equals(lastBoardQr)) { return; }
+        lastBoardQr = current;
+        if (!boards.isEmpty()) {
+            broadcast(boards, "snapshot", null, boardQueries.board(current));
         }
     }
 
