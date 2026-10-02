@@ -5,6 +5,9 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5435/esuo_center}
     username: ${DB_USER:esuo}
     password: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
+    hikari:
+      data-source-properties:
+        reWriteBatchedInserts: true             # heartbeat flush: one multi-row INSERT instead of one per branch
   flyway:
     enabled: true
   jackson:
@@ -43,6 +46,11 @@ esuo:
       jwt-secret: ${JWT_SECRET:?Set JWT_SECRET in .env}
       admin-login: ${CENTER_ADMIN_LOGIN:network}
       admin-password: ${CENTER_ADMIN_PASSWORD:}   # empty => no account, the private API is closed
+    metrics:                                    # design 6.2-6.3: heartbeats in batches, history for rules and Grafana
+      flush-interval: 5s
+      resolution: ${METRICS_RESOLUTION:10s}     # one row per heartbeat; 60s for a big network
+      retention: 48h
+      max-range: 48h
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}

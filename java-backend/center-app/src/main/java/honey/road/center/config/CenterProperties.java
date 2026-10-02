@@ -9,7 +9,8 @@ import java.util.List;
 
 @ConfigurationProperties("esuo.center")
 public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration offlineAfter, List<String> corsOrigins,
-                               @Name("notify") Notify notification, Mp mp, Security security, Logs logs) {
+                               @Name("notify") Notify notification, Mp mp, Security security, Logs logs,
+                               Metrics metrics) {
     public CenterProperties {
         natsUrl = natsUrl == null || natsUrl.isBlank() ? "nats://localhost:4222" : natsUrl;
         rpcTimeout = rpcTimeout == null ? Duration.ofSeconds(3) : rpcTimeout;
@@ -19,6 +20,20 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
         mp = mp == null ? new Mp(null, null, null, null, null, 0, null, null) : mp;
         security = security == null ? new Security(null, null, null, null, null) : security;
         logs = logs == null ? new Logs(null, 0, null, null, null, null, null, null, 0) : logs;
+        metrics = metrics == null ? new Metrics(null, null, null, null) : metrics;
+    }
+
+    /**
+     * Heartbeats in batches and the metrics history (design 6.2, 6.3). {@code resolution} 10 s keeps every heartbeat;
+     * a big network writes one row a minute.
+     */
+    public record Metrics(Duration flushInterval, Duration resolution, Duration retention, Duration maxRange) {
+        public Metrics {
+            flushInterval = flushInterval == null ? Duration.ofSeconds(5) : flushInterval;
+            resolution = resolution == null ? Duration.ofSeconds(10) : resolution;
+            retention = retention == null ? Duration.ofHours(48) : retention;
+            maxRange = maxRange == null ? Duration.ofHours(48) : maxRange;
+        }
     }
 
     /**
