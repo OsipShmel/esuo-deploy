@@ -1473,6 +1473,10 @@ components:
           type: boolean
         float:
           type: boolean
+        integral_number:
+          type: boolean
+        value_node:
+          type: boolean
         container:
           type: boolean
         missing_node:
@@ -1490,10 +1494,6 @@ components:
           - POJO
           - STRING
         string:
-          type: boolean
-        value_node:
-          type: boolean
-        integral_number:
           type: boolean
         floating_point_number:
           type: boolean

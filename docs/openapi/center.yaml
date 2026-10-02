@@ -296,6 +296,48 @@ paths:
                 $ref: "#/components/schemas/UserChange"
       security:
       - bearerAuth: []
+  /api/v1/branches/{branchId}/diagnostics/snapshots:
+    get:
+      tags:
+      - diagnostics-controller
+      operationId: snapshots
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: {}
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - diagnostics-controller
+      operationId: takeSnapshot
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
   /api/v1/branches/{branchId}/diagnostics/logs:
     post:
       tags:
@@ -397,6 +439,28 @@ paths:
       tags:
       - network-controller
       operationId: overview
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+      security:
+      - bearerAuth: []
+  /api/v1/diagnostics/snapshots/{id}:
+    get:
+      tags:
+      - diagnostics-controller
+      operationId: snapshot
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           description: OK
@@ -960,6 +1024,9 @@ components:
         failure_rate:
           type: number
           format: float
+        window_calls:
+          type: integer
+          format: int32
     Status:
       type: object
       properties:
@@ -972,6 +1039,9 @@ components:
             format: int64
         last_error:
           type: string
+        last_error_at:
+          type: string
+          format: date-time
     DeadLetterView:
       type: object
       properties:
@@ -1012,13 +1082,11 @@ components:
           type: boolean
         float:
           type: boolean
-        integral_number:
+        binary:
           type: boolean
-        missing_node:
+        pojo:
           type: boolean
-        container:
-          type: boolean
-        value_node:
+        string:
           type: boolean
         node_type:
           type: string
@@ -1032,11 +1100,13 @@ components:
           - OBJECT
           - POJO
           - STRING
-        string:
+        value_node:
+          type: boolean
+        container:
+          type: boolean
+        integral_number:
           type: boolean
         floating_point_number:
-          type: boolean
-        pojo:
           type: boolean
         short:
           type: boolean
@@ -1055,7 +1125,7 @@ components:
           deprecated: true
         boolean:
           type: boolean
-        binary:
+        missing_node:
           type: boolean
         number:
           type: boolean

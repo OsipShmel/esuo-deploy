@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034
 CODE=monitoring
 TITLE="Мониторинг отделений: логи без потерь, метрики и правила"
-DESC="Ошибка на отделении видна в Grafana за секунды; ошибки за время обрыва связи доезжают после восстановления со своим временем; полные логи за полчаса — по одной кнопке; центр хранит метрики сервера отделения, а правило замечает перезапуск приложения. Нужен профиль monitoring."
+DESC="Ошибка на отделении видна в Grafana за секунды; ошибки за время обрыва связи доезжают после восстановления со своим временем; полные логи за полчаса — по одной кнопке; центр хранит метрики сервера отделения и снимок диагностики, а правило замечает перезапуск приложения. Нужен профиль monitoring."
 NODES="$NODE"
 CUT=${CUT_CMD:-"$ROOT/scripts/chaos/cut-branch-link.sh $BRANCH"}
 LOKI=${LOKI:-http://localhost:3100}
@@ -87,6 +87,23 @@ scenario() {
   fact "точек метрик за час" "$(jget length)"
   ev "monitoring|metrics"
   watch_ "Grafana → Dashboards → ЕСУО · Отделение ($BRANCH): CPU, память, база, API, связь с центром"
+  pause 2
+
+  say "Руководитель сети снимает диагностику: потоки, база, outbox, связь — что внутри прямо сейчас"
+  local t0 took sid
+  t0=$(python3 -c 'import time; print(time.time())')
+  center POST "/api/v1/branches/$BRANCH/diagnostics/snapshots"
+  took=$(python3 -c "import time; print(round(time.time() - $t0, 1))")
+  check "снимок снят и сохранён: все разделы на месте" 200 \
+    '(["app","jvm","db_pool","db","outbox","nats","config","disk","lifecycle"] - (.payload | keys)) == [] and (.id | length) > 0'
+  assert "снимок за ≤10 с" "$(awk -v t="$took" 'BEGIN { print (t <= 10) ? "yes" : "no" }')" yes
+  sid=$(jget .id)
+  fact "снимок, с" "$took"
+  fact "размер снимка, КБ" "$(( $(jget .size_bytes) / 1024 ))"
+  center GET "/api/v1/branches/$BRANCH/diagnostics/snapshots"
+  check "снимок есть в списке снимков отделения" 200 ".[0].id == \"$sid\""
+  ev "monitoring|snapshot"
+  watch_ "GET /api/v1/diagnostics/snapshots/$sid — снимок целиком"
   pause 2
 
   say "Приложение отделения перезапускается — правило замечает это по метрикам"
