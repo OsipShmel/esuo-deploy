@@ -7,6 +7,7 @@ import honey.road.node.config.JsonCodec;
 import honey.road.node.config.NodeProperties;
 import honey.road.node.messaging.nats.NatsGateway;
 import honey.road.node.messaging.outbox.OutboxWorker;
+import honey.road.node.monitoring.SysMetrics;
 import honey.road.node.persistence.CatalogRepository;
 import honey.road.node.planning.LoadPlanner;
 import honey.road.node.persistence.PolicyRepository;
@@ -41,14 +42,16 @@ public class HeartbeatPublisher {
     private final PolicyRepository policies;
     private final LoadPlanner planner;
     private final OutboxWorker outbox;
+    private final SysMetrics sys;
     private final JsonCodec json;
     private final Clock clock;
 
     public HeartbeatPublisher(NatsGateway nats, NodeProperties node, CatalogRepository catalog, WindowRepository windows,
                               TicketRepository tickets, PolicyRepository policies, LoadPlanner planner,
-                              OutboxWorker outbox, JsonCodec json, Clock clock) {
+                              OutboxWorker outbox, SysMetrics sys, JsonCodec json, Clock clock) {
         this.nats = nats; this.node = node; this.catalog = catalog; this.windows = windows; this.tickets = tickets;
-        this.policies = policies; this.planner = planner; this.outbox = outbox; this.json = json; this.clock = clock;
+        this.policies = policies; this.planner = planner; this.outbox = outbox; this.sys = sys; this.json = json;
+        this.clock = clock;
     }
 
     @Scheduled(fixedDelayString = "${esuo.nats.heartbeat-interval:10s}", initialDelayString = "2s")
@@ -96,10 +99,20 @@ public class HeartbeatPublisher {
         hb.put("oldest_wait_sec", waiting.stream().map(t -> Duration.between(t.issuedAt(), now).toSeconds())
                 .max(Long::compare).orElse(0L));
         putLoad(hb);
+        putSys(hb);
         hb.put("services", catalog.services(node.branchId()).stream().filter(s -> s.active())
                 .map(s -> Map.of("id", s.id(), "code", s.code(), "name", s.name(), "number_prefix", s.numberPrefix()))
                 .toList());
         return hb;
+    }
+
+    /** The server's own state (design 6.1). Like the load fields, it must never cost the center its heartbeat. */
+    private void putSys(Map<String, Object> hb) {
+        try {
+            hb.put("sys", sys.sample());
+        } catch (RuntimeException e) {
+            log.debug("heartbeat without sys block: {}", e.toString());
+        }
     }
 
     /**

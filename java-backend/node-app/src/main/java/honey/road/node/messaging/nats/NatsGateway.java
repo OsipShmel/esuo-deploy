@@ -65,6 +65,11 @@ public class NatsGateway implements SmartLifecycle {
         return connection().isPresent();
     }
 
+    /** Reconnects of the current connection since it was opened; {@code -1} while not connected. */
+    public long reconnects() {
+        return connection().map(c -> c.getStatistics().getReconnects()).orElse(-1L);
+    }
+
     public JetStream jetStream(Connection c) throws IOException {
         return c.jetStream(JetStreamOptions.builder().requestTimeout(props.publishTimeout()).build());
     }

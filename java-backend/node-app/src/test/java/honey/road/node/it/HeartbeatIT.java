@@ -1,5 +1,6 @@
 package honey.road.node.it;
 
+import honey.road.node.config.JsonCodec;
 import honey.road.node.messaging.heartbeat.HeartbeatPublisher;
 import honey.road.node.messaging.inbox.BranchInboxProcessor;
 import honey.road.node.queue.application.AdminCatalog;
@@ -22,6 +23,7 @@ class HeartbeatIT extends AbstractNodeIT {
     @Autowired BranchInboxProcessor inbox;
     @Autowired BranchConfigService config;
     @Autowired AdminCatalog catalog;
+    @Autowired JsonCodec codec;
 
     private static int intOf(Map<String, Object> hb, String key) {
         return ((Number) hb.get(key)).intValue();
@@ -89,5 +91,20 @@ class HeartbeatIT extends AbstractNodeIT {
 
         var hb = heartbeat.snapshot();
         assertThat(intOf(hb, "windows_open")).isZero();
+    }
+
+    /** Design 6.1: the server's own state for the center's metrics and rules. Here without NATS and the leaf monitor. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void heartbeatCarriesSysBlock() {
+        var sys = (Map<String, Object>) heartbeat.snapshot().get("sys");
+
+        assertThat(sys).containsKeys("sent_at_system", "started_at", "uptime_sec", "app_version", "cpu_count",
+                "heap_used_mb", "db_pool_max", "db_size_mb", "disk_free_mb", "disk_total_mb", "http_requests",
+                "sse_clients", "leaf_connected", "log_errors", "log_warns");
+        assertThat(sys.get("leaf_connected")).isEqualTo(false);
+        assertThat(sys).doesNotContainKeys("leaf_rtt_ms", "nats_reconnects");             // no source => no field
+        assertThat(((Number) sys.get("db_size_mb")).longValue()).isPositive();
+        assertThat(codec.writeValueAsString(sys).length()).isLessThan(1000);                 // ≈ 600 bytes per heartbeat
     }
 }
