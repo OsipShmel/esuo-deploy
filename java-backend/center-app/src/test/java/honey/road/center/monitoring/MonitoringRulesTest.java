@@ -145,6 +145,14 @@ class MonitoringRulesTest {
     }
 
     @Test
+    void heldForIsAtLeastOneMinute() {                                     // demo scale fires after 30 s: "уже 0 мин" reads as a bug
+        var alerts = MonitoringRules.evaluate(List.of(new Series("b01", MSK, every10s(40, 0, "{\"cpu_system\":0.95}"))),
+                List.of(CPU), NOW, 0.1);
+
+        assertThat(alerts).singleElement().satisfies(a -> assertThat(a.text()).endsWith("уже 1 мин"));
+    }
+
+    @Test
     void missingSysRaisesNothing() {
         var samples = every10s(400, 0, null);
 

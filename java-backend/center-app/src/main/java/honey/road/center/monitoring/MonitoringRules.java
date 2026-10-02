@@ -186,7 +186,7 @@ public final class MonitoringRules {
         var text = rule.text()
                 .replace("{value:%}", String.valueOf(Math.round(value * 100)))
                 .replace("{value}", number(value))
-                .replace("{for}", String.valueOf(Duration.between(since, now).toMinutes()))
+                .replace("{for}", String.valueOf(Math.max(1, Duration.between(since, now).toMinutes())))   // demo: 30 s
                 .replace("{at}", HH_MM.format(since.atZone(s.zone())));
         return new Alert(s.branchId(), rule.id(), rule.severity(), text, value, since);
     }
