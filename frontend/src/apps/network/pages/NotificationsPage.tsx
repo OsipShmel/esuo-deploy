@@ -30,12 +30,21 @@ export function NotificationsPage() {
           <>
             <div className="breaker">
               <span className={`state tone-${b?.tone}`}>{b?.text}</span>
-              <span className="muted">доля ошибок {Math.round(Math.max(0, s.circuit_breaker.failure_rate))}%</span>
+              <span className="muted">
+                {s.circuit_breaker.failure_rate < 0
+                  ? 'пока мало отправок для оценки'
+                  : `ошибок в последних ${s.circuit_breaker.window_calls} отправках: ${Math.round(s.circuit_breaker.failure_rate)}%`}
+              </span>
             </div>
             <div className="row">
+              <span className="muted small">С начала работы центра:</span>
               {Object.entries(s.counts).map(([k, v]) => <span key={k} className="chip tone-muted">{COUNT_LABEL[k] ?? k}: {v}</span>)}
             </div>
-            {s.last_error && <div className="muted small">Последняя ошибка: {s.last_error}</div>}
+            {s.last_error && (
+              <div className="muted small">
+                Последняя ошибка{s.last_error_at && ` ${formatDateTime(s.last_error_at)}`}: {ERROR_TEXT[s.last_error] ?? s.last_error}
+              </div>
+            )}
           </>
         )}
       </section>
@@ -62,7 +71,11 @@ export function NotificationsPage() {
   );
 }
 
-const COUNT_LABEL: Record<string, string> = { sent: 'отправлено', failed: 'ошибок', expired: 'устарело', dlq_open: 'в DLQ' };
+/** failed — неудачные попытки, а не потерянные уведомления: после повтора они обычно доставляются. */
+const COUNT_LABEL: Record<string, string> = {
+  sent: 'доставлено', failed: 'неудачных попыток', expired: 'устарело', rejected: 'отклонено провайдером', dlq_open: 'в DLQ',
+};
+const ERROR_TEXT: Record<string, string> = { 'circuit breaker open': 'провайдер был отключён защитой (circuit breaker)' };
 
 function DlqTable({ title, query }: { title: string; query: ReturnType<typeof useQuery<DeadLetter[]>> }) {
   const qc = useQueryClient();

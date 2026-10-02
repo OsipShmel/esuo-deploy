@@ -60,10 +60,13 @@ export const getBranches = () => api<BranchSummary[]>('/branches');
 
 // ------------------------------------------------------------------ уведомления, DLQ, МП
 
+/** Защита (`circuit_breaker`) — состояние сейчас; счётчики и последняя ошибка — с начала работы центра. */
 export interface NotificationStatus {
-  circuit_breaker: { state: 'CLOSED' | 'OPEN' | 'HALF_OPEN'; failure_rate: number };
+  /** failure_rate — по последним window_calls отправкам; отрицательная, пока отправок меньше нужного. */
+  circuit_breaker: { state: 'CLOSED' | 'OPEN' | 'HALF_OPEN'; failure_rate: number; window_calls: number };
   counts: Record<string, number>;
   last_error: string | null;
+  last_error_at: string | null;
 }
 
 export interface DeadLetter {

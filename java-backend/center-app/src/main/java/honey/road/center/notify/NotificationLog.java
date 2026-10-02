@@ -46,9 +46,14 @@ class NotificationLog {
         return counts;
     }
 
-    @Nullable String lastError() {
-        return jdbc.sql("SELECT error FROM notification_log WHERE error IS NOT NULL ORDER BY id DESC LIMIT 1")
-                .query(String.class).optional().orElse(null);
+    record LastError(String error, Instant at) {
+    }
+
+    /** The most recent error ever logged, with its time: an old one must not read as a current problem. */
+    @Nullable LastError lastError() {
+        return jdbc.sql("SELECT error, created_at FROM notification_log WHERE error IS NOT NULL ORDER BY id DESC LIMIT 1")
+                .query((rs, n) -> new LastError(rs.getString("error"), rs.getTimestamp("created_at").toInstant()))
+                .optional().orElse(null);
     }
 
     private void insert(String dedupKey, @Nullable UUID eventId, String branchId, String result, @Nullable String error, Instant now) {
