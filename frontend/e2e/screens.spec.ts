@@ -16,6 +16,9 @@ test('сеть отделений: без входа — форма входа, 
   await page.getByLabel('Пароль').fill(CENTER_PASSWORD);
   await page.getByRole('button', { name: 'Войти' }).click();
   await expect(page.getByText(/На связи \d+ из \d+/)).toBeVisible();
+  // Перезагрузка не выкидывает на вход: первые запросы уже идут с токеном из сохранённой сессии.
+  await page.reload();
+  await expect(page.getByText(/На связи \d+ из \d+/)).toBeVisible();
   await expect(page.getByText(new RegExp(`^${BRANCH} ·`)).first()).toBeVisible();
   await page.getByRole('link', { name: 'Конфигурация' }).click();
   await expect(page.getByRole('heading', { name: 'Публикация и применение' })).toBeVisible();
