@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -145,6 +147,8 @@ public class NetworkController {
             m.put("demo_rate", hb.hasNonNull("demo_rate") ? hb.path("demo_rate").asDouble() : null);
             m.put("anomalies", anomalies);
             m.put("alerts", branchAlerts);
+            m.put("node", nodeLine(hb.path("sys")));
+            m.put("dashboard_url", dashboardUrl(b.id()));
             branches.add(m);
         }
         var result = new LinkedHashMap<String, Object>();
@@ -153,6 +157,27 @@ public class NetworkController {
         result.put("branches_online", online);
         result.put("branches", branches);
         return result;
+    }
+
+    /** The «Узел» line of the card (B7): a few numbers of the last heartbeat; the rest is on the Grafana dashboard. */
+    private static Map<String, Object> nodeLine(JsonNode sys) {
+        if (!sys.isObject()) {
+            return null;
+        }
+        var m = new LinkedHashMap<String, Object>();
+        m.put("cpu_pct", sys.hasNonNull("cpu_system") ? (Object) Math.round(sys.path("cpu_system").asDouble() * 100) : null);
+        m.put("http_p95_ms", sys.hasNonNull("http_p95_ms") ? sys.path("http_p95_ms").asLong() : null);
+        m.put("disk_free_mb", sys.hasNonNull("disk_free_mb") ? sys.path("disk_free_mb").asLong() : null);
+        m.put("disk_total_mb", sys.hasNonNull("disk_total_mb") ? sys.path("disk_total_mb").asLong() : null);
+        m.put("app_version", sys.path("app_version").asString(null));
+        m.put("uptime_sec", sys.hasNonNull("uptime_sec") ? sys.path("uptime_sec").asLong() : null);
+        return m;
+    }
+
+    /** Dashboard «ЕСУО · Отделение» (uid {@code esuo-branch}) opened on this branch; none without a public Grafana URL. */
+    private String dashboardUrl(String branchId) {
+        var grafana = props.logs().grafanaPublicUrl();
+        return grafana.isEmpty() ? null : grafana + "/d/esuo-branch/?var-branch=" + URLEncoder.encode(branchId, StandardCharsets.UTF_8);
     }
 
     private boolean online(Instant lastHeartbeat, Instant now) {

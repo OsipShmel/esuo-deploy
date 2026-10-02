@@ -30,6 +30,19 @@ export interface BranchCard {
   anomalies: string[];
   /** Сработавшие правила мониторинга (`sys.*`): готовый текст для человека. */
   alerts?: BranchAlert[];
+  /** Строка «Узел»: несколько цифр последнего heartbeat; null — нода их ещё не присылает. */
+  node?: NodeLine | null;
+  /** Дашборд «ЕСУО · Отделение» на этом отделении; null — у центра не задан адрес Grafana. */
+  dashboard_url?: string | null;
+}
+
+export interface NodeLine {
+  cpu_pct: number | null;
+  http_p95_ms: number | null;
+  disk_free_mb: number | null;
+  disk_total_mb: number | null;
+  app_version: string | null;
+  uptime_sec: number | null;
 }
 
 export interface BranchAlert {
@@ -57,6 +70,29 @@ export interface BranchSummary {
 
 export const getOverview = () => api<Overview>('/network/overview');
 export const getBranches = () => api<BranchSummary[]>('/branches');
+
+// ------------------------------------------------------------------ диагностика отделения
+
+export interface LogPullResult {
+  pull_id: string;
+  lines: number;
+  truncated: boolean;
+  /** Логи в Grafana Explore; null — у центра не задан адрес Grafana. */
+  grafana_url: string | null;
+}
+
+export interface Snapshot {
+  id: string;
+  branch_id: string;
+  taken_at: string;
+  requested_by: string;
+  size_bytes: number;
+  payload: Record<string, unknown>;
+}
+
+export const pullLogs = (branch: string, minutes: number) =>
+  api<LogPullResult>(`/branches/${branch}/diagnostics/logs`, { method: 'POST', body: { minutes } });
+export const takeSnapshot = (branch: string) => api<Snapshot>(`/branches/${branch}/diagnostics/snapshots`, { method: 'POST' });
 
 // ------------------------------------------------------------------ уведомления, DLQ, МП
 

@@ -26,6 +26,23 @@ test('сеть отделений: без входа — форма входа, 
   await expect(page.locator('.tab.active', { hasText: 'Уведомления' })).toBeVisible();
 });
 
+test('сеть отделений: строка «Узел» — снимок скачивается, логи дают ссылку, графики ведут на дашборд', async ({ page }) => {
+  await page.goto(`${CENTER}/network`);
+  await page.getByLabel('Логин').fill(CENTER_LOGIN);
+  await page.getByLabel('Пароль').fill(CENTER_PASSWORD);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  const node = page.getByRole('region', { name: `Узел ${BRANCH}` });
+  await expect(node.getByText(/CPU \d+%/)).toBeVisible();
+  await expect(node.getByRole('link', { name: 'Графики' })).toHaveAttribute('href', new RegExp(`/d/esuo-branch/\\?var-branch=${BRANCH}$`));
+
+  const download = page.waitForEvent('download');
+  await node.getByRole('button', { name: 'Снять диагностику' }).click();
+  expect((await download).suggestedFilename()).toMatch(new RegExp(`^snapshot-${BRANCH}-.*\\.json$`));
+
+  await node.getByRole('button', { name: /Подробные логи/ }).click();
+  await expect(node.getByRole('link', { name: /Открыть логи \(\d+ строк\)/ })).toBeVisible({ timeout: 20_000 });
+});
+
 for (const [path, title] of [['/admin', 'ЕСУО · Руководитель отделения'], ['/operator', 'ЕСУО · Оператор'], ['/demo', 'ЕСУО · Демо-пульт']] as const) {
   test(`${path}: без входа показывается форма входа`, async ({ page }) => {
     await page.goto(`${NODE}${path}`);
