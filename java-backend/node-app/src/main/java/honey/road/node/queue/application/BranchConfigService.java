@@ -9,9 +9,14 @@ import honey.road.node.persistence.EventRepository;
 import honey.road.node.persistence.PolicyRepository;
 import honey.road.node.queue.domain.DomainException;
 import honey.road.node.queue.domain.QueuePolicy;
+import honey.road.node.monitoring.Lifecycle;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -35,6 +40,7 @@ import java.util.Map;
  */
 @Service
 public class BranchConfigService {
+    private static final Logger log = LoggerFactory.getLogger(BranchConfigService.class);
     private final JdbcTemplate jdbc;
     private final JsonCodec json;
     private final PolicyRepository policies;
@@ -116,7 +122,20 @@ public class BranchConfigService {
         events.otherEvent(node.branchId(), EventTypes.AGGREGATE_CONFIG, configId(), effective,
                 EventTypes.CONFIG_APPLIED, Actor.center(), now, effective, data);
         publishModelTrained(row.model, model, effective, now);
+        afterCommit(() -> Lifecycle.info(log, "config.applied", "central config applied version={} effective={} scope={}",
+                m.version(), effective, m.scope()));
         return true;
+    }
+
+    private static void afterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() { action.run(); }
+        });
     }
 
     /**

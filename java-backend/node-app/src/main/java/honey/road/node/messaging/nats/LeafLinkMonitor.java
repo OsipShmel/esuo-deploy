@@ -1,6 +1,7 @@
 package honey.road.node.messaging.nats;
 
 import honey.road.node.config.JsonCodec;
+import honey.road.node.monitoring.Lifecycle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -53,7 +54,11 @@ public class LeafLinkMonitor {
         var before = linked;
         linked = now;
         if (before == null || before != now) {
-            log.info(now ? "leaf linked to the hub" : "leaf is not linked to the hub ({})", leafz);
+            if (now) {
+                Lifecycle.info(log, "leaf.linked", "leaf linked to the hub");
+            } else {
+                Lifecycle.warn(log, "leaf.unlinked", "leaf is not linked to the hub ({})", leafz);
+            }
         }
     }
 }

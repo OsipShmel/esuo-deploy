@@ -35,11 +35,22 @@ management:
       probes:
         enabled: true
 logging:
+  file:
+    name: ${LOG_FILE:}                       # empty => console only (tests, local run); compose sets /app/logs/node.log
   structured:
     format:
       console: ecs
+      file: ecs
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_FILE:node.log}.%d{yyyy-MM-dd}.%i   # no .gz: the collector and diag.logs read rotated files as is
+      max-file-size: 20MB
+      max-history: 7
+      total-size-cap: 500MB
 esuo:
   branch-id: ${BRANCH_ID:b01}
+  logs:
+    file: ${LOG_FILE:}                       # the same file for diag.logs; empty => full logs on demand are unavailable
   branch-name: ${BRANCH_NAME:Демонстрационное отделение}
   timezone: ${BRANCH_TIMEZONE:Europe/Moscow}
   demo-data: ${DEMO_DATA:false}
