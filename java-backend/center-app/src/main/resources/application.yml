@@ -53,6 +53,8 @@ esuo:
       resolution: ${METRICS_RESOLUTION:10s}     # one row per heartbeat; 60s for a big network
       retention: 48h
       max-range: 48h
+    grafana:
+      db-password: ${GRAFANA_DB_PASSWORD:}      # design 6.5: role grafana_ro for Grafana panels; empty => no role
     demo-mode: ${DEMO_MODE:false}               # demo stand: rule durations ×demo-duration-scale
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s

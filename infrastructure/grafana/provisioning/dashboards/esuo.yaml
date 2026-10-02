@@ -1,0 +1,10 @@
+# Dashboards "Отделение" and "Сеть" (design 6.5), read-only: edits go to the JSON files in this folder.
+apiVersion: 1
+providers:
+  - name: esuo
+    folder: ЕСУО
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards/esuo

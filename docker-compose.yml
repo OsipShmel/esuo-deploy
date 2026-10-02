@@ -85,6 +85,8 @@ services:
       # Логи отделений → Loki (профиль monitoring). Без Loki строки ждут в CENTER_LOG, центр работает как обычно.
       LOKI_URL: ${LOKI_URL:-http://loki:3100}
       GRAFANA_PUBLIC_URL: ${GRAFANA_PUBLIC_URL:-http://localhost:3000}
+      # Роль grafana_ro (только чтение метрик и аномалий) для панелей Grafana; пусто => роли нет
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana-ro-local}
       # Демо-стенд: окна правил мониторинга ×0,1 (перезапуск, CPU и т. п. видны за минуту, а не за полчаса)
       DEMO_MODE: ${DEMO_MODE:-false}
     ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
@@ -160,6 +162,7 @@ services:
       GF_USERS_VIEWERS_CAN_EDIT: "true"                           # Explore для просмотра: туда ведут ссылки на выгрузки
       GF_SERVER_ROOT_URL: ${GRAFANA_PUBLIC_URL:-http://localhost:3000}
       GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana-ro-local}   # источник «Центр (метрики)», роль grafana_ro
     volumes: ["./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro", "grafana-data:/var/lib/grafana"]
     ports: ["127.0.0.1:3000:3000"]
     depends_on: [loki]
