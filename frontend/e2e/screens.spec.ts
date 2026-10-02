@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { BRANCH, CENTER, NODE } from './env';
+import { BRANCH, CENTER, CENTER_LOGIN, CENTER_PASSWORD, NODE } from './env';
 
 test('табло: включение звука, QR и счётчик ожидающих', async ({ page }) => {
   await page.goto(`${NODE}/board`);
@@ -9,8 +9,12 @@ test('табло: включение звука, QR и счётчик ожида
   await expect(page.getByText(/Ждут:/)).toBeVisible();
 });
 
-test('сеть отделений: карточки и вкладки', async ({ page }) => {
+test('сеть отделений: без входа — форма входа, после входа — карточки и вкладки', async ({ page }) => {
   await page.goto(`${CENTER}/network`);
+  await expect(page.getByLabel('Логин')).toBeVisible();
+  await page.getByLabel('Логин').fill(CENTER_LOGIN);
+  await page.getByLabel('Пароль').fill(CENTER_PASSWORD);
+  await page.getByRole('button', { name: 'Войти' }).click();
   await expect(page.getByText(/На связи \d+ из \d+/)).toBeVisible();
   await expect(page.getByText(new RegExp(`^${BRANCH} ·`)).first()).toBeVisible();
   await page.getByRole('link', { name: 'Конфигурация' }).click();
