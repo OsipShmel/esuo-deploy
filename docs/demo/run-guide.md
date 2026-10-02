@@ -75,7 +75,8 @@ done | jq -r .ticket_id | sort | uniq -c        # ожидается одна с
 ## 3. Автотесты
 
 ```bash
-cd java-backend && ./mvnw -pl node-app -am test     # 250 тестов узла; нужен Docker (Testcontainers)
+cd java-backend && ./mvnw -pl node-app -am test     # 339 тестов узла; нужен Docker (Testcontainers)
+cd java-backend && ./mvnw -pl center-app -am test   # 126 тестов центра
 cd python-ai-service && uv run pytest               # 42 теста модели длительности
 ```
 
