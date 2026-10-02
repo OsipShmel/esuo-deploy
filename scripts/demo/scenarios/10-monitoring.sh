@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034
 CODE=monitoring
-TITLE="Логи отделений в центре: без потерь и по запросу"
-DESC="Ошибка на отделении видна в Grafana за секунды; ошибки за время обрыва связи доезжают после восстановления со своим временем; полные логи за полчаса — по одной кнопке. Нужен профиль monitoring."
+TITLE="Мониторинг отделений: логи без потерь, метрики и правила"
+DESC="Ошибка на отделении видна в Grafana за секунды; ошибки за время обрыва связи доезжают после восстановления со своим временем; полные логи за полчаса — по одной кнопке; центр хранит метрики сервера отделения, а правило замечает перезапуск приложения. Нужен профиль monitoring."
 NODES="$NODE"
 CUT=${CUT_CMD:-"$ROOT/scripts/chaos/cut-branch-link.sh $BRANCH"}
 LOKI=${LOKI:-http://localhost:3100}
 HUB_MONITOR=${HUB_MONITOR:-http://localhost:8222}
+RESTART=${RESTART_CMD:-"docker restart esuo-node-$BRANCH"}   # стенд из нескольких ПК: свой способ перезапустить узел
 scenario() {
   local run since restored i m found lag
   run=$(date +%s)
@@ -77,4 +78,29 @@ scenario() {
   assert "выгрузка видна в Loki" "$([ "$(loki_count "{branch=\"$BRANCH\",pull=\"$pull\"}")" -gt 0 ] && echo yes || echo no)" yes
   ev "monitoring|pull"
   watch_ "ссылка из ответа API: $(jget .grafana_url | head -c 80)…"
+  pause 2
+
+  say "Центр хранит метрики сервера отделения — по ним графики и правила"
+  center GET "/api/v1/branches/$BRANCH/metrics"
+  check "история метрик за час: в последней точке блок sys и очередь" 200 \
+    'length > 0 and (last.sys.cpu_count // 0) > 0 and (last.sys.heap_used_mb != null) and (last.queue.waiting != null)'
+  fact "точек метрик за час" "$(jget length)"
+  ev "monitoring|metrics"
+  watch_ "Grafana → Dashboards → ЕСУО · Отделение ($BRANCH): CPU, память, база, API, связь с центром"
+  pause 2
+
+  say "Приложение отделения перезапускается — правило замечает это по метрикам"
+  local alert=""
+  # shellcheck disable=SC2086
+  $RESTART >/dev/null; ev "chaos|node|restart"
+  for i in $(seq 1 60); do [ "$(curl -s -o /dev/null -w '%{http_code}' "$NODE/actuator/health")" = 200 ] && break; sleep 2; done
+  for i in $(seq 1 45); do                        # heartbeat → сброс пачкой (5 с) → правила (15 с)
+    center GET /api/v1/network/overview
+    alert=$(echo "$BODY" | jq -r --arg b "$BRANCH" '.branches[]? | select(.id==$b) | .alerts[]? | select(.code=="sys.restart") | .text' | head -1)
+    [ -n "$alert" ] && break; sleep 2
+  done
+  assert "в обзоре сети аномалия «перезапуск» с понятным текстом" "$([ -n "$alert" ] && echo yes || echo no)" yes
+  [ -n "$alert" ] && fact "аномалия" "$alert"
+  ev "monitoring|restart-alert"
+  watch_ "/network → «Аномалии»: «$BRANCH: $alert»"
 }

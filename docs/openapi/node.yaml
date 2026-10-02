@@ -863,6 +863,20 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Result"
+  /api/v1/admin/demo/log:
+    post:
+      tags:
+      - demo-log-controller
+      operationId: log
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
   /api/v1/admin/incidents/{id}:
     patch:
       tags:
@@ -1459,17 +1473,9 @@ components:
           type: boolean
         float:
           type: boolean
-        missing_node:
-          type: boolean
-        value_node:
-          type: boolean
         container:
           type: boolean
-        pojo:
-          type: boolean
-        short:
-          type: boolean
-        int:
+        missing_node:
           type: boolean
         node_type:
           type: string
@@ -1485,11 +1491,19 @@ components:
           - STRING
         string:
           type: boolean
-        long:
+        value_node:
           type: boolean
         integral_number:
           type: boolean
         floating_point_number:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        int:
+          type: boolean
+        long:
           type: boolean
         double:
           type: boolean
@@ -1780,6 +1794,13 @@ components:
           type:
           - string
           - "null"
+    LogRequest:
+      type: object
+      properties:
+        level:
+          type: string
+        message:
+          type: string
     ResolveRequest:
       type: object
       properties:

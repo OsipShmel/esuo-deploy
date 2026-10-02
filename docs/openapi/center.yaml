@@ -296,6 +296,31 @@ paths:
                 $ref: "#/components/schemas/UserChange"
       security:
       - bearerAuth: []
+  /api/v1/branches/{branchId}/diagnostics/logs:
+    post:
+      tags:
+      - diagnostics-controller
+      operationId: logs
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Request"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
   /api/v1/auth/login:
     post:
       tags:
@@ -558,6 +583,41 @@ paths:
             '*/*':
               schema:
                 type: object
+  /api/v1/branches/{branchId}/metrics:
+    get:
+      tags:
+      - metrics-controller
+      operationId: metrics
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: {}
+      security:
+      - bearerAuth: []
   /api/v1/admin/notifications/status:
     get:
       tags:
@@ -725,6 +785,25 @@ components:
           type: string
         active:
           type: boolean
+    Request:
+      type: object
+      properties:
+        minutes:
+          type: integer
+          format: int32
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        min_level:
+          type: string
+        contains:
+          type: string
+        max_lines:
+          type: integer
+          format: int32
     LoginRequest:
       type: object
       properties:
@@ -935,19 +1014,11 @@ components:
           type: boolean
         integral_number:
           type: boolean
-        floating_point_number:
-          type: boolean
-        big_decimal:
-          type: boolean
-        big_integer:
-          type: boolean
-        long:
+        missing_node:
           type: boolean
         container:
           type: boolean
-        pojo:
-          type: boolean
-        int:
+        value_node:
           type: boolean
         node_type:
           type: string
@@ -961,24 +1032,32 @@ components:
           - OBJECT
           - POJO
           - STRING
+        string:
+          type: boolean
+        floating_point_number:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        int:
+          type: boolean
+        long:
+          type: boolean
         double:
           type: boolean
-        missing_node:
+        big_decimal:
           type: boolean
-        value_node:
-          type: boolean
-        binary:
-          type: boolean
-        string:
+        big_integer:
           type: boolean
         textual:
           type: boolean
           deprecated: true
         boolean:
           type: boolean
-        number:
+        binary:
           type: boolean
-        short:
+        number:
           type: boolean
         embedded_value:
           type: boolean

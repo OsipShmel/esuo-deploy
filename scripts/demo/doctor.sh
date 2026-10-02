@@ -65,6 +65,12 @@ if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx esuo-loki; then
     *"HTTP 000"*) bad "Loki $LOKI не отвечает — docker compose --profile monitoring up -d loki";;
     *) bad "Loki $LOKI не готов: $loki_ready — docker logs esuo-loki";; esac
   [ "$(code "$GRAFANA/api/health")" = 200 ] && ok "Grafana $GRAFANA" || bad "Grafana $GRAFANA не отвечает — docker logs esuo-grafana"
+  for d in esuo-branch esuo-network; do      # без анонимного входа (GRAFANA_ANONYMOUS=false) — 401: проверка не про это
+    case "$(code "$GRAFANA/api/dashboards/uid/$d")" in 200) ok "дашборд $d";; 401) warn "дашборд $d: Grafana без анонимного просмотра, не проверить";;
+      *) bad "нет дашборда $d — docker compose --profile monitoring up -d --force-recreate grafana";; esac
+  done
+  [ "$(docker exec esuo-postgres-center psql -U "${DB_USER:-esuo}" -d esuo_center -Atc "SELECT count(*) FROM pg_roles WHERE rolname='grafana_ro'" 2>/dev/null)" = 1 ] \
+    && ok "роль grafana_ro для панелей метрик" || bad "нет роли grafana_ro — задайте GRAFANA_DB_PASSWORD и перезапустите center-app"
   for v in esuo-vector-b01 esuo-vector-b02; do
     [ "$(docker inspect -f '{{.State.Running}}' "$v" 2>/dev/null)" = true ] && ok "сборщик логов $v" \
       || bad "сборщик логов $v не запущен — docker compose --profile monitoring up -d"
