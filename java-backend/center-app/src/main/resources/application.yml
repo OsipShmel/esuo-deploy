@@ -1,6 +1,8 @@
 spring:
   application:
     name: center-app
+  config:
+    import: classpath:monitoring-rules.yml      # infrastructure/config, like queue-defaults.yml of the node
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5435/esuo_center}
     username: ${DB_USER:esuo}
@@ -51,6 +53,7 @@ esuo:
       resolution: ${METRICS_RESOLUTION:10s}     # one row per heartbeat; 60s for a big network
       retention: 48h
       max-range: 48h
+    demo-mode: ${DEMO_MODE:false}               # demo stand: rule durations ×demo-duration-scale
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}

@@ -1,6 +1,7 @@
 package honey.road.center.network;
 
 import honey.road.center.config.CenterProperties;
+import honey.road.center.monitoring.BranchAlerts;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
@@ -24,12 +25,14 @@ public class NetworkController {
     static final Duration CONFIG_PENDING_AFTER = Duration.ofMinutes(2);
 
     private final BranchRegistry registry;
+    private final BranchAlerts alerts;
     private final CenterProperties props;
     private final JsonMapper json;
     private final Clock clock;
 
-    public NetworkController(BranchRegistry registry, CenterProperties props, JsonMapper json, Clock clock) {
-        this.registry = registry; this.props = props; this.json = json; this.clock = clock;
+    public NetworkController(BranchRegistry registry, BranchAlerts alerts, CenterProperties props, JsonMapper json,
+                             Clock clock) {
+        this.registry = registry; this.alerts = alerts; this.props = props; this.json = json; this.clock = clock;
     }
 
     /** Public branch list for the client (with the service catalog from heartbeat –
@@ -93,6 +96,7 @@ public class NetworkController {
     public Map<String, Object> overview() {
         var now = clock.instant();
         var branches = new ArrayList<Map<String, Object>>();
+        var alertsByBranch = alerts.byBranch();
         int online = 0;
         for (var b : registry.all()) {
             JsonNode hb = json.readTree(b.lastHeartbeat());
@@ -115,6 +119,9 @@ public class NetworkController {
                     && Duration.between(b.configPublishedAt(), now).compareTo(CONFIG_PENDING_AFTER) > 0) {
                 anomalies.add("config_pending");
             }
+            // monitoring rules (design 6.4): the code joins the anomalies, the text is ready for a person
+            var branchAlerts = alertsByBranch.getOrDefault(b.id(), List.of());
+            branchAlerts.forEach(a -> anomalies.add((String) a.get("code")));
             var m = new LinkedHashMap<String, Object>();
             m.put("id", b.id());
             m.put("name", b.name());
@@ -137,6 +144,7 @@ public class NetworkController {
             m.put("day_profile", hb.path("day_profile").asString(null));
             m.put("demo_rate", hb.hasNonNull("demo_rate") ? hb.path("demo_rate").asDouble() : null);
             m.put("anomalies", anomalies);
+            m.put("alerts", branchAlerts);
             branches.add(m);
         }
         var result = new LinkedHashMap<String, Object>();

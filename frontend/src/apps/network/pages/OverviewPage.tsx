@@ -15,6 +15,8 @@ const ANOMALY: Record<string, (b: BranchCard) => string> = {
   overload: (b) => `${b.id}: перегрузка дольше 15 минут`,
 };
 const DANGER = new Set(['offline', 'no_open_windows', 'overload']);
+/** Правила мониторинга (`sys.*`) присылают текст сами. */
+const alertOf = (b: BranchCard, code: string) => b.alerts?.find((a) => a.code === code);
 
 /** Опрос раз в 5 секунд: у центра для этого экрана нет живого потока (постановка network). */
 export function OverviewPage() {
@@ -36,11 +38,14 @@ export function OverviewPage() {
         <section className="card" aria-label="Аномалии">
           <h2>Аномалии · {anomalies.length}</h2>
           <ul className="anomalies">
-            {anomalies.map(({ b, code }) => (
-              <li key={`${b.id}-${code}`} className={DANGER.has(code) ? 'danger' : undefined}>
-                <Icon name="alert" /> {ANOMALY[code]?.(b) ?? `${b.id}: ${code}`}
-              </li>
-            ))}
+            {anomalies.map(({ b, code }) => {
+              const alert = alertOf(b, code);
+              return (
+                <li key={`${b.id}-${code}`} className={DANGER.has(code) || alert?.severity === 'critical' ? 'danger' : undefined}>
+                  <Icon name="alert" /> {ANOMALY[code]?.(b) ?? `${b.id}: ${alert?.text ?? code}`}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

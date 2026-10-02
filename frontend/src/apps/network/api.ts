@@ -28,6 +28,15 @@ export interface BranchCard {
   day_profile: string | null;
   demo_rate: number | null;
   anomalies: string[];
+  /** Сработавшие правила мониторинга (`sys.*`): готовый текст для человека. */
+  alerts?: BranchAlert[];
+}
+
+export interface BranchAlert {
+  code: string;
+  severity: 'info' | 'warning' | 'critical';
+  text: string;
+  since: string;
 }
 
 export interface Overview {

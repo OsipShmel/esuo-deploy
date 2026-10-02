@@ -85,6 +85,8 @@ services:
       # Логи отделений → Loki (профиль monitoring). Без Loki строки ждут в CENTER_LOG, центр работает как обычно.
       LOKI_URL: ${LOKI_URL:-http://loki:3100}
       GRAFANA_PUBLIC_URL: ${GRAFANA_PUBLIC_URL:-http://localhost:3000}
+      # Демо-стенд: окна правил мониторинга ×0,1 (перезапуск, CPU и т. п. видны за минуту, а не за полчаса)
+      DEMO_MODE: ${DEMO_MODE:-false}
     ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}

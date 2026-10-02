@@ -10,7 +10,7 @@ import java.util.List;
 @ConfigurationProperties("esuo.center")
 public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration offlineAfter, List<String> corsOrigins,
                                @Name("notify") Notify notification, Mp mp, Security security, Logs logs,
-                               Metrics metrics) {
+                               Metrics metrics, boolean demoMode) {
     public CenterProperties {
         natsUrl = natsUrl == null || natsUrl.isBlank() ? "nats://localhost:4222" : natsUrl;
         rpcTimeout = rpcTimeout == null ? Duration.ofSeconds(3) : rpcTimeout;

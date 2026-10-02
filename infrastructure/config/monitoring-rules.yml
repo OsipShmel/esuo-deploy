@@ -1,0 +1,26 @@
+# Monitoring rules of the center (design 6.4): branch_metrics → alerts in the network overview and Grafana.
+# Metrics: sys.<field> of the heartbeat sys block, or clock_skew_sec (center receipt time − branch system time).
+# Kinds: threshold — every point for `for` meets the condition; ratio — last point metric/of; increase — counter
+# growth within `window` (resets on restart are handled); decrease — the metric dropped within `window`.
+# Text placeholders: {value}, {value:%} (×100), {for} (minutes held), {at} (HH:mm, branch time zone).
+# Alert texts are shown to the network admin as is, hence Russian.
+esuo:
+  center:
+    monitoring:
+      evaluate-every: 15s
+      demo-duration-scale: 0.1          # with DEMO_MODE=true durations ×0.1 (5 min → 30 s)
+      rules:
+        - {id: sys.cpu, kind: threshold, metric: sys.cpu_system, op: ">", value: 0.9, for: 5m, severity: warning,
+           text: "ПК отделения не справляется: CPU {value:%}% уже {for} мин"}
+        - {id: sys.slow_api, kind: threshold, metric: sys.http_p95_ms, op: ">", value: 1500, for: 3m, severity: warning,
+           text: "API отделения отвечает медленно: p95 {value} мс"}
+        - {id: sys.db_pool, kind: threshold, metric: sys.db_pool_pending, op: ">", value: 0, for: 2m, severity: warning,
+           text: "Узкое место в базе: запросы ждут соединения"}
+        - {id: sys.disk, kind: ratio, metric: sys.disk_free_mb, of: sys.disk_total_mb, op: "<", value: 0.1, severity: critical,
+           text: "На диске отделения осталось {value:%}%"}
+        - {id: sys.link, kind: increase, metric: sys.nats_reconnects, window: 1h, op: ">", value: 5, severity: warning,
+           text: "Нестабильная связь с центром: {value} переподключений за час"}
+        - {id: sys.clock, kind: threshold, metric: clock_skew_sec, abs: true, op: ">", value: 60, for: 2m, severity: warning,
+           text: "Часы отделения расходятся с центром на {value} с"}
+        - {id: sys.restart, kind: decrease, metric: sys.uptime_sec, window: 30m, severity: info,
+           text: "Приложение отделения перезапускалось в {at}"}
