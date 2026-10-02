@@ -25,6 +25,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Published"
+      security:
+      - bearerAuth: []
   /api/v1/config/branches/{branchId}:
     get:
       tags:
@@ -43,6 +45,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/BranchConfigView"
+      security:
+      - bearerAuth: []
     put:
       tags:
       - config-controller
@@ -67,6 +71,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Published"
+      security:
+      - bearerAuth: []
   /api/v1/webhooks/mp/appointments:
     post:
       tags:
@@ -263,6 +269,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UserView"
+      security:
+      - bearerAuth: []
     post:
       tags:
       - config-controller
@@ -286,6 +294,26 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/UserChange"
+      security:
+      - bearerAuth: []
+  /api/v1/auth/login:
+    post:
+      tags:
+      - center-auth-controller
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
   /api/v1/admin/dlq/{id}/retry:
     post:
       tags:
@@ -305,6 +333,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RetryResponse"
+      security:
+      - bearerAuth: []
   /api/v1/branches/{branchId}/users/{userId}:
     patch:
       tags:
@@ -335,6 +365,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/UserChange"
+      security:
+      - bearerAuth: []
   /api/v1/network/overview:
     get:
       tags:
@@ -348,6 +380,8 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+      security:
+      - bearerAuth: []
   /api/v1/config:
     get:
       tags:
@@ -360,6 +394,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ConfigOverview"
+      security:
+      - bearerAuth: []
   /api/v1/config/versions:
     get:
       tags:
@@ -387,6 +423,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/VersionView"
+      security:
+      - bearerAuth: []
   /api/v1/branches:
     get:
       tags:
@@ -532,6 +570,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Status"
+      security:
+      - bearerAuth: []
   /api/v1/admin/notifications/dlq:
     get:
       tags:
@@ -553,6 +593,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/DeadLetterView"
+      security:
+      - bearerAuth: []
   /api/v1/admin/mp/requests:
     get:
       tags:
@@ -575,6 +617,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/MpRequestView"
+      security:
+      - bearerAuth: []
   /api/v1/admin/dlq:
     get:
       tags:
@@ -608,6 +652,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/DeadLetterView"
+      security:
+      - bearerAuth: []
 components:
   schemas:
     Published:
@@ -679,6 +725,37 @@ components:
           type: string
         active:
           type: boolean
+    LoginRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          maxLength: 64
+          minLength: 0
+        password:
+          type: string
+          maxLength: 128
+          minLength: 0
+      required:
+      - login
+      - password
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        role:
+          type: string
+          enum:
+          - NETWORK_ADMIN
+        employee_id:
+          type: string
+          format: uuid
     RetryResponse:
       type: object
       properties:
@@ -856,15 +933,21 @@ components:
           type: boolean
         float:
           type: boolean
-        missing_node:
-          type: boolean
-        value_node:
-          type: boolean
-        container:
-          type: boolean
         integral_number:
           type: boolean
         floating_point_number:
+          type: boolean
+        big_decimal:
+          type: boolean
+        big_integer:
+          type: boolean
+        long:
+          type: boolean
+        container:
+          type: boolean
+        pojo:
+          type: boolean
+        int:
           type: boolean
         node_type:
           type: string
@@ -878,30 +961,24 @@ components:
           - OBJECT
           - POJO
           - STRING
-        string:
-          type: boolean
-        pojo:
-          type: boolean
-        short:
-          type: boolean
-        int:
-          type: boolean
-        long:
-          type: boolean
         double:
           type: boolean
-        big_decimal:
+        missing_node:
           type: boolean
-        big_integer:
+        value_node:
+          type: boolean
+        binary:
+          type: boolean
+        string:
           type: boolean
         textual:
           type: boolean
           deprecated: true
         boolean:
           type: boolean
-        binary:
-          type: boolean
         number:
+          type: boolean
+        short:
           type: boolean
         embedded_value:
           type: boolean
@@ -929,3 +1006,9 @@ components:
         updated_at:
           type: string
           format: date-time
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: "POST /api/v1/auth/login, role NETWORK_ADMIN"
+      scheme: bearer
+      bearerFormat: JWT

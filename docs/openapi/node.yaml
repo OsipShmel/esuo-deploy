@@ -816,6 +816,36 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/EmployeeView"
+  /api/v1/admin/demo/runner/runs:
+    post:
+      tags:
+      - demo-runner-controller
+      operationId: start_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+  /api/v1/admin/demo/runner/runs/current/stop:
+    post:
+      tags:
+      - demo-runner-controller
+      operationId: stop
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
   /api/v1/admin/demo/reset:
     post:
       tags:
@@ -1122,6 +1152,18 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Result"
+  /api/v1/admin/qr/sticker:
+    get:
+      tags:
+      - admin-qr-controller
+      operationId: sticker
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Sticker"
   /api/v1/admin/model:
     get:
       tags:
@@ -1148,6 +1190,38 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+  /api/v1/admin/demo/runner/stream:
+    get:
+      tags:
+      - demo-runner-controller
+      operationId: stream
+      responses:
+        "200":
+          description: OK
+  /api/v1/admin/demo/runner/scenarios:
+    get:
+      tags:
+      - demo-runner-controller
+      operationId: scenarios
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+  /api/v1/admin/demo/runner/runs/current:
+    get:
+      tags:
+      - demo-runner-controller
+      operationId: current
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
   /api/v1/admin/analytics/windows:
     get:
       tags:
@@ -1385,25 +1459,17 @@ components:
           type: boolean
         float:
           type: boolean
-        pojo:
-          type: boolean
-        integral_number:
-          type: boolean
-        floating_point_number:
-          type: boolean
-        short:
+        missing_node:
           type: boolean
         value_node:
           type: boolean
         container:
           type: boolean
-        missing_node:
+        pojo:
+          type: boolean
+        short:
           type: boolean
         int:
-          type: boolean
-        long:
-          type: boolean
-        double:
           type: boolean
         node_type:
           type: string
@@ -1418,6 +1484,14 @@ components:
           - POJO
           - STRING
         string:
+          type: boolean
+        long:
+          type: boolean
+        integral_number:
+          type: boolean
+        floating_point_number:
+          type: boolean
+        double:
           type: boolean
         big_decimal:
           type: boolean
@@ -1815,6 +1889,10 @@ components:
             format: int64
         qr_code:
           type: string
+        join_url:
+          type: string
+        qr_mode_effective:
+          type: string
     Call:
       type: object
       properties:
@@ -1833,6 +1911,20 @@ components:
         call_count:
           type: integer
           format: int32
+    Sticker:
+      type: object
+      properties:
+        code:
+          type: string
+        signed:
+          type: boolean
+        key_version:
+          type: integer
+          format: int32
+        center_url:
+          type: string
+        local_url:
+          type: string
     WindowStat:
       type: object
       properties:
