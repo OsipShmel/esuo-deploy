@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * The sections of a node snapshot (design 7): app, jvm, db, outbox, nats, config, disk, lifecycle. Each one reads its
+ * The sections of a node snapshot (design 7): app, jvm, db_pool, db, outbox, nats, config, disk, lifecycle. Each one reads its
  * source directly and may throw; {@link DiagnosticsSnapshot} keeps a failure inside its section.
  */
 @Component
@@ -65,7 +65,8 @@ public class SnapshotSections {
     }
 
     public List<Section> all() {
-        return List.of(new Section("app", this::app), new Section("jvm", this::jvm), new Section("db", this::db),
+        return List.of(new Section("app", this::app), new Section("jvm", this::jvm),
+                new Section("db_pool", this::dbPool), new Section("db", this::db),
                 new Section("outbox", this::outbox), new Section("nats", this::nats), new Section("config", this::config),
                 new Section("disk", this::disk), new Section("lifecycle", this::lifecycle));
     }
@@ -122,14 +123,22 @@ public class SnapshotSections {
         return m;
     }
 
-    /** The pool is read without the database; everything else with a 2 s statement timeout. */
+    /**
+     * Its own section: read from the pool without touching the database, it survives exactly the case a snapshot is
+     * taken for — a locked database, where {@code waiting} is the number worth seeing.
+     */
+    private Object dbPool() {
+        if (!(dataSource instanceof HikariDataSource hikari) || hikari.getHikariPoolMXBean() == null) {
+            throw new IllegalStateException("not a Hikari pool");
+        }
+        var pool = hikari.getHikariPoolMXBean();
+        return Map.of("active", pool.getActiveConnections(), "idle", pool.getIdleConnections(),
+                "waiting", pool.getThreadsAwaitingConnection(), "max", hikari.getMaximumPoolSize());
+    }
+
+    /** Every query with a 2 s statement timeout: a snapshot is wanted exactly when the database is slow. */
     private Object db() {
         var m = new LinkedHashMap<String, Object>();
-        if (dataSource instanceof HikariDataSource hikari && hikari.getHikariPoolMXBean() != null) {
-            var pool = hikari.getHikariPoolMXBean();
-            m.put("pool", Map.of("active", pool.getActiveConnections(), "idle", pool.getIdleConnections(),
-                    "waiting", pool.getThreadsAwaitingConnection(), "max", hikari.getMaximumPoolSize()));
-        }
         tx.executeWithoutResult(s -> {
             jdbc.execute("SET LOCAL statement_timeout = '2s'");
             m.put("activity", jdbc.queryForList("""

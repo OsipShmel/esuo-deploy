@@ -25,11 +25,13 @@ class DiagnosticsSnapshotIT extends AbstractNodeIT {
     void allSectionsArePresent() {
         var s = snapshot.take();
 
-        assertThat(s).containsKeys("taken_at", "truncated", "app", "jvm", "db", "outbox", "nats", "config", "disk", "lifecycle");
+        assertThat(s).containsKeys("taken_at", "truncated", "app", "jvm", "db_pool", "db", "outbox", "nats", "config", "disk", "lifecycle");
         assertThat(section(s, "app")).containsEntry("branch_id", "b01").containsKeys("version", "uptime_sec", "demo_mode");
         assertThat(section(s, "jvm")).containsKeys("threads_by_state", "blocked", "deadlocks", "heap_used_mb")
                 .containsEntry("virtual_threads_listed", false);
-        assertThat(section(s, "db")).containsKeys("pool", "activity", "blocking", "largest_tables", "size_mb")
+        // the pool is its own section: read without the database, it survives a locked one
+        assertThat(section(s, "db_pool")).containsKeys("active", "idle", "waiting", "max");
+        assertThat(section(s, "db")).containsKeys("activity", "blocking", "largest_tables", "size_mb")
                 .doesNotContainKey("error");
         assertThat(section(s, "outbox")).containsKeys("pending", "oldest_age_sec");
         assertThat(section(s, "nats")).containsKeys("connected", "state", "state_since", "leaf_linked", "streams");
