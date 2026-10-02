@@ -10,8 +10,11 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /** How a snapshot is put together (design 7): sections on their own, a deadline, a size limit. */
 class DiagnosticsSnapshotTest {
@@ -74,6 +77,45 @@ class DiagnosticsSnapshotTest {
         assertThat(s).containsEntry("truncated", true).containsEntry("app", Map.of("version", "1"));
         assertThat(((Map<?, ?>) s.get("db")).get("error").toString()).startsWith("too large");
         assertThat(JsonMapper.builder().build().writeValueAsString(s).length()).isLessThanOrEqualTo(2_000);
+    }
+
+    /**
+     * A query on a frozen database ignores interruption and keeps its thread and pool connection until the database
+     * answers. Such a section is not started again while it hangs: repeated clicks must not drain the pool.
+     */
+    @Test
+    void hungSectionIsNotStartedAgainUntilItFinishes() {
+        var release = new CountDownLatch(1);
+        var started = new AtomicInteger();
+        var snapshot = snapshot(Duration.ofMillis(200), 512 * 1024,
+                new Section("db", () -> { started.incrementAndGet(); awaitUninterruptibly(release); return Map.of("ok", true); }),
+                new Section("app", () -> Map.of("version", "1")));
+
+        snapshot.take();
+        var second = snapshot.take();
+
+        assertThat(started).hasValue(1);
+        assertThat(((Map<?, ?>) second.get("db")).get("error").toString()).startsWith("still running since a previous snapshot");
+        assertThat(second).containsEntry("app", Map.of("version", "1"));
+
+        release.countDown();
+        await().untilAsserted(() -> assertThat(snapshot.take().get("db")).isEqualTo(Map.of("ok", true)));
+        assertThat(started).hasValue(2);
+    }
+
+    private static void awaitUninterruptibly(CountDownLatch latch) {
+        boolean interrupted = false;
+        while (true) {
+            try {
+                latch.await();
+                break;
+            } catch (InterruptedException e) {
+                interrupted = true;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void sleep(long ms) {

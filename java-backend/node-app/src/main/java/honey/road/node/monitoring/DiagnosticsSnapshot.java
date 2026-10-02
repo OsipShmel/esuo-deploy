@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -24,6 +25,9 @@ import java.util.function.Supplier;
  * so every section runs on its own thread against one deadline: a section that throws or hangs (a locked database)
  * becomes {@code {"error": ...}} in its place and the rest is still answered. The answer must fit a NATS message:
  * over the limit, stack traces go first, then the largest sections are replaced by an error.
+ *
+ * <p>A query on a frozen database ignores interruption and keeps its thread and pool connection until the database
+ * answers. Such a section is not started again while it still hangs, so repeated snapshots cannot drain the pool.
  */
 @Component
 public class DiagnosticsSnapshot {
@@ -38,6 +42,8 @@ public class DiagnosticsSnapshot {
     private final Duration deadline;
     private final int maxBytes;
     private final Clock clock;
+    /** Sections still running, possibly from an earlier snapshot: name → {@link System#nanoTime()} at start. */
+    private final Map<String, Long> running = new ConcurrentHashMap<>();
 
     @Autowired
     public DiagnosticsSnapshot(SnapshotSections sections, @Qualifier("realClock") Clock clock) {
@@ -56,17 +62,31 @@ public class DiagnosticsSnapshot {
         try {
             var futures = new ArrayList<Future<Object>>();
             for (var s : sections) {
-                futures.add(pool.submit(() -> s.read().get()));
+                futures.add(running.containsKey(s.name()) ? null : pool.submit(() -> {
+                    running.put(s.name(), System.nanoTime());
+                    try {
+                        return s.read().get();
+                    } finally {
+                        running.remove(s.name());
+                    }
+                }));
             }
             long until = System.nanoTime() + deadline.toNanos();
             for (int i = 0; i < sections.size(); i++) {
-                result.put(sections.get(i).name(), await(futures.get(i), until));
+                var name = sections.get(i).name();
+                result.put(name, futures.get(i) == null ? stillRunning(name) : await(futures.get(i), until));
             }
         } finally {
             pool.shutdownNow();                                             // close() would wait for a hung section
         }
         fit(result);
         return result;
+    }
+
+    private Map<String, Object> stillRunning(String name) {
+        var since = running.get(name);
+        long seconds = since == null ? 0 : Duration.ofNanos(System.nanoTime() - since).toSeconds();
+        return Map.of("error", "still running since a previous snapshot (" + seconds + " s), not started again");
     }
 
     private Object await(Future<Object> future, long until) {
