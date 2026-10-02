@@ -56,6 +56,17 @@ online=$(center_curl GET /api/v1/network/overview --max-time 5 | jq '[.branches[
 [ "$(code "$MP/health")" = 200 ] && ok "mp-simulator $MP" || warn "mp-simulator не отвечает: не запустятся mp и запись в pension-ab"
 [ "$(code "$NOTIFY/health")" = 200 ] && ok "notify-mock $NOTIFY" || warn "notify-mock не отвечает: не запустится notify-down"
 
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx esuo-loki; then
+  hdr "Мониторинг (профиль monitoring)"
+  LOKI=${LOKI:-http://localhost:3100}; GRAFANA=${GRAFANA:-http://localhost:3000}
+  [ "$(code "$LOKI/ready")" = 200 ] && ok "Loki $LOKI" || bad "Loki $LOKI не готов — docker logs esuo-loki"
+  [ "$(code "$GRAFANA/api/health")" = 200 ] && ok "Grafana $GRAFANA" || bad "Grafana $GRAFANA не отвечает — docker logs esuo-grafana"
+  for v in esuo-vector-b01 esuo-vector-b02; do
+    [ "$(docker inspect -f '{{.State.Running}}' "$v" 2>/dev/null)" = true ] && ok "сборщик логов $v" \
+      || bad "сборщик логов $v не запущен — docker compose --profile monitoring up -d"
+  done
+fi
+
 hdr "Данные для pension-ab"
 SC="$ROOT/infrastructure/demo/scenarios"
 [ -s "$SC/history.sql" ] && ok "history.sql" || bad "нет history.sql — cd python-ai-service && uv run esuo-ml generate --end-day 2026-09-20"
