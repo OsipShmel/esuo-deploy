@@ -30,6 +30,8 @@ public enum ErrorCode {
     /** Booking for this hour is closed by the load quota (sect 6.10) [MVP-demo]. */
     BOOKING_LIMITED(409, "Запись на это время закрыта из-за высокой нагрузки"),
     LOGIN_TAKEN(409, "Логин уже занят"),
+    /** The branch writes no log file (LOG_FILE empty): full logs on request are unavailable (design 5.7). */
+    LOGS_UNAVAILABLE(409, "Файл логов на отделении не настроен"),
 
     IDEMPOTENCY_CONFLICT(422, "Ключ идемпотентности использован с другим запросом"),
     QR_CODE_INVALID(422, "QR-код недействителен"),

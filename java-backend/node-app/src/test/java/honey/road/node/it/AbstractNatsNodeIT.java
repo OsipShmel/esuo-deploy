@@ -2,6 +2,7 @@ package honey.road.node.it;
 
 import io.nats.client.Connection;
 import io.nats.client.Nats;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -13,6 +14,7 @@ import java.io.IOException;
  * Node tests that need a real broker (streams, request-reply). {@link AbstractNodeIT} stays without NATS on purpose —
  * it proves the branch works alone; this base adds a JetStream-enabled server as the branch leaf.
  */
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)   // one live context per broker: no foreign subscribers
 public abstract class AbstractNatsNodeIT extends AbstractNodeIT {
 
     static final GenericContainer<?> NATS = new GenericContainer<>("nats:2.10.26-alpine")

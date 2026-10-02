@@ -17,6 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -49,6 +50,11 @@ public class BranchRpcClient {
     }
 
     public RpcResult call(String branchId, String op, Object body, String idempotencyKey) {
+        return call(branchId, op, body, idempotencyKey, props.rpcTimeout());
+    }
+
+    /** Same with an operation-specific timeout: reading log files may take longer than the 3 s of public calls. */
+    public RpcResult call(String branchId, String op, Object body, String idempotencyKey, Duration timeout) {
         if (branchId == null || !branchId.matches("[a-zA-Z0-9_-]{1,64}")) {
             throw new EsuoException(ErrorCode.BRANCH_NOT_FOUND, "Некорректный код отделения");
         }
@@ -56,7 +62,7 @@ public class BranchRpcClient {
                 .orElseThrow(() -> unavailable(branchId, "center is not connected to NATS"));
         var headers = new Headers()
                 .add(EsuoHeaders.CONTENT_TYPE, "application/json")
-                .add(EsuoHeaders.DEADLINE, clock.instant().plus(props.rpcTimeout()).toString());
+                .add(EsuoHeaders.DEADLINE, clock.instant().plus(timeout).toString());
         var requestId = MDC.get(EsuoHeaders.MDC_REQUEST_ID);
         if (requestId != null) { headers.add(EsuoHeaders.REQUEST_ID, requestId); }
         if (idempotencyKey != null) { headers.add(EsuoHeaders.IDEMPOTENCY_KEY, idempotencyKey); }
@@ -66,8 +72,8 @@ public class BranchRpcClient {
                 .data(json.writeValueAsString(body == null ? Map.of() : body).getBytes(StandardCharsets.UTF_8))
                 .build();
         try {
-            var reply = connection.requestWithTimeout(message, props.rpcTimeout())
-                    .get(props.rpcTimeout().toMillis() + 500, TimeUnit.MILLISECONDS);
+            var reply = connection.requestWithTimeout(message, timeout)
+                    .get(timeout.toMillis() + 500, TimeUnit.MILLISECONDS);
             if (reply == null || reply.isStatusMessage()) {
                 throw unavailable(branchId, "no responders");
             }
