@@ -5,6 +5,7 @@ import honey.road.node.config.NodeProperties;
 import io.nats.client.Connection;
 import io.nats.client.JetStreamApiException;
 import io.nats.client.JetStreamManagement;
+import io.nats.client.api.DiscardPolicy;
 import io.nats.client.api.StorageType;
 import io.nats.client.api.StreamConfiguration;
 import jakarta.annotation.PostConstruct;
@@ -21,6 +22,7 @@ import io.nats.client.api.Source;
 /**
  * JetStream streams in the branch domain (sect 10.4), created idempotently on every connect.
  * {@code BRANCH_EVT} buffers events while the link is down; the center pulls it as a source.
+ * {@code BRANCH_LOG} does the same for important log lines published by the branch collector (design 5.3).
  */
 @Component
 public class BranchStreams {
@@ -32,6 +34,7 @@ public class BranchStreams {
     private final NodeProperties node;
     private final NatsProperties props;
     private volatile boolean branchEvtReady;
+    private volatile boolean branchLogReady;
     private volatile boolean branchInboxReady;
 
     public BranchStreams(NatsGateway nats, NodeProperties node, NatsProperties props) {
@@ -48,6 +51,8 @@ public class BranchStreams {
     public boolean branchEvtReady() { return branchEvtReady; }
 
     public boolean branchInboxReady() { return branchInboxReady; }
+
+    public boolean branchLogReady() { return branchLogReady; }
 
     /**
      * Own subject for BRANCH_INBOX: without it the server uses the stream name. Handy for manual inserts while
@@ -74,6 +79,14 @@ public class BranchStreams {
                     .maxAge(props.eventRetention())
                     .duplicateWindow(Duration.ofHours(1)));
             branchEvtReady = true;
+            ensureStream(jsm, Subjects.STREAM_BRANCH_LOG, b -> b
+                    .subjects(Subjects.branchLogsAll(node.branchId()))
+                    .storageType(StorageType.File)
+                    .maxAge(props.logRetention())
+                    .maxBytes(props.logMaxBytes())
+                    .discardPolicy(DiscardPolicy.Old)
+                    .duplicateWindow(Duration.ofHours(1)));
+            branchLogReady = true;
             // Center → branch (sect 10.4): config and MP bookings are copied from the center domain
             // and stay available to the branch when the link is down.
             var center = Subjects.jsApiPrefix(Subjects.CENTER_DOMAIN);
@@ -88,6 +101,7 @@ public class BranchStreams {
             branchInboxReady = true;
         } catch (IOException | JetStreamApiException e) {
             branchEvtReady = false;
+            branchLogReady = false;
             branchInboxReady = false;
             log.error("cannot ensure {} stream (is JetStream enabled on leaf?)", Subjects.STREAM_BRANCH_EVT, e);
         }

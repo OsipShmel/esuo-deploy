@@ -76,6 +76,8 @@ esuo:
     url: ${NATS_URL:nats://localhost:4222}   # branch leaf; only the leaf knows the center's address
     leaf-monitor-url: ${LEAF_MONITOR_URL:}   # leaf /leafz; empty => NATS host, port 8222
     heartbeat-interval: 10s
+    log-retention: 7d                        # BRANCH_LOG: important log lines kept on the branch while the center is away
+    log-max-bytes: 268435456                 # 256 MB, oldest dropped first
     outbox:
       poll-interval: 200ms
       batch-size: 100

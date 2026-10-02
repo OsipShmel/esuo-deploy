@@ -17,7 +17,9 @@ public record NatsProperties(
         Outbox outbox,
         Duration heartbeatInterval,
         Duration eventRetention,
-        String leafMonitorUrl
+        String leafMonitorUrl,
+        Duration logRetention,
+        long logMaxBytes
 ) {
     public NatsProperties {
         url = url == null || url.isBlank() ? "nats://localhost:4222" : url;
@@ -27,6 +29,8 @@ public record NatsProperties(
         outbox = outbox == null ? new Outbox(null, 0, null, null) : outbox;
         heartbeatInterval = heartbeatInterval == null ? Duration.ofSeconds(10) : heartbeatInterval;
         eventRetention = eventRetention == null ? Duration.ofDays(7) : eventRetention;
+        logRetention = logRetention == null ? Duration.ofDays(7) : logRetention;
+        logMaxBytes = logMaxBytes <= 0 ? 256L * 1024 * 1024 : logMaxBytes;
         leafMonitorUrl = leafMonitorUrl == null || leafMonitorUrl.isBlank()
                 ? defaultMonitorUrl(url) : leafMonitorUrl.trim().replaceAll("/+$", "");
     }

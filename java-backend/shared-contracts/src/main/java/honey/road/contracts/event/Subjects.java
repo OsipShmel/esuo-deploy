@@ -27,6 +27,16 @@ public final class Subjects {
 
     public static final String ALL_HEARTBEATS = "branch.*.hb";
 
+    /** Important log lines of a branch (WARN, ERROR, lifecycle), published by the branch collector; level in lower case. */
+    public static String branchLog(String branchId, String level) {
+        return "branch." + branchId + ".log." + level;
+    }
+
+    /** All log lines of a branch: BRANCH_LOG subjects. */
+    public static String branchLogsAll(String branchId) {
+        return "branch." + branchId + ".log.>";
+    }
+
     // ---- center → branch, sync
     public static String rpc(String branchId, String op) {
         return "branch." + branchId + ".rpc." + op;
@@ -47,12 +57,22 @@ public final class Subjects {
         return "center.mp.inbox.branch." + branchId;
     }
 
+    // ---- center-side logs
+    /** Full branch log lines pulled on request (diag.logs), published by the center into its own CENTER_LOG. */
+    public static String centerLogPull(String branchId) {
+        return "center.log.pull." + branchId;
+    }
+
+    public static final String CENTER_LOG_PULL_ALL = "center.log.pull.>";
+
     // ---- streams and domains
     public static final String STREAM_BRANCH_EVT = "BRANCH_EVT";
     public static final String STREAM_BRANCH_INBOX = "BRANCH_INBOX";
     public static final String STREAM_CENTER_EVT = "CENTER_EVT";
     public static final String STREAM_CONFIG = "CONFIG";
     public static final String STREAM_MP_INBOX = "MP_INBOX";
+    public static final String STREAM_BRANCH_LOG = "BRANCH_LOG";
+    public static final String STREAM_CENTER_LOG = "CENTER_LOG";
 
     public static final String CENTER_DOMAIN = "center";
 
