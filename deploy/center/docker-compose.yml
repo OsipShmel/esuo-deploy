@@ -51,6 +51,8 @@ services:
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:?Задайте MP_WEBHOOK_SECRET}
       MP_CALLBACK_URL: ${MP_CALLBACK_URL:-http://mp-simulator:8091/callback}
       CENTER_PUBLIC_URL: ${CENTER_PUBLIC_URL:?Задайте CENTER_PUBLIC_URL=http(s)://<адрес центра>:8081}
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}
+      CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}   # пусто => закрытый API центра недоступен
     ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}

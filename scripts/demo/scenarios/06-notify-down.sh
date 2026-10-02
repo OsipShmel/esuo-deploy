@@ -6,8 +6,7 @@ DESC="Очередь живёт, письма копятся в DLQ, breaker р�
 NODES="$NODE"
 scenario() {
   local i
-  local status_url="$CENTER/api/v1/admin/notifications/status"
-  ns() { curl -s "$status_url"; }
+  ns() { center_curl GET /api/v1/admin/notifications/status; }
   nchaos() { curl -fsS -X POST "$NOTIFY/chaos" -H 'Content-Type: application/json' -d "{\"mode\":\"$1\"}" >/dev/null; }
   npoll() { # npoll ОПИСАНИЕ СЕКУНД jq-условие-по-status
     local n
@@ -55,9 +54,9 @@ scenario() {
 
   say "Руководитель повторяет письма из DLQ (центр → «Уведомления» → «Повторить»)"
   local ids n=0 d=0 id res
-  ids=$(curl -s "$CENTER/api/v1/admin/dlq?kind=notification&status=open" | jq -r '.[].id')
+  ids=$(center_curl GET "/api/v1/admin/dlq?kind=notification&status=open" | jq -r '.[].id')
   for id in $ids; do
-    n=$((n+1)); res=$(curl -s -X POST "$CENTER/api/v1/admin/dlq/$id/retry" | jq -r .result); [ "$res" = delivered ] && d=$((d+1))
+    n=$((n+1)); res=$(center_curl POST "/api/v1/admin/dlq/$id/retry" | jq -r .result); [ "$res" = delivered ] && d=$((d+1))
   done
   assert "все письма из DLQ доставлены при повторе ($n)" "$d" "$n"
   fact "повторено из DLQ, писем" "$n"

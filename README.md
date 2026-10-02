@@ -43,6 +43,7 @@ docker compose up -d --build         # центр + отделения b01 и b0
 | `DEMO_MODE` | демо-часы (ускорение времени) и сброс стенда | `true` для демо |
 | `DEMO_DATA` | демо-справочники и пользователи | `true` |
 | `DEMO_OPERATOR_PASSWORD`, `DEMO_ADMIN_PASSWORD` | пароли `operator` / `admin` на нодах | по умолчанию `operator123` / `admin123` |
+| `CENTER_ADMIN_LOGIN`, `CENTER_ADMIN_PASSWORD` | оператор сети: вход в обзор сети и закрытый API центра | `network` / `network123` в `.env.example`; пусто — закрытый API недоступен никому |
 | `QR_SECRET` | ключ подписи QR отделения: код на табло меняется каждые 2 мин, наклейка — долгоживущая | `openssl rand -base64 32`; пусто — демо-код `demo:<b>` (только при `DEMO_DATA=true`) |
 | `QR_MODE` | куда ведёт QR на табло: `center` (интернет), `local` (Wi-Fi отделения), `auto` — центр, пока есть связь | по умолчанию `auto`; адрес центра — `CENTER_PUBLIC_URL` |
 
@@ -50,7 +51,7 @@ docker compose up -d --build         # центр + отделения b01 и b0
 
 | Экран | Адрес |
 |---|---|
-| Обзор сети (центр) | http://localhost:8081/network |
+| Обзор сети (центр) | http://localhost:8081/network — вход `network` / `CENTER_ADMIN_PASSWORD` |
 | Клиент | http://localhost:8080/ (b01), http://localhost:8090/ (b02) |
 | Табло | http://localhost:8080/board, http://localhost:8090/board |
 | Оператор / руководитель | `/operator`, `/admin` на порту отделения |

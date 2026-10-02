@@ -18,6 +18,7 @@ S_FIN=00000000-0000-4000-8000-000000000005
 
 command -v jq >/dev/null || { echo "Нужен jq"; exit 2; }
 [ -f .env ] && { set -a; . ./.env; set +a; }
+. ./scripts/center-auth.sh                     # закрытый API центра
 OP_PASS=${DEMO_OPERATOR_PASSWORD:-operator123}
 
 PASS=0; FAIL=0
@@ -27,6 +28,7 @@ ok()    { PASS=$((PASS+1)); green "  PASS  $1"; }
 bad()   { FAIL=$((FAIL+1)); red   "  FAIL  $1"; [ -n "${2:-}" ] && echo "        $2"; }
 req() { # req БАЗА МЕТОД ПУТЬ [curl-аргументы...] → $STATUS $BODY
   local base=$1 method=$2 path=$3; shift 3
+  [ "$base" = "$CENTER" ] && set -- "$@" -H "Authorization: Bearer ${CENTER_TOKEN:-}"
   BODY=$(curl -s -X "$method" "$base$path" -w $'\n%{http_code}' "$@")
   STATUS=${BODY##*$'\n'}; BODY=${BODY%$'\n'*}
 }

@@ -26,6 +26,7 @@ PG_B01=${PG_B01:-esuo-postgres-b01}
 PG_B02=${PG_B02:-esuo-postgres-b02}
 DB_USER=${DB_USER:-esuo}
 ADMIN_PASS=${DEMO_ADMIN_PASSWORD:-admin123}
+. "$ROOT/scripts/center-auth.sh"     # закрытый API центра: публикация конфигурации
 PROFILE=${PROFILE:-pension}
 
 B=$'\033[1m'; G=$'\033[32m'; R=$'\033[31m'; D=$'\033[2m'; Z=$'\033[0m'
@@ -38,7 +39,7 @@ token() { curl -sf -X POST "$1/api/v1/auth/login" -H 'Content-Type: application/
             -d "$(jq -nc --arg p "$ADMIN_PASS" '{login:"admin",password:$p}')" | jq -r '.access_token // empty' || true; }
 put_center() { # put_center ПУТЬ ТЕЛО — публикация в центр, падает с телом ответа при ошибке
   local out code
-  out=$(curl -s -X PUT "$CENTER$1" -H 'Content-Type: application/json' --data-binary "$2" -w $'\n%{http_code}')
+  out=$(center_curl PUT "$1" -H 'Content-Type: application/json' --data-binary "$2" -w $'\n%{http_code}')
   code=${out##*$'\n'}
   [ "${code:0:1}" = 2 ] || die "PUT $1 → HTTP $code: $(echo "${out%$'\n'*}" | head -c 300)"
 }
@@ -78,7 +79,7 @@ step "Публикую конфигурацию: planning всем, model тол
 # Центр заменяет секцию queue целиком, поэтому берём текущую и дописываем в неё только цели ожидания.
 # Трасса ведёт всех трёх категорий клиентов (default, pensioner, special); на стенде, чья центральная конфигурация
 # собрана до появления special в queue-defaults.yml, нода отвергала бы таких клиентов «Неизвестная категория».
-QUEUE=$(curl -sf "$CENTER/api/v1/config" | jq -c '.global.queue // {}') || die "не читается GET $CENTER/api/v1/config"
+QUEUE=$(center_curl GET /api/v1/config -f | jq -c '.global.queue // {}') || die "не читается GET $CENTER/api/v1/config"
 TARGET_WAIT='{"target_wait_min":{"qr":{"default":20,"pensioner":15,"special":10},"walkin":{"default":30,"pensioner":20,"special":15}}}'
 put_center /api/v1/config/global "$(jq -c --argjson q "$QUEUE" --argjson t "$TARGET_WAIT" '. + {model: null, queue: ($q * $t)}' "$SC/planning.json")"
 ok "planning.json и цели ожидания трёх категорий → глобально (секция model глобально снята)"
@@ -100,7 +101,7 @@ for _ in $(seq 1 60); do
   if [ "$v1" = none ] && [ "$v2" = "$MODEL_VERSION" ] && [ "$p1" = true ] && [ "$p2" = true ]; then applied=1; break; fi
   sleep 1
 done
-[ "$applied" = 1 ] || die "конфигурация не доехала за 60 с: $BRANCH модель=$v1, $BRANCH2 модель=$v2 (ждали none и $MODEL_VERSION). Связь с центром? GET $CENTER/api/v1/network/overview"
+[ "$applied" = 1 ] || die "конфигурация не доехала за 60 с: $BRANCH модель=$v1, $BRANCH2 модель=$v2 (ждали none и $MODEL_VERSION). Связь с центром? center_curl GET /api/v1/network/overview"
 ok "$BRANCH: модели нет; $BRANCH2: модель $MODEL_VERSION; профиль «${PROFILE}» есть у обеих"
 
 # ---------------------------------------------------------------- 2. сброс

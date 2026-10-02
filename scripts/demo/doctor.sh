@@ -8,6 +8,7 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 NODE=${NODE:-http://localhost:8080}; NODE2=${NODE2:-http://localhost:8090}; CENTER=${CENTER:-http://localhost:8081}
 MP=${MP:-http://localhost:8096}; NOTIFY=${NOTIFY:-http://localhost:8095}
 OP_PASS=${DEMO_OPERATOR_PASSWORD:-operator123}; ADMIN_PASS=${DEMO_ADMIN_PASSWORD:-admin123}
+. "$ROOT/scripts/center-auth.sh"     # закрытый API центра
 
 G=$'\033[32m'; R=$'\033[31m'; Y=$'\033[33m'; B=$'\033[1m'; D=$'\033[2m'; Z=$'\033[0m'
 BAD=0; WARN=0
@@ -48,7 +49,9 @@ for n in "$NODE" "$NODE2"; do
   [ -n "$(login "$n" operator "$OP_PASS")" ] && [ -n "$(login "$n" admin "$ADMIN_PASS")" ] \
     && ok "нода $n: вход оператором и руководителем" || bad "нода $n: не входит operator/admin — пароли в .env"
 done
-online=$(curl -s --max-time 5 "$CENTER/api/v1/network/overview" | jq '[.branches[]?|select(.online==true)]|length' 2>/dev/null)
+[ -n "$CENTER_TOKEN" ] && ok "центр: вход оператором сети ($CENTER_ADMIN_LOGIN)" \
+  || bad "центр: не входит $CENTER_ADMIN_LOGIN — задайте CENTER_ADMIN_PASSWORD в .env (как в .env.example) и пересоздайте center-app"
+online=$(center_curl GET /api/v1/network/overview --max-time 5 | jq '[.branches[]?|select(.online==true)]|length' 2>/dev/null)
 [ "${online:-0}" -ge 2 ] && ok "центр видит оба отделения на связи" || bad "центр видит на связи ${online:-0} отделений из 2 — подождите heartbeat (~30 с) или проверьте nats"
 [ "$(code "$MP/health")" = 200 ] && ok "mp-simulator $MP" || warn "mp-simulator не отвечает: не запустятся mp и запись в pension-ab"
 [ "$(code "$NOTIFY/health")" = 200 ] && ok "notify-mock $NOTIFY" || warn "notify-mock не отвечает: не запустится notify-down"

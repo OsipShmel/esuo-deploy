@@ -13,6 +13,7 @@ W1=00000000-0000-4000-8000-000000000003
 S_PARCEL=00000000-0000-4000-8000-000000000001
 command -v jq >/dev/null || { echo "Нужен jq"; exit 2; }
 [ -f .env ] && { set -a; . ./.env; set +a; }
+. ./scripts/center-auth.sh                     # статус уведомлений и DLQ — закрытый API центра
 
 chaos() { curl -fsS -X POST "$NOTIFY/chaos" -H 'Content-Type: application/json' -d "{\"mode\":\"$1\"}" >/dev/null \
   && echo "notify-mock: режим $1" || { echo "notify-mock недоступен ($NOTIFY)"; exit 1; }; }
@@ -27,7 +28,7 @@ PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); printf '\033[32m  PASS  %s\033[0m\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '\033[31m  FAIL  %s\033[0m\n' "$1"; [ -n "${2:-}" ] && echo "        $2"; }
 J=(-H 'Content-Type: application/json')
-status() { curl -s "$CENTER/api/v1/admin/notifications/status"; }
+status() { center_curl GET /api/v1/admin/notifications/status; }
 poll() { # poll ОПИСАНИЕ СЕКУНД jq-УСЛОВИЕ-ПО-status
   local i; for i in $(seq 1 "$2"); do status | jq -e "$3" >/dev/null 2>&1 && { ok "$1 (${i} с)"; return 0; }; sleep 1; done
   bad "$1" "за $2 с: $(status)"; return 1; }
@@ -71,10 +72,10 @@ poll "новые уведомления доставлены (sent > $SENT0)" 12
 poll "circuit breaker CLOSED" 150 '.circuit_breaker.state == "CLOSED"'
 
 echo "== 3. Повтор из DLQ"
-IDS=$(curl -s "$CENTER/api/v1/admin/dlq?kind=notification&status=open" | jq -r '.[].id')
+IDS=$(center_curl GET "/api/v1/admin/dlq?kind=notification&status=open" | jq -r '.[].id')
 N=0; D=0
 for id in $IDS; do N=$((N+1))
-  R=$(curl -s -X POST "$CENTER/api/v1/admin/dlq/$id/retry" | jq -r .result); [ "$R" = delivered ] && D=$((D+1)); done
+  R=$(center_curl POST "/api/v1/admin/dlq/$id/retry" | jq -r .result); [ "$R" = delivered ] && D=$((D+1)); done
 [ "$N" -gt 0 ] && [ "$D" = "$N" ] && ok "повтор из DLQ: $D из $N delivered" || bad "повтор из DLQ" "delivered $D из $N"
 echo "после: $(status)"
 echo "notify-mock: $(curl -s "$NOTIFY/messages?limit=1" | jq -c '{received, accepted, unique}')"

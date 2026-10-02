@@ -79,6 +79,9 @@ services:
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:?Задайте MP_WEBHOOK_SECRET в .env}
       MP_CALLBACK_URL: http://mp-simulator:8091/callback
       CENTER_PUBLIC_URL: ${CENTER_PUBLIC_URL:-http://localhost:8081}
+      # Оператор сети: вход в /network и закрытый API центра; пусто => закрытый API недоступен никому
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}
+      CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}
     ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}
@@ -120,6 +123,8 @@ services:
       MP: http://mp-simulator:8091
       NOTIFY: http://notify-mock:8090
       HUB_MONITOR: http://nats-hub:8222
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}       # сценарии ходят в закрытый API центра
+      CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}
       TZ: ${BRANCH_TIMEZONE:-Europe/Moscow}
     volumes:
       - .:/repo

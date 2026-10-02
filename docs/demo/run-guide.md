@@ -21,7 +21,11 @@ docker compose up -d --build      # центр + отделения b01 и b02 +
 | Табло | http://localhost:8080/board |
 | Оператор | http://localhost:8080/operator |
 | Руководитель | http://localhost:8080/admin |
-| Обзор сети (центр) | http://localhost:8081/network |
+| Обзор сети (центр) | http://localhost:8081/network — вход `network` / `CENTER_ADMIN_PASSWORD` из `.env` |
+
+API центра, кроме публичного шлюза клиента, закрыт: для `curl` нужен токен оператора сети —
+`TOKEN=$(curl -s -X POST localhost:8081/api/v1/auth/login -H 'Content-Type: application/json' -d '{"login":"network","password":"network123"}' | jq -r .access_token)`,
+дальше `-H "Authorization: Bearer $TOKEN"`. Скрипты `scripts/` входят сами (`scripts/center-auth.sh`).
 | Демо-пульт: журнал решений системы | http://localhost:8080/demo |
 
 ## 1. Десять проверок
