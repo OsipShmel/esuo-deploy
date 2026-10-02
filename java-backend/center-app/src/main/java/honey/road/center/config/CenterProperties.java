@@ -9,7 +9,7 @@ import java.util.List;
 
 @ConfigurationProperties("esuo.center")
 public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration offlineAfter, List<String> corsOrigins,
-                               @Name("notify") Notify notification, Mp mp) {
+                               @Name("notify") Notify notification, Mp mp, Security security) {
     public CenterProperties {
         natsUrl = natsUrl == null || natsUrl.isBlank() ? "nats://localhost:4222" : natsUrl;
         rpcTimeout = rpcTimeout == null ? Duration.ofSeconds(3) : rpcTimeout;
@@ -17,6 +17,26 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
         corsOrigins = corsOrigins == null ? List.of() : List.copyOf(corsOrigins);
         notification = notification == null ? new Notify(null, null, null, null, 0, null, null) : notification;
         mp = mp == null ? new Mp(null, null, null, null, null, 0, null, null) : mp;
+        security = security == null ? new Security(null, null, null, null, null) : security;
+    }
+
+    /**
+     * Center API access (design 4.2): one network admin account from the environment, HS256 tokens.
+     * An empty password means no account at all, so the private API stays closed rather than open.
+     */
+    public record Security(String jwtSecret, Duration jwtTtl, String issuer, String adminLogin, String adminPassword) {
+        public Security {
+            jwtSecret = jwtSecret == null ? "" : jwtSecret.trim();
+            jwtTtl = jwtTtl == null ? Duration.ofHours(12) : jwtTtl;
+            issuer = issuer == null || issuer.isBlank() ? "esuo-center" : issuer;
+            adminLogin = adminLogin == null || adminLogin.isBlank() ? "network" : adminLogin.trim();
+            adminPassword = adminPassword == null ? "" : adminPassword;
+        }
+
+        @Override
+        public String toString() {
+            return "Security[issuer=%s, adminLogin=%s, jwtTtl=%s]".formatted(issuer, adminLogin, jwtTtl);
+        }
     }
 
     /** Notification delivery (sect 11.3). */

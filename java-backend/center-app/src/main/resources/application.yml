@@ -36,6 +36,10 @@ logging:
 esuo:
   center:
     nats-url: ${NATS_URL:nats://localhost:4222}
+    security:                                   # design 4.2: everything but the public list needs NETWORK_ADMIN
+      jwt-secret: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      admin-login: ${CENTER_ADMIN_LOGIN:network}
+      admin-password: ${CENTER_ADMIN_PASSWORD:}   # empty => no account, the private API is closed
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
