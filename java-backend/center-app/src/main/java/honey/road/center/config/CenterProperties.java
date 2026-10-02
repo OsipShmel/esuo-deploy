@@ -9,7 +9,7 @@ import java.util.List;
 
 @ConfigurationProperties("esuo.center")
 public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration offlineAfter, List<String> corsOrigins,
-                               @Name("notify") Notify notification, Mp mp, Security security) {
+                               @Name("notify") Notify notification, Mp mp, Security security, Logs logs) {
     public CenterProperties {
         natsUrl = natsUrl == null || natsUrl.isBlank() ? "nats://localhost:4222" : natsUrl;
         rpcTimeout = rpcTimeout == null ? Duration.ofSeconds(3) : rpcTimeout;
@@ -18,6 +18,27 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
         notification = notification == null ? new Notify(null, null, null, null, 0, null, null) : notification;
         mp = mp == null ? new Mp(null, null, null, null, null, 0, null, null) : mp;
         security = security == null ? new Security(null, null, null, null, null) : security;
+        logs = logs == null ? new Logs(null, 0, null, null, null, null, null, null, 0) : logs;
+    }
+
+    /**
+     * Branch logs (design 5.5–5.7): CENTER_LOG limits and shipping to Loki. An empty {@code lokiUrl} turns shipping off;
+     * the lines then wait in CENTER_LOG.
+     */
+    public record Logs(String lokiUrl, int batchSize, Duration batchWait, List<Duration> backoff, Duration connectTimeout,
+                       Duration requestTimeout, String grafanaPublicUrl, Duration retention, long maxBytes) {
+        public Logs {
+            lokiUrl = lokiUrl == null ? "" : lokiUrl.trim().replaceAll("/+$", "");
+            batchSize = batchSize < 1 ? 500 : batchSize;
+            // jnats refuses a pull shorter than 1 s; the batch window cannot go below that
+            batchWait = batchWait == null || batchWait.compareTo(Duration.ofSeconds(1)) < 0 ? Duration.ofSeconds(1) : batchWait;
+            backoff = backoff == null || backoff.isEmpty() ? seconds(1, 2, 5, 15, 30) : List.copyOf(backoff);
+            connectTimeout = connectTimeout == null ? Duration.ofSeconds(2) : connectTimeout;
+            requestTimeout = requestTimeout == null ? Duration.ofSeconds(10) : requestTimeout;
+            grafanaPublicUrl = grafanaPublicUrl == null ? "" : grafanaPublicUrl.trim().replaceAll("/+$", "");
+            retention = retention == null ? Duration.ofDays(7) : retention;
+            maxBytes = maxBytes <= 0 ? 2L * 1024 * 1024 * 1024 : maxBytes;
+        }
     }
 
     /**

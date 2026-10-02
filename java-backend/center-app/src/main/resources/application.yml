@@ -36,6 +36,9 @@ logging:
 esuo:
   center:
     nats-url: ${NATS_URL:nats://localhost:4222}
+    logs:                                       # design 5.5-5.7: CENTER_LOG and shipping to Loki
+      loki-url: ${LOKI_URL:}                    # empty => not shipped, lines wait in CENTER_LOG (7 days)
+      grafana-public-url: ${GRAFANA_PUBLIC_URL:}  # for links to pulled logs; empty => no link
     security:                                   # design 4.2: everything but the public list needs NETWORK_ADMIN
       jwt-secret: ${JWT_SECRET:?Set JWT_SECRET in .env}
       admin-login: ${CENTER_ADMIN_LOGIN:network}
