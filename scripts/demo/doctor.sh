@@ -59,7 +59,11 @@ online=$(center_curl GET /api/v1/network/overview --max-time 5 | jq '[.branches[
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx esuo-loki; then
   hdr "Мониторинг (профиль monitoring)"
   LOKI=${LOKI:-http://localhost:3100}; GRAFANA=${GRAFANA:-http://localhost:3000}
-  [ "$(code "$LOKI/ready")" = 200 ] && ok "Loki $LOKI" || bad "Loki $LOKI не готов — docker logs esuo-loki"
+  # /ready отвечает 503 с причиной, пока кольцо Loki не готово (старт, короткие паузы) — три попытки, причину показываем
+  loki_ready=""; for i in 1 2 3; do loki_ready=$(curl -s --max-time 5 -w ' (HTTP %{http_code})' "$LOKI/ready"); case "$loki_ready" in *"HTTP 200"*) break;; esac; sleep 2; done
+  case "$loki_ready" in *"HTTP 200"*) ok "Loki $LOKI";;
+    *"HTTP 000"*) bad "Loki $LOKI не отвечает — docker compose --profile monitoring up -d loki";;
+    *) bad "Loki $LOKI не готов: $loki_ready — docker logs esuo-loki";; esac
   [ "$(code "$GRAFANA/api/health")" = 200 ] && ok "Grafana $GRAFANA" || bad "Grafana $GRAFANA не отвечает — docker logs esuo-grafana"
   for v in esuo-vector-b01 esuo-vector-b02; do
     [ "$(docker inspect -f '{{.State.Running}}' "$v" 2>/dev/null)" = true ] && ok "сборщик логов $v" \
