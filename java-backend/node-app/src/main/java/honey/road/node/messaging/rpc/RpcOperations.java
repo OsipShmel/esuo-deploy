@@ -7,6 +7,7 @@ import honey.road.contracts.rpc.RpcReply;
 import honey.road.node.api.publicapi.PublicTicketController;
 import honey.road.node.config.JsonCodec;
 import honey.road.node.monitoring.DiagLogs;
+import honey.road.node.monitoring.DiagnosticsSnapshot;
 import jakarta.validation.Validator;
 import org.springframework.stereotype.Component;
 
@@ -22,14 +23,16 @@ public class RpcOperations {
     private final PublicTicketController api;
     private final TicketQueries queries;
     private final DiagLogs diagLogs;
+    private final DiagnosticsSnapshot snapshot;
     private final JsonCodec json;
     private final Validator validator;
 
     public RpcOperations(PublicTicketController api, TicketQueries queries, DiagLogs diagLogs,
-                         JsonCodec json, Validator validator) {
+                         DiagnosticsSnapshot snapshot, JsonCodec json, Validator validator) {
         this.api = api;
         this.queries = queries;
         this.diagLogs = diagLogs;
+        this.snapshot = snapshot;
         this.json = json;
         this.validator = validator;
     }
@@ -76,6 +79,7 @@ public class RpcOperations {
                 yield RpcReply.ok(200, api.checkIn(r.token(), valid(new PublicTicketController.CheckInRequest(r.qrCode()))));
             }
             case "diag.logs" -> RpcReply.ok(200, diagLogs.read(read(body, DiagLogs.Request.class)));
+            case "diag.snapshot" -> RpcReply.ok(200, snapshot.take());
             default -> throw new EsuoException(ErrorCode.NOT_FOUND, "Неизвестная операция " + op);
         };
     }
