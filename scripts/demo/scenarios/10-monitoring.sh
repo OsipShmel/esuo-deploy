@@ -119,5 +119,5 @@ scenario() {
   assert "в обзоре сети аномалия «перезапуск» с понятным текстом" "$([ -n "$alert" ] && echo yes || echo no)" yes
   [ -n "$alert" ] && fact "аномалия" "$alert"
   ev "monitoring|restart-alert"
-  watch_ "/network → «Аномалии»: «$BRANCH: $alert»"
+  watch_ "/network → «Аномалии»: «${BRANCH}: ${alert}»"
 }
