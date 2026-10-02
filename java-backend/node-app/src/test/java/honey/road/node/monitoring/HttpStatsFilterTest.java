@@ -40,6 +40,16 @@ class HttpStatsFilterTest {
         assertThat(filter.drain().count()).isZero();
     }
 
+    /** The node also serves the screens; their files are fast and would make p95 look better than the API is. */
+    @Test
+    void screensAndTheirFilesAreNotCounted() throws Exception {
+        for (var uri : new String[]{"/", "/board", "/operator/", "/assets/index-3f2a.js", "/assets/app.css", "/apiary"}) {
+            call(uri, (rq, rs) -> { });
+        }
+
+        assertThat(filter.drain().count()).isZero();
+    }
+
     @Test
     void statusIsTakenFromTheResponse() throws Exception {
         call("/api/v1/x", (rq, rs) -> ((MockHttpServletResponse) rs).setStatus(503));

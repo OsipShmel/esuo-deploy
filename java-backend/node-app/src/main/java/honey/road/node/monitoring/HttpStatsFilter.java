@@ -13,8 +13,9 @@ import java.io.IOException;
 
 /**
  * Counts the node's API requests for the {@code sys} block (design 6.1): count, 5xx and p95 per heartbeat interval.
- * SSE streams and actuator are left out: a stream lives for minutes and would make p95 meaningless, and health probes
- * are not user traffic. Runs before security, so a rejected request is counted too.
+ * Only {@code /api/}: the screens and their files are served by the node too, are fast and would make p95 look better
+ * than the API is; actuator probes are not user traffic. SSE streams are left out as well — a stream lives for minutes
+ * and would make p95 meaningless. Runs before security, so a rejected request is counted too.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -23,7 +24,7 @@ public class HttpStatsFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getRequestURI().startsWith("/actuator");
+        return !request.getRequestURI().startsWith("/api/");
     }
 
     @Override
