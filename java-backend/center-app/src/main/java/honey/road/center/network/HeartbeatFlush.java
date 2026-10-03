@@ -27,9 +27,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Writes buffered heartbeats every few seconds (design 6.2): one transaction upserts {@code branches} and appends
- * {@code branch_metrics}, instead of a transaction per heartbeat. A failed write puts the batch back unless a fresher
- * heartbeat replaced it; the overview lags by at most one flush interval, far below the 30 s offline threshold. The
+ * Writes buffered heartbeats every few seconds (design 6.2): first "seen" for every branch of the batch, then per
+ * chunk one transaction upserts {@code branches} and appends {@code branch_metrics}, instead of a transaction per
+ * heartbeat. A failed write puts the chunk back unless a fresher heartbeat replaced it. The
  * metrics go under a savepoint: whatever breaks them, the branches stay online and only that batch of metric rows is
  * lost. Branches behind a regional hub get their own, coarser resolution (scale design 5.1).
  */
@@ -118,6 +118,7 @@ public class HeartbeatFlush {
             return;
         }
         long started = System.nanoTime();
+        seen(batch);
         int failed = 0;
         String failure = null;
         for (int from = 0; from < batch.size(); from += chunk) {
@@ -139,22 +140,35 @@ public class HeartbeatFlush {
     }
 
     /**
+     * The whole batch as "seen" first, a chunk per statement, before any content (scale design 9.2): at 250 000 branches
+     * the content and metric rows of one flush take seconds to write, and "online" must neither wait for them nor fail
+     * with them. A chunk that cannot be marked is only logged: its content write marks it too.
+     */
+    private void seen(List<Heartbeat> batch) {
+        for (int from = 0; from < batch.size(); from += chunk) {
+            var part = batch.subList(from, Math.min(from + chunk, batch.size()));
+            try {
+                registry.touch(part);
+            } catch (RuntimeException e) {
+                log.warn("heartbeat flush: {} branches not marked seen: {}", part.size(), e.toString());
+            }
+        }
+    }
+
+    /**
      * One chunk in one transaction: branches, then their metric rows under a savepoint. An ordinary branch has its
      * heartbeat written whole every time; a branch behind a regional hub has its content written at the regional
-     * metrics resolution and in between only "seen at" (scale design 9.2): at 250 000 branches rewriting every
+     * metrics resolution, and in between {@link #seen} is all (scale design 9.2): at 250 000 branches rewriting every
      * heartbeat JSON every 10 s was more than the database could write, and "online" lagged towards offline.
      */
     private void write(List<Heartbeat> part) {
         var rows = new ArrayList<MetricsRow>();
         var content = new ArrayList<Heartbeat>(part.size());
-        var seen = new ArrayList<Heartbeat>();
         for (var hb : part) {
             boolean due = cadence.due(hb.branchId(), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution,
                     hb.regional());
             if (due || !hb.regional()) {
                 content.add(hb);
-            } else {
-                seen.add(hb);
             }
             if (due) {
                 try {
@@ -166,7 +180,6 @@ public class HeartbeatFlush {
         }
         boolean written = Boolean.TRUE.equals(tx.execute(s -> {
             registry.saveHeartbeats(content);
-            registry.touch(seen);
             var savepoint = s.createSavepoint();
             try {
                 metrics.insert(rows);

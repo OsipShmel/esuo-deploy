@@ -182,6 +182,28 @@ class HeartbeatFlushIT extends AbstractCenterIT {
                 .single().toInstant();
     }
 
+    /**
+     * "Seen" goes first, for the whole batch, before any content (scale design 9.2): at 250 000 branches the content and
+     * metric rows of one flush take seconds to write, and "online" must not wait for them — nor fail with them.
+     */
+    @Test
+    void aBranchIsSeenOnlineThoughItsContentCannotBeWritten() throws Exception {
+        register("hl1", hb("Before", 0, null));
+        Thread.sleep(50);
+        var before = Instant.now();
+        beat("hl1", hb("After", 1, null));
+        jdbc.sql("ALTER TABLE branches ADD CONSTRAINT no_writes CHECK (name <> 'After') NOT VALID").update();
+        try {
+            flush.run();
+        } finally {
+            jdbc.sql("ALTER TABLE branches DROP CONSTRAINT no_writes").update();
+        }
+
+        assertThat(name("hl1")).isEqualTo("Before");                   // the content failed and waits for the next flush
+        var seen = registry.statuses().stream().filter(s -> s.id().equals("hl1")).findFirst().orElseThrow();
+        assertThat(seen.lastHeartbeatAt()).isAfterOrEqualTo(before.minusMillis(1));   // but the branch is on line
+    }
+
     @Test
     void brokenMetricsWriteDoesNotLoseTheHeartbeat() {
         register("hf7", hb("Before", 0, null));
