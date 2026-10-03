@@ -52,7 +52,7 @@ done
 [ -n "$CENTER_TOKEN" ] && ok "центр: вход оператором сети ($CENTER_ADMIN_LOGIN)" \
   || bad "центр: не входит $CENTER_ADMIN_LOGIN — задайте CENTER_ADMIN_PASSWORD в .env (как в .env.example) и пересоздайте center-app"
 online=$(center_curl GET /api/v1/network/overview --max-time 5 | jq '[.branches[]?|select(.online==true)]|length' 2>/dev/null)
-[ "${online:-0}" -ge 2 ] && ok "центр видит оба отделения на связи" || bad "центр видит на связи ${online:-0} отделений из 2 — подождите heartbeat (~30 с) или проверьте nats"
+[ "${online:-0}" -ge 2 ] && ok "центр видит оба отделения на связи" || bad "центр видит на связи ${online:-0} отделений из 2 — подождите heartbeat (~30 с); связь остановлена? ./scripts/chaos/cut-branch-link.sh b01 status"
 [ "$(code "$MP/health")" = 200 ] && ok "mp-simulator $MP" || warn "mp-simulator не отвечает: не запустятся mp и запись в pension-ab"
 [ "$(code "$NOTIFY/health")" = 200 ] && ok "notify-mock $NOTIFY" || warn "notify-mock не отвечает: не запустится notify-down"
 

@@ -21,7 +21,9 @@ x-leaf: &leaf
 x-link: &link
   image: alpine/socat:latest
   command: ["-d", "tcp-listen:7422,fork,reuseaddr", "tcp-connect:nats-hub:7422"]
-  restart: "no"
+  # unless-stopped: a link cut by scripts/chaos (docker stop) stays cut, but a Docker restart or a sleeping laptop
+  # does not leave both branches offline until someone notices
+  restart: unless-stopped
 
 x-pg: &pg
   image: postgres:16-alpine
