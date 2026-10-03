@@ -29,8 +29,7 @@ case "$ACTION" in
     . "$ROOT/scripts/center-auth.sh"           # обзор сети — закрытый API центра
     linked && echo "кабель: $LINK работает" || echo "кабель: $LINK остановлен (связи с центром нет)"
     command -v jq >/dev/null || exit 0
-    center_curl GET /api/v1/network/overview | jq -r --arg b "$BRANCH" \
-      '.branches[] | select(.id==$b) | "центр: online=\(.online), heartbeat \(.seconds_since_heartbeat) с назад"'
+    center_card "$BRANCH" | jq -r '"центр: online=\(.online), heartbeat \(.seconds_since_heartbeat) с назад"'
     local_n=$(docker exec "$LEAF" wget -qO- "http://localhost:8222/jsz?streams=true" 2>/dev/null \
       | jq '[.account_details[]?.stream_detail[]? | select(.name=="BRANCH_EVT") | .state.messages] | first // 0')
     center_n=$(curl -s "$HUB_MONITOR/jsz?streams=true&config=true" \

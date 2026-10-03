@@ -1,9 +1,9 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { formatSeconds } from '@shared/format/duration';
 import { formatDateTime } from '@shared/format/time';
 import { EmptyState, Icon, Loading, LoadLevelBadge, ProblemAlert, problemText } from '@shared/ui';
-import { getOverview, pullLogs, takeSnapshot, type BranchCard, type LogPullResult, type NodeLine, type Snapshot } from '../api';
+import { getBranchPage, getSummary, pullLogs, takeSnapshot, type BranchCard, type BranchFilter, type LogPullResult, type NodeLine, type Snapshot } from '../api';
 import { useToast } from '../toast';
 
 /** Тексты аномалий (постановка network, вкладка «Сеть»). */
@@ -17,47 +17,147 @@ const ANOMALY: Record<string, (b: BranchCard) => string> = {
   overload: (b) => `${b.id}: перегрузка дольше 15 минут`,
   db_unavailable: (b) => `${b.id}: данные очереди не обновляются ${formatSeconds(b.db_unavailable_sec ?? 0)} — база отделения не отвечает или ПК перегружен; связь есть`,
 };
+/** Подпись аномалии в итоге по сети: «без связи — 37». */
+const ANOMALY_TITLE: Record<string, string> = {
+  offline: 'без связи',
+  wait_grows_without_tickets: 'ожидание растёт без клиентов',
+  overdue_tickets: 'просроченные талоны',
+  no_open_windows: 'окна закрыты при очереди',
+  outbox_lag: 'события задерживаются',
+  config_pending: 'конфигурация не применена',
+  overload: 'перегрузка дольше 15 мин',
+  db_unavailable: 'база отделения не отвечает',
+};
 const DANGER = new Set(['offline', 'no_open_windows', 'overload', 'db_unavailable']);
 /** Правила мониторинга (`sys.*`) присылают текст сами. */
 const alertOf = (b: BranchCard, code: string) => b.alerts?.find((a) => a.code === code);
 
-/** Опрос раз в 5 секунд: у центра для этого экрана нет живого потока (постановка network). */
+const FILTERS: [BranchFilter, string][] = [['all', 'Все'], ['problems', 'С проблемами'], ['offline', 'Без связи'], ['online', 'На связи']];
+const PAGE = 24;
+const TOP = 10;
+
+/**
+ * Обзор сети (план финала, C3c): сводка, худшие отделения и постраничный список с поиском. Экран не тянет все карточки
+ * сети раз в 5 секунд — на 40 000 отделений это мегабайты JSON и десятки тысяч узлов страницы. Опрос раз в 5 секунд:
+ * у центра для этого экрана нет живого потока (постановка network).
+ */
 export function OverviewPage() {
-  const q = useQuery({ queryKey: ['overview'], queryFn: getOverview, refetchInterval: 5_000 });
-  if (q.isLoading) return <Loading rows={4} />;
-  if (!q.data) return <ProblemAlert error={q.error} />;
-  const o = q.data;
-  const anomalies = o.branches.flatMap((b) => b.anomalies.map((code) => ({ b, code })));
+  const [search, setSearch] = useState('');
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<BranchFilter>('all');
+  const [offset, setOffset] = useState(0);
+  useEffect(() => { const id = window.setTimeout(() => { setQ(search.trim()); setOffset(0); }, 300); return () => window.clearTimeout(id); }, [search]);
+
+  const summary = useQuery({ queryKey: ['network-summary'], queryFn: () => getSummary(TOP), refetchInterval: 5_000 });
+  const page = useQuery({
+    queryKey: ['network-branches', q, filter, offset],
+    queryFn: () => getBranchPage({ q: q || undefined, status: filter, offset, limit: PAGE }),
+    refetchInterval: 5_000,
+    placeholderData: keepPreviousData,
+  });
+
+  if (summary.isLoading) return <Loading rows={4} />;
+  if (!summary.data) return <ProblemAlert error={summary.error} />;
+  const s = summary.data;
+  const lines = s.problems.flatMap((b) => b.anomalies.map((code) => ({ b, code })));
+  const codes = Object.entries(s.anomalies).sort((a, b) => b[1] - a[1]);
+  const regions = s.regions.filter((r) => r.events_via);
+  const show = (id: string) => { setSearch(id); setQ(id); setFilter('all'); setOffset(0); };
+  const p = page.data;
 
   return (
     <div className="stack">
-      <ProblemAlert error={q.error} />
+      <ProblemAlert error={summary.error ?? page.error} />
       <div className="row between">
-        <h2 style={{ margin: 0 }}>На связи {o.branches_online} из {o.branches_total}</h2>
-        <span className="muted small">обновлено {formatDateTime(o.generated_at)}</span>
+        <h2 style={{ margin: 0 }}>На связи {s.branches_online} из {s.branches_total}</h2>
+        <span className="muted small">обновлено {formatDateTime(s.generated_at)}</span>
       </div>
+      {s.branches_total > 0 && (
+        <div className="row net-counters">
+          <span className={`chip tone-${s.branches_offline > 0 ? 'danger' : 'ok'}`}>без связи {s.branches_offline}</span>
+          <span className={`chip tone-${s.problem_branches_total > 0 ? 'warn' : 'ok'}`}>с проблемами {s.problem_branches_total}</span>
+          {Object.entries(s.load_levels).filter(([level]) => level !== 'unknown').map(([level, n]) => (
+            <span key={level} className="row" style={{ gap: 4 }}><LoadLevelBadge level={level} /> {n}</span>
+          ))}
+        </div>
+      )}
+      {regions.length > 0 && (
+        <div className="row net-counters" aria-label="Регионы">
+          {s.regions.map((r) => (
+            <span key={r.events_via ?? 'own'} className="chip tone-muted">
+              {r.events_via ?? 'свой leaf'}: {r.online}/{r.total}{r.problems > 0 ? ` · проблем ${r.problems}` : ''}
+            </span>
+          ))}
+        </div>
+      )}
 
-      {anomalies.length > 0 && (
+      {lines.length > 0 && (
         <section className="card" aria-label="Аномалии">
-          <h2>Аномалии · {anomalies.length}</h2>
+          <h2>Аномалии · {s.problem_branches_total} {plural(s.problem_branches_total, 'отделение', 'отделения', 'отделений')}</h2>
+          {s.problem_branches_total > s.problems.length && (
+            <div className="row net-counters" style={{ marginBottom: 12 }}>
+              {codes.map(([code, n]) => (
+                <span key={code} className={`chip tone-${DANGER.has(code) ? 'danger' : 'warn'}`}>{ANOMALY_TITLE[code] ?? code} — {n}</span>
+              ))}
+            </div>
+          )}
           <ul className="anomalies">
-            {anomalies.map(({ b, code }) => {
+            {lines.map(({ b, code }) => {
               const alert = alertOf(b, code);
               return (
                 <li key={`${b.id}-${code}`} className={DANGER.has(code) || alert?.severity === 'critical' ? 'danger' : undefined}>
                   <Icon name="alert" /> {ANOMALY[code]?.(b) ?? `${b.id}: ${alert?.text ?? code}`}
+                  {s.branches_total > PAGE && <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => show(b.id)}>Показать</button>}
                 </li>
               );
             })}
           </ul>
+          {s.problem_branches_total > s.problems.length && (
+            <p className="muted small" style={{ margin: '8px 0 0' }}>
+              Показаны {s.problems.length} худших из {s.problem_branches_total}. Остальные — в списке ниже, фильтр «С проблемами».
+            </p>
+          )}
         </section>
       )}
 
-      {o.branches.length === 0 ? <EmptyState title="Отделений пока нет">Отделение появится после первого heartbeat.</EmptyState> : (
-        <div className="cards">{o.branches.map((b) => <Card key={b.id} b={b} />)}</div>
+      {s.branches_total === 0 ? <EmptyState title="Отделений пока нет">Отделение появится после первого heartbeat.</EmptyState> : (
+        <section className="stack" aria-label="Отделения">
+          {s.branches_total > PAGE && (
+            <div className="row net-filter">
+              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Номер или название отделения" aria-label="Поиск отделения" />
+              <div className="row" role="group" aria-label="Фильтр">
+                {FILTERS.map(([value, title]) => (
+                  <button key={value} type="button" className="btn btn-sm" aria-pressed={filter === value}
+                    onClick={() => { setFilter(value); setOffset(0); }}>{title}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {page.isPlaceholderData && <p className="muted small" role="status" style={{ margin: 0 }}>Обновляем список…</p>}
+          {!p ? <Loading rows={3} /> : p.total === 0 ? <EmptyState title="Ничего не найдено">Измените поиск или фильтр.</EmptyState> : (
+            <>
+              <div className={`cards${page.isPlaceholderData ? ' stale' : ''}`}>{p.items.map((b) => <Card key={b.id} b={b} />)}</div>
+              {p.total > PAGE && (
+                <div className="row net-pager">
+                  <button type="button" className="btn btn-sm" disabled={p.offset === 0} onClick={() => setOffset(Math.max(0, p.offset - PAGE))}>‹ Назад</button>
+                  <span className="muted small">{p.offset + 1}–{p.offset + p.items.length} из {p.total}</span>
+                  <button type="button" className="btn btn-sm" disabled={p.offset + PAGE >= p.total} onClick={() => setOffset(p.offset + PAGE)}>Вперёд ›</button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
       )}
     </div>
   );
+}
+
+function plural(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }
 
 function Card({ b }: { b: BranchCard }) {

@@ -21,7 +21,7 @@ PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); printf '\033[32m  PASS  %s\033[0m\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '\033[31m  FAIL  %s\033[0m\n' "$1"; [ -n "${2:-}" ] && echo "        $2"; }
 step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
-online() { center_curl GET /api/v1/network/overview | jq -r --arg b "$BRANCH" '.branches[] | select(.id==$b) | .online'; }
+online() { center_card "$BRANCH" | jq -r '.online'; }
 is_online()  { [ "$(online)" = true ]; }
 is_offline() { [ "$(online)" = false ]; }
 # событий отделения в БД центра (через ingest)

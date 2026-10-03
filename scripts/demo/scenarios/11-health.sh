@@ -16,7 +16,7 @@ scenario() {
       --data-urlencode "start=$since" --data-urlencode "limit=10" | jq -r '[.data.result[]?.values[]?[0]] | first // empty'
   }
   demo_error() { adm "$NODE" POST /api/v1/admin/demo/log -d "$(jq -nc --arg m "$1" '{level:"error",message:$m}')"; }
-  card() { center GET /api/v1/network/overview; echo "$BODY" | jq -c --arg b "$BRANCH" '.branches[]? | select(.id==$b)'; }
+  card() { center GET "/api/v1/network/branches?q=$BRANCH&limit=200"; echo "$BODY" | jq -c --arg b "$BRANCH" '.items[]? | select(.id==$b)'; }
   alert_of() { echo "$1" | jq -r --arg c "$2" '(.alerts // [])[] | select(.code==$c) | .text' | head -1; }
   # wait_card СЕКУНД jq-УСЛОВИЕ — ждёт, пока карточка отделения в обзоре сети станет такой; карточка — в $CARD
   wait_card() { for i in $(seq 1 $(( $1 / 3 ))); do CARD=$(card); echo "$CARD" | jq -e "$2" >/dev/null 2>&1 && return 0; sleep 3; done; return 1; }

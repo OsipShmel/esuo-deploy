@@ -99,6 +99,51 @@ public class BranchRegistry {
         return jdbc.sql("SELECT id FROM branches ORDER BY id").query(String.class).list();
     }
 
+    /** A number from the last heartbeat, 0 when absent or not a number (like {@code JsonNode.asLong(0)}). */
+    private static String num(String field, String type) {
+        return "CASE WHEN jsonb_typeof(last_heartbeat->'" + field + "') = 'number' THEN (last_heartbeat->>'" + field
+                + "')::numeric::" + type + " ELSE 0 END AS " + field;
+    }
+
+    /** Everything the overview judges a branch by, extracted by the database (C3c): no heartbeat JSON leaves it. */
+    List<BranchStatus> statuses() {
+        return jdbc.sql("SELECT id, name, last_heartbeat_at, source_attached, "
+                        + num("waiting", "bigint") + ", " + num("overdue", "bigint") + ", " + num("oldest_wait_sec", "bigint") + ", "
+                        + num("windows_open", "bigint") + ", " + num("outbox_lag_sec", "bigint") + ", "
+                        + num("config_version", "int") + ", "
+                        + "last_heartbeat->>'load_level' AS load_level, last_heartbeat->>'load_level_since' AS load_level_since, "
+                        + "last_heartbeat->>'sent_at' AS sent_at, "
+                        + "CASE WHEN jsonb_typeof(last_heartbeat->'db_ok') = 'boolean' THEN (last_heartbeat->>'db_ok')::boolean ELSE true END AS db_ok, "
+                        + "config_published_version, config_published_at, config_applied_version, "
+                        + "last_heartbeat->>'events_via' AS events_via FROM branches ORDER BY id")
+                .query((rs, n) -> {
+                    var publishedAt = rs.getTimestamp("config_published_at");
+                    return new BranchStatus(rs.getString("id"), rs.getString("name"), rs.getTimestamp("last_heartbeat_at").toInstant(),
+                            rs.getBoolean("source_attached"), rs.getLong("waiting"), rs.getLong("overdue"), rs.getLong("oldest_wait_sec"),
+                            rs.getLong("windows_open"), rs.getLong("outbox_lag_sec"), rs.getString("load_level"),
+                            NetworkAnomalies.instant(rs.getString("load_level_since")), NetworkAnomalies.instant(rs.getString("sent_at")),
+                            rs.getBoolean("db_ok"), rs.getInt("config_version"), (Integer) rs.getObject("config_published_version"),
+                            publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"),
+                            rs.getString("events_via"));
+                })
+                .list();
+    }
+
+    /** Full rows of a few branches — the cards of one page or of the worst list. */
+    List<BranchRow> rows(List<String> ids) {
+        if (ids.isEmpty()) { return List.of(); }
+        return jdbc.sql("SELECT *, last_heartbeat::text AS hb FROM branches WHERE id = ANY(:ids)")
+                .param("ids", ids.toArray(String[]::new))
+                .query((rs, n) -> {
+                    var publishedAt = rs.getTimestamp("config_published_at");
+                    return new BranchRow(rs.getString("id"), rs.getString("name"), rs.getString("timezone"),
+                            rs.getTimestamp("first_seen_at").toInstant(), rs.getTimestamp("last_heartbeat_at").toInstant(),
+                            rs.getString("hb"), rs.getBoolean("source_attached"), (Integer) rs.getObject("config_published_version"),
+                            publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"));
+                })
+                .list();
+    }
+
     public List<BranchRow> all() {
         return jdbc.sql("SELECT *, last_heartbeat::text AS hb FROM branches ORDER BY id")
                 .query((rs, n) -> {

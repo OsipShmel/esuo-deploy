@@ -1,0 +1,47 @@
+{
+  "started_at" : "2026-10-03T12:09:12.013216Z",
+  "finished_at" : "2026-10-03T12:12:12.449270Z",
+  "real_seconds" : 180,
+  "virtual_from" : "2026-10-03T09:00:00Z",
+  "virtual_to" : "2026-10-03T09:02:59.994Z",
+  "options" : {
+    "speed" : 1.0,
+    "nats" : [ "nats://localhost:4231", "nats://localhost:4232", "nats://localhost:4233", "nats://localhost:4234" ],
+    "clients_per_day" : 150,
+    "notifications" : false,
+    "branches" : 40000,
+    "peak" : 1.0,
+    "regions" : 4,
+    "heartbeat_sec" : 10,
+    "seed" : 42
+  },
+  "branch_ids" : "s<регион>-<номер>, например s1-00001",
+  "branches_by_region" : {
+    "region-1" : 10000,
+    "region-2" : 10000,
+    "region-3" : 10000,
+    "region-4" : 10000
+  },
+  "events_published" : {
+    "ticket.called" : 18329,
+    "ticket.completed" : 2964,
+    "ticket.created" : 19121,
+    "ticket.serving" : 13568
+  },
+  "events_acked" : {
+    "ticket.called" : 18329,
+    "ticket.completed" : 2964,
+    "ticket.created" : 19121,
+    "ticket.serving" : 13568
+  },
+  "events_failed" : { },
+  "events_acked_total" : 53982,
+  "events_failed_total" : 0,
+  "duplicates" : 0,
+  "heartbeats" : 719977,
+  "heartbeat_errors" : 0,
+  "configs_received" : 0,
+  "errors" : { },
+  "max_loop_ms" : 66,
+  "drained" : true
+}

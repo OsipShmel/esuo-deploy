@@ -101,7 +101,7 @@ for _ in $(seq 1 60); do
   if [ "$v1" = none ] && [ "$v2" = "$MODEL_VERSION" ] && [ "$p1" = true ] && [ "$p2" = true ]; then applied=1; break; fi
   sleep 1
 done
-[ "$applied" = 1 ] || die "конфигурация не доехала за 60 с: $BRANCH модель=$v1, $BRANCH2 модель=$v2 (ждали none и $MODEL_VERSION). Связь с центром? center_curl GET /api/v1/network/overview"
+[ "$applied" = 1 ] || die "конфигурация не доехала за 60 с: $BRANCH модель=$v1, $BRANCH2 модель=$v2 (ждали none и $MODEL_VERSION). Связь с центром? ./scripts/chaos/cut-branch-link.sh $BRANCH status"
 ok "$BRANCH: модели нет; $BRANCH2: модель $MODEL_VERSION; профиль «${PROFILE}» есть у обеих"
 
 # ---------------------------------------------------------------- 2. сброс

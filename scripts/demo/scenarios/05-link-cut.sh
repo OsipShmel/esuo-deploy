@@ -8,7 +8,7 @@ CUT=${CUT_CMD:-"$ROOT/scripts/chaos/cut-branch-link.sh $BRANCH"}
 scenario() {
   local i
   reset_nodes "$NODE"
-  online() { center_curl GET /api/v1/network/overview | jq -r --arg b "$BRANCH" '.branches[]|select(.id==$b)|.online'; }
+  online() { center_card "$BRANCH" | jq -r '.online'; }
   qr_mode() { curl -s "$NODE/api/v1/public/board" | jq -r '.qr_mode_effective // "нет"'; }
   wait_qr() { local j; for j in $(seq 1 15); do [ "$(qr_mode)" = "$1" ] && return 0; sleep 1; done; return 1; }   # ≤15 с
 
@@ -63,8 +63,7 @@ scenario() {
   note "Докачка накопленных событий — до ~1 минуты; очередь на отправку в /network должна стать 0."
   local drained=0
   for i in $(seq 1 30); do
-    center GET /api/v1/network/overview
-    [ "$(echo "$BODY" | jq -r --arg b "$BRANCH" '[.branches[]|select(.id==$b)|(.outbox_pending // 0)]|first')" = 0 ] && { drained=1; break; }
+    [ "$(center_card "$BRANCH" | jq -r '.outbox_pending // 0')" = 0 ] && { drained=1; break; }
     sleep 3
   done
   assert "накопленные события доехали (очередь отправки пуста)" "$drained" 1

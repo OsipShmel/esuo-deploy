@@ -13,6 +13,8 @@ export interface BranchCard {
   last_heartbeat_at: string;
   seconds_since_heartbeat: number;
   events_attached: boolean;
+  /** Региональный leaf, где лежат события отделения (рой); null — собственный leaf. */
+  events_via?: string | null;
   waiting: number;
   overdue: number;
   oldest_wait_sec: number;
@@ -71,6 +73,36 @@ export interface BranchSummary {
 }
 
 export const getOverview = () => api<Overview>('/network/overview');
+
+/** Сводка большой сети (план финала, C3c): счётчики и худшие отделения вместо всех карточек. */
+export interface NetworkSummary {
+  generated_at: string;
+  branches_total: number;
+  branches_online: number;
+  branches_offline: number;
+  problem_branches_total: number;
+  load_levels: Record<string, number>;
+  /** Сколько отделений с каждой аномалией. */
+  anomalies: Record<string, number>;
+  /** По месту хранения событий: региональный leaf (`events_via`) или собственный leaf отделения (`null`). */
+  regions: { events_via: string | null; total: number; online: number; problems: number }[];
+  /** Худшие отделения, полные карточки, сначала самые проблемные. */
+  problems: BranchCard[];
+}
+
+export type BranchFilter = 'all' | 'online' | 'offline' | 'problems';
+
+export interface BranchPage {
+  generated_at: string;
+  total: number;
+  offset: number;
+  limit: number;
+  items: BranchCard[];
+}
+
+export const getSummary = (top = 20) => api<NetworkSummary>('/network/summary', { query: { top } });
+export const getBranchPage = (p: { q?: string; status?: BranchFilter; offset?: number; limit?: number }) =>
+  api<BranchPage>('/network/branches', { query: { q: p.q, status: p.status, offset: p.offset, limit: p.limit } });
 export const getBranches = () => api<BranchSummary[]>('/branches');
 
 // ------------------------------------------------------------------ диагностика отделения

@@ -68,7 +68,9 @@ run_day() {
   adm "$NODE" GET /api/v1/admin/analytics/summary
   check "аналитика руководителя $BRANCH отвечает" 200 '.totals.issued > 0'
   fact "среднее ожидание в $BRANCH, с (по всему дню отделения)" "$(jget '.totals.avg_wait_sec // "—"')"
-  center GET /api/v1/network/overview
-  check "центр видит оба отделения на связи" 200 '[.branches[]|select(.online==true)]|length>=2'
+  center GET "/api/v1/network/branches?status=online&limit=200&q=$BRANCH"; local first=$BODY
+  center GET "/api/v1/network/branches?status=online&limit=200&q=$BRANCH2"
+  BODY=$(jq -c --slurp --arg a "$BRANCH" --arg b "$BRANCH2" '{online: [.[].items[]? | select(.id==$a or .id==$b)]}' <(echo "$first") <(echo "$BODY"))
+  check "центр видит оба отделения на связи" 200 '[.online[].id]|unique|length>=2'
   watch_ "аналитика: :8080/admin → «Аналитика»; сеть: центр /network"
 }

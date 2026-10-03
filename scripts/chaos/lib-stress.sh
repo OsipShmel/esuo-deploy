@@ -35,7 +35,7 @@ watch_center() {
   # shellcheck source=../center-auth.sh
   . "$ROOT/scripts/center-auth.sh" >/dev/null 2>&1 || { echo "нет входа в центр (CENTER_ADMIN_PASSWORD в .env)"; return 1; }
   while [ "$(date +%s)" -lt "$until" ]; do
-    card=$(center_curl GET /api/v1/network/overview 2>/dev/null | jq -c --arg b "$BRANCH" '.branches[]? | select(.id==$b)')
+    card=$(center_card "$BRANCH" 2>/dev/null)
     point=$(center_curl GET "/api/v1/branches/$BRANCH/metrics" 2>/dev/null | jq -c 'last // {}')
     printf '%s  %s | CPU %s%% · p95 %s мс · пул: занято %s, ждут %s | %s\n' "$(date +%H:%M:%S)" \
       "$(echo "$card" | jq -r 'if .online then "на связи" else "НЕТ СВЯЗИ" end')" \

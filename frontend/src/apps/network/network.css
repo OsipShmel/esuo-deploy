@@ -45,3 +45,11 @@ main.page { max-width: 1440px; margin: 0 auto; padding: 24px; display: grid; gap
 .subtabs { display: flex; gap: 8px; flex-wrap: wrap; }
 .subtabs .btn[aria-pressed='true'] { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
 .profile { border: 1px solid var(--border); border-radius: var(--radius-card); padding: 16px; display: grid; gap: 12px; background: var(--surface-2); }
+
+/* Обзор большой сети (C3c): счётчики, поиск и листание вместо всех карточек. */
+.net-counters { gap: 8px; }
+.net-filter { gap: 12px; }
+.net-filter input[type='search'] { flex: 1 1 260px; min-width: 0; }
+.net-filter .btn[aria-pressed='true'] { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+.net-pager { justify-content: center; }
+.cards.stale { opacity: 0.5; transition: opacity 0.2s; }

@@ -115,8 +115,8 @@ scenario() {
   $RESTART >/dev/null; ev "chaos|node|restart"
   for i in $(seq 1 60); do [ "$(curl -s -o /dev/null -w '%{http_code}' "$NODE/actuator/health")" = 200 ] && break; sleep 2; done
   for i in $(seq 1 45); do                        # heartbeat → сброс пачкой (5 с) → правила (15 с)
-    center GET /api/v1/network/overview
-    alert=$(echo "$BODY" | jq -r --arg b "$BRANCH" '.branches[]? | select(.id==$b) | .alerts[]? | select(.code=="sys.restart") | .text' | head -1)
+    center GET "/api/v1/network/branches?q=$BRANCH&limit=200"
+    alert=$(echo "$BODY" | jq -r --arg b "$BRANCH" '.items[]? | select(.id==$b) | .alerts[]? | select(.code=="sys.restart") | .text' | head -1)
     [ -n "$alert" ] && break; sleep 2
   done
   assert "в обзоре сети аномалия «перезапуск» с понятным текстом" "$([ -n "$alert" ] && echo yes || echo no)" yes
