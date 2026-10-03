@@ -7,8 +7,8 @@
 
 | Набор | Команда | Итог |
 |---|---|---|
-| Узел отделения (JUnit + Testcontainers, настоящий PostgreSQL) | `cd java-backend && ./mvnw -pl node-app -am test` | **341 тест, 0 падений** |
-| Центр (JUnit + Testcontainers, настоящие PostgreSQL и NATS) | `cd java-backend && ./mvnw -pl center-app -am test` | **126 из 126** |
+| Узел отделения (JUnit + Testcontainers, настоящий PostgreSQL) | `cd java-backend && ./mvnw -pl node-app -am test` | **343 теста, 0 падений** |
+| Центр (JUnit + Testcontainers, настоящие PostgreSQL и NATS) | `cd java-backend && ./mvnw -pl center-app -am test` | **128 из 128** |
 | Модель длительности (pytest) | `cd python-ai-service && uv run pytest` | **42 из 42** |
 
 В интеграционных тестах узла NATS намеренно отсутствует: так проверяется, что отделение работает без связи и копит события
