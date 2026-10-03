@@ -21,19 +21,21 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
         mp = mp == null ? new Mp(null, null, null, null, null, 0, null, null) : mp;
         security = security == null ? new Security(null, null, null, null, null) : security;
         logs = logs == null ? new Logs(null, 0, null, null, null, null, null, null, 0) : logs;
-        metrics = metrics == null ? new Metrics(null, null, null, null, null, null) : metrics;
+        metrics = metrics == null ? new Metrics(null, 0, null, null, null, null, null) : metrics;
     }
 
     /**
      * Heartbeats in batches and the metrics history (design 6.2, 6.3, scale design 5.1). {@code resolution} 10 s keeps
      * every heartbeat of an ordinary branch; {@code resolutionRegional} is for branches behind a regional hub (the
-     * swarm, a mass rollout), one row a minute by default. {@code maxSize} is a safety net for the disk: over it the
+     * swarm, a mass rollout), one row a minute by default. A flush writes {@code flushChunk} branches per transaction:
+     * the memory and the transaction of a flush do not grow with the network. {@code maxSize} is a safety net for the disk: over it the
      * oldest hours go before {@code retention}.
      */
-    public record Metrics(Duration flushInterval, Duration resolution, Duration resolutionRegional, Duration retention,
-                          DataSize maxSize, Duration maxRange) {
+    public record Metrics(Duration flushInterval, int flushChunk, Duration resolution, Duration resolutionRegional,
+                          Duration retention, DataSize maxSize, Duration maxRange) {
         public Metrics {
             flushInterval = flushInterval == null ? Duration.ofSeconds(5) : flushInterval;
+            flushChunk = flushChunk <= 0 ? 5000 : flushChunk;
             resolution = resolution == null ? Duration.ofSeconds(10) : resolution;
             resolutionRegional = resolutionRegional == null ? Duration.ofSeconds(60) : resolutionRegional;
             retention = retention == null ? Duration.ofHours(48) : retention;

@@ -64,6 +64,17 @@ class BranchOnboardingIT extends AbstractCenterNatsIT {
     }
 
     @Test
+    void branchesOfTheRegistryAreKnownAfterARestart() {          // no wave of 250 000 "new" branches after a restart
+        jdbc.sql("""
+                INSERT INTO branches(id,name,timezone,first_seen_at,last_heartbeat_at,last_heartbeat)
+                VALUES ('bo-restart','R','Europe/Moscow',now(),now(),'{}'::jsonb) ON CONFLICT (id) DO NOTHING""").update();
+
+        onboarding.preload();
+
+        assertThat(onboarding.known("bo-restart")).isTrue();
+    }
+
+    @Test
     void aWaveOfRegionalBranchesIsRegisteredInBatchesWithOneSourcePerRegion() throws Exception {
         for (int i = 1; i <= 1000; i++) {
             beat("w" + (i % 2 + 1) + "-" + i, hb("Wave " + i, "region-" + (i % 2 + 1)));

@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import javax.management.ObjectName;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -24,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -41,6 +43,8 @@ public class CenterSnapshot {
     private static final Path TASKS = Path.of("/proc/self/task");
     /** Clock ticks of /proc stat times: USER_HZ is 100 on every Linux the center runs on. */
     private static final long MS_PER_TICK = 10;
+    /** "   1:        123456       12345678  [B (java.base@25)" */
+    private static final Pattern HISTOGRAM_LINE = Pattern.compile("^\\s*\\d+:\\s+(\\d+)\\s+(\\d+)\\s+(\\S+)");
 
     private final HeartbeatBuffer buffer;
     private final BranchOnboarding onboarding;
@@ -55,7 +59,8 @@ public class CenterSnapshot {
         this.dataSource = dataSource; this.registry = registry;
     }
 
-    public synchronized Map<String, Object> take(String by) throws InterruptedException {
+    /** @param heapTop add the classes that fill the heap: a full GC, so only on request */
+    public synchronized Map<String, Object> take(String by, boolean heapTop) throws InterruptedException {
         long started = System.nanoTime();
         var threadsBean = ManagementFactory.getThreadMXBean();
         var javaBefore = javaCpu(threadsBean);
@@ -81,7 +86,11 @@ public class CenterSnapshot {
         out.put("db_pool", pool());
         out.put("nats", nats());
         out.put("tasks", tasks());
-        log.info("center diagnostics taken by={} in {} ms", by, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+        if (heapTop) {
+            out.put("heap_top", heapTop());
+        }
+        log.info("center diagnostics taken by={} heap_top={} in {} ms", by, heapTop,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
         return out;
     }
 
@@ -156,6 +165,29 @@ public class CenterSnapshot {
                 .limit(TOP)
                 .map(e -> Map.<String, Object>of("name", e.getKey(), "cpu_ms", e.getValue()[0], "threads", e.getValue()[1]))
                 .toList();
+    }
+
+    /** The live classes by size after a full GC, from the JVM's own class histogram (works in a JRE, no jcmd). */
+    private static Object heapTop() {
+        try {
+            var out = (String) ManagementFactory.getPlatformMBeanServer().invoke(
+                    new ObjectName("com.sun.management:type=DiagnosticCommand"), "gcClassHistogram",
+                    new Object[]{new String[0]}, new String[]{String[].class.getName()});
+            var top = new ArrayList<Map<String, Object>>();
+            for (var line : out.split("\n")) {
+                var m = HISTOGRAM_LINE.matcher(line);
+                if (m.find()) {
+                    top.add(Map.of("class", m.group(3), "instances", Long.parseLong(m.group(1)),
+                            "mb", Math.round(Long.parseLong(m.group(2)) / 104857.6) / 10.0));
+                    if (top.size() == TOP + 5) {
+                        break;
+                    }
+                }
+            }
+            return top;
+        } catch (Exception e) {
+            return "unavailable: " + e;
+        }
     }
 
     private static Map<String, Object> cpu() {

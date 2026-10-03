@@ -5,42 +5,46 @@ import tools.jackson.databind.JsonNode;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * One row of {@code branch_metrics} (design 6.3, scale design 5.1): typed values of the {@code sys} block and the queue
- * part of the heartbeat, the process start and the clock skew. The skew uses the branch's system time, not
- * {@code sent_at}: under the demo clock the latter runs hours ahead on purpose. The process start is taken by the
- * node's own clock, so that a heartbeat read late by a loaded center does not look like a restart.
+ * part of the heartbeat, the process start and the clock skew, in the order of {@link MetricColumns#ALL}. The skew uses
+ * the branch's system time, not {@code sent_at}: under the demo clock the latter runs hours ahead on purpose. The
+ * process start is taken by the node's own clock, so that a heartbeat read late by a loaded center does not look like
+ * a restart.
  */
-public record MetricsRow(String branchId, Instant ts, boolean hasSys, Map<String, Object> values) {
+public record MetricsRow(String branchId, Instant ts, boolean hasSys, @Nullable Object[] values) {
+    /** Position of each column of {@link MetricColumns#ALL} in {@link #values}: a row is an array, not a map. */
+    private static final Map<String, Integer> INDEX = index();
 
     public static MetricsRow of(String branchId, JsonNode hb, Instant receivedAt) {
-        var values = new HashMap<String, Object>();
+        var values = new Object[MetricColumns.ALL.size()];
         for (var c : MetricColumns.QUEUE) {
-            put(values, c.name(), c.convert(hb.get(c.name())));
+            values[INDEX.get(c.name())] = c.convert(hb.get(c.name()));
         }
         var sys = hb.path("sys").isObject() ? hb.get("sys") : null;
         if (sys != null) {
             for (var c : MetricColumns.SYS) {
-                put(values, c.name(), c.convert(sys.get(c.name())));
+                values[INDEX.get(c.name())] = c.convert(sys.get(c.name()));
             }
-            put(values, MetricColumns.CLOCK_SKEW_MS, skew(sys, receivedAt));
-            put(values, MetricColumns.STARTED_AT, startedAt(sys));
+            values[INDEX.get(MetricColumns.CLOCK_SKEW_MS)] = skew(sys, receivedAt);
+            values[INDEX.get(MetricColumns.STARTED_AT)] = startedAt(sys);
         }
-        return new MetricsRow(branchId, receivedAt, sys != null, Collections.unmodifiableMap(values));
+        return new MetricsRow(branchId, receivedAt, sys != null, values);
     }
 
     public @Nullable Object value(String column) {
-        return values.get(column);
+        return values[INDEX.get(column)];
     }
 
-    private static void put(Map<String, Object> values, String column, @Nullable Object value) {
-        if (value != null) {
-            values.put(column, value);
+    private static Map<String, Integer> index() {
+        var m = new HashMap<String, Integer>();
+        for (int i = 0; i < MetricColumns.ALL.size(); i++) {
+            m.put(MetricColumns.ALL.get(i), i);
         }
+        return Map.copyOf(m);
     }
 
     private static @Nullable Integer skew(JsonNode sys, Instant receivedAt) {

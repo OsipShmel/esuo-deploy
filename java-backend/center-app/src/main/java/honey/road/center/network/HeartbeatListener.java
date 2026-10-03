@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 
 /**
@@ -75,11 +74,10 @@ public class HeartbeatListener {
         try {
             received.increment();
             var receivedAt = clock.instant();
-            var body = new String(msg.getData(), StandardCharsets.UTF_8);
-            JsonNode hb = json.readTree(body);
+            JsonNode hb = json.readTree(msg.getData());
             var eventsVia = EventsVia.of(hb.path("events_via").asString(null));
             var heartbeat = new Heartbeat(branchId, hb.path("name").asString(branchId),
-                    hb.path("timezone").asString("Europe/Moscow"), body, receivedAt, eventsVia != null);
+                    hb.path("timezone").asString("Europe/Moscow"), msg.getData(), receivedAt, eventsVia != null);
             if (onboarding.known(branchId)) {
                 buffer.put(heartbeat);
             } else {

@@ -68,7 +68,22 @@ public class BranchOnboarding {
 
     @PostConstruct
     void start() {
+        preload();
         worker = Thread.ofPlatform().name("branch-onboarding").daemon().start(this::run);
+    }
+
+    /**
+     * The branches of the registry are known from the start (before NATS connects): after a restart of the center
+     * their heartbeats go straight to the buffer, instead of the whole network queueing here as "new" with its
+     * heartbeat bodies — at 250 000 branches that wave alone ran the center out of heap.
+     */
+    void preload() {
+        try {
+            known.addAll(registry.allIds());
+            log.info("onboarding: {} branches of the registry known", known.size());
+        } catch (RuntimeException e) {
+            log.warn("onboarding: registry not read, every branch is checked on its first heartbeat: {}", e.toString());
+        }
     }
 
     @PreDestroy

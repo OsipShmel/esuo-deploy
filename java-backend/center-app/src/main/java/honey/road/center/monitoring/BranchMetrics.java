@@ -46,7 +46,7 @@ public class BranchMetrics {
                 ps.setString(1, r.branchId());
                 ps.setTimestamp(2, Timestamp.from(r.ts()));
                 for (int i = 0; i < TYPES.length; i++) {
-                    var v = r.value(MetricColumns.ALL.get(i));
+                    var v = r.values()[i];
                     if (v == null) {
                         ps.setNull(i + 3, TYPES[i]);
                     } else {

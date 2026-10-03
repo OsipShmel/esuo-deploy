@@ -61,4 +61,19 @@ class CenterDiagnosticsIT extends AbstractCenterIT {
         assertThat(s.path("nats").has("state")).isTrue();
         assertThat(s.path("tasks").isArray()).isTrue();
     }
+
+    @Test
+    void whatFillsTheHeapOnRequest() {                            // a full GC: only when asked for
+        assertThat(snapshot().has("heap_top")).isFalse();
+
+        var result = mvc.post().uri("/api/v1/center/diagnostics?heap=true").header("Authorization", "Bearer " + adminToken())
+                .exchange();
+        result.assertThat().hasStatusOk();
+        var top = json.readTree(result.getResponse().getContentAsByteArray()).path("heap_top");
+
+        assertThat(top).isNotEmpty();
+        assertThat(top.get(0).path("class").asString()).isNotBlank();
+        assertThat(top.get(0).path("mb").asDouble()).isPositive();
+        assertThat(top.get(0).path("instances").asLong()).isPositive();
+    }
 }

@@ -21,12 +21,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * row. Flushes here are explicit: the schedule is an hour.
  */
 @TestPropertySource(properties = {"esuo.center.metrics.flush-interval=1h", "esuo.center.metrics.resolution=1s",
-        "esuo.center.metrics.resolution-regional=1h"})
+        "esuo.center.metrics.resolution-regional=1h", "esuo.center.metrics.flush-chunk=2"})
 class HeartbeatFlushIT extends AbstractCenterIT {
     @Autowired HeartbeatListener listener;
     @Autowired HeartbeatFlush flush;
     @Autowired JdbcClient jdbc;
     @Autowired BranchOnboarding onboarding;
+    @Autowired HeartbeatBuffer buffer;
+
+    @org.junit.jupiter.api.AfterEach
+    void emptyBuffer() {                                                // a failed test must not leave a poison behind
+        buffer.drain();
+    }
 
     private void beat(String branch, String body) {
         listener.handle(NatsMessage.builder().subject(Subjects.heartbeat(branch))
@@ -100,6 +106,40 @@ class HeartbeatFlushIT extends AbstractCenterIT {
 
         assertThat(jdbc.sql("SELECT count(*) FROM branch_metrics WHERE branch_id='hf4' AND waiting = 1 AND cpu_count IS NULL AND clock_skew_ms IS NULL")
                 .query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void aFlushLargerThanAChunkIsWrittenWhole() {                    // chunks of 2 here: memory is bounded by a chunk
+        for (int i = 1; i <= 5; i++) {
+            register("hc" + i, hb("Before", 0, null));
+        }
+        for (int i = 1; i <= 5; i++) {
+            beat("hc" + i, hb("After", i, "{\"cpu_count\":4}"));
+        }
+
+        flush.run();
+
+        for (int i = 1; i <= 5; i++) {
+            assertThat(name("hc" + i)).isEqualTo("After");
+            assertThat(metricRows("hc" + i)).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void aBrokenChunkDoesNotHoldBackTheOthers() {
+        for (int i = 1; i <= 4; i++) {
+            register("hp" + i, hb("Before", 0, null));
+        }
+        for (int i = 1; i <= 4; i++) {
+            beat("hp" + i, hb("After", i, null));
+        }
+        buffer.put(new Heartbeat("hp-poison", "P", "Europe/Moscow", "{not json", Instant.now()));   // its chunk fails
+
+        flush.run();
+
+        long written = java.util.stream.IntStream.rangeClosed(1, 4).filter(i -> "After".equals(name("hp" + i))).count();
+        assertThat(written).isGreaterThanOrEqualTo(3);                  // all but the poison's chunk mate
+        assertThat(buffer.drain()).containsKey("hp-poison");             // kept for the next flush, not dropped
     }
 
     @Test

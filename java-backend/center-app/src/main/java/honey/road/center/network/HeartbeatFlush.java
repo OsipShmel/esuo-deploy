@@ -42,6 +42,7 @@ public class HeartbeatFlush {
     private final BranchMetrics metrics;
     private final TransactionTemplate tx;
     private final JsonMapper json;
+    private final int chunk;
     private final Duration resolution;
     private final Duration resolutionRegional;
     private final Map<String, Instant> lastMetricAt = new ConcurrentHashMap<>();
@@ -56,6 +57,7 @@ public class HeartbeatFlush {
                           MeterRegistry meters) {
         this.buffer = buffer; this.registry = registry; this.metrics = metrics;
         this.tx = new TransactionTemplate(transactions); this.json = json;
+        this.chunk = props.metrics().flushChunk();
         this.resolution = props.metrics().resolution(); this.resolutionRegional = props.metrics().resolutionRegional();
         this.flushTimer = Timer.builder("esuo.heartbeat.flush").description("One flush of buffered heartbeats")
                 .register(meters);
@@ -79,47 +81,61 @@ public class HeartbeatFlush {
 
     @Scheduled(fixedDelayString = "${esuo.center.metrics.flush-interval:5s}")
     public synchronized void run() {
-        var batch = List.copyOf(buffer.drain().values());
+        var batch = new ArrayList<>(buffer.drain().values());
         if (batch.isEmpty()) {
             return;
         }
         long started = System.nanoTime();
+        int failed = 0;
+        String failure = null;
+        for (int from = 0; from < batch.size(); from += chunk) {
+            var part = batch.subList(from, Math.min(from + chunk, batch.size()));
+            try {
+                write(part);
+            } catch (RuntimeException e) {
+                buffer.restore(part);                       // unless a fresher heartbeat of the branch came meanwhile
+                failed += part.size();
+                failure = e.toString();
+            }
+            part.replaceAll(hb -> null);                    // written chunks leave memory while the next ones are written
+        }
+        if (failed > 0) {
+            log.warn("heartbeat flush: {} of {} branches kept for the next one: {}", failed, batch.size(), failure);
+        }
+        flushed.record(batch.size() - failed);
+        flushTimer.record(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS);
+    }
+
+    /** One chunk in one transaction: branches, then their metric rows under a savepoint. */
+    private void write(List<Heartbeat> part) {
         var rows = new ArrayList<MetricsRow>();
-        for (var hb : batch) {
+        for (var hb : part) {
             if (due(lastMetricAt.get(hb.branchId()), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution)) {
                 try {
-                    rows.add(MetricsRow.of(hb.branchId(), json.readTree(hb.json()), hb.receivedAt()));
+                    rows.add(MetricsRow.of(hb.branchId(), json.readTree(hb.body()), hb.receivedAt()));
                 } catch (RuntimeException e) {
                     log.warn("no metrics row for {}: {}", hb.branchId(), e.toString());
                 }
             }
         }
-        try {
-            boolean written = Boolean.TRUE.equals(tx.execute(s -> {
-                registry.saveHeartbeats(batch);
-                var savepoint = s.createSavepoint();
-                try {
-                    metrics.insert(rows);
-                    s.releaseSavepoint(savepoint);
-                    return true;
-                } catch (DataAccessException e) {
-                    s.rollbackToSavepoint(savepoint);
-                    log.warn("{} metric rows lost, heartbeats saved: {}", rows.size(), e.getMostSpecificCause().toString());
-                    return false;
-                }
-            }));
-            if (written) {
-                rows.forEach(r -> lastMetricAt.put(r.branchId(), r.ts()));
-                rowsWritten.increment(rows.size());
-            } else {
-                rowsLost.increment(rows.size());
+        boolean written = Boolean.TRUE.equals(tx.execute(s -> {
+            registry.saveHeartbeats(part);
+            var savepoint = s.createSavepoint();
+            try {
+                metrics.insert(rows);
+                s.releaseSavepoint(savepoint);
+                return true;
+            } catch (DataAccessException e) {
+                s.rollbackToSavepoint(savepoint);
+                log.warn("{} metric rows lost, heartbeats saved: {}", rows.size(), e.getMostSpecificCause().toString());
+                return false;
             }
-            flushed.record(batch.size());
-        } catch (RuntimeException e) {
-            buffer.restore(batch);
-            log.warn("heartbeat flush failed, {} branches kept for the next one: {}", batch.size(), e.toString());
-        } finally {
-            flushTimer.record(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS);
+        }));
+        if (written) {
+            rows.forEach(r -> lastMetricAt.put(r.branchId(), r.ts()));
+            rowsWritten.increment(rows.size());
+        } else {
+            rowsLost.increment(rows.size());
         }
     }
 

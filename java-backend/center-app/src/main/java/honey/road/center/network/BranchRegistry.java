@@ -96,7 +96,7 @@ public class BranchRegistry {
     }
 
     public List<String> allIds() {
-        return jdbc.sql("SELECT id FROM branches ORDER BY id").query(String.class).list();
+        return jdbc.sql("SELECT id FROM branches").query(String.class).list();
     }
 
     /** A number from the last heartbeat, 0 when absent or not a number (like {@code JsonNode.asLong(0)}). */
