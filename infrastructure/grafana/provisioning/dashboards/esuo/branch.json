@@ -25,14 +25,16 @@
           "type": "grafana-postgresql-datasource",
           "uid": "center-db"
         },
-        "query": "SELECT id FROM branches ORDER BY id",
-        "definition": "SELECT id FROM branches ORDER BY id",
+        "query": "SELECT id FROM branches WHERE (last_heartbeat->>'events_via') IS NULL ORDER BY id",
+        "definition": "SELECT id FROM branches WHERE (last_heartbeat->>'events_via') IS NULL ORDER BY id",
         "refresh": 1,
         "sort": 1,
         "includeAll": false,
         "multi": false,
         "current": {},
-        "options": []
+        "options": [],
+        "allowCustomValue": true,
+        "description": "Свои отделения; отделение роя открывается по ссылке из /network (id в адресе)"
       }
     ]
   },

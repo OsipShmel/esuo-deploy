@@ -1,0 +1,11 @@
+# Metrics of the center (scale design 6.2): JVM, its work, NATS hub, center database. The uid is fixed: the
+# provisioned dashboard «ЕСУО · Центр» points at it.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    jsonData:
+      timeInterval: 5s

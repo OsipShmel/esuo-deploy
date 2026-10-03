@@ -228,7 +228,7 @@
     {
       "id": 5,
       "type": "table",
-      "title": "Отделения: последние метрики",
+      "title": "Отделения: свои и с аномалиями (до 200)",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "center-db"
@@ -249,7 +249,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT DISTINCT ON (m.branch_id) m.branch_id AS \"Отделение\", b.name AS \"Название\", (now() - b.last_heartbeat_at) < interval '30 seconds' AS \"На связи\", m.cpu_system AS \"CPU\", m.heap_used_mb AS \"Heap\", m.http_p95_ms AS \"p95 API\", m.disk_free_mb AS \"Диск свободно\", m.waiting AS \"Ждут\", m.outbox_pending AS \"Не отправлено\", b.last_heartbeat->'sys'->>'app_version' AS \"Версия\", m.ts AS \"Данные на\" FROM branch_metrics m JOIN branches b ON b.id = m.branch_id WHERE m.ts > now() - interval '15 minutes' ORDER BY m.branch_id, m.ts DESC"
+          "rawSql": "SELECT b.id AS \"Отделение\", b.name AS \"Название\", (now() - b.last_heartbeat_at) < interval '30 seconds' AS \"На связи\", (b.last_heartbeat->'sys'->>'cpu_system')::float AS \"CPU\", (b.last_heartbeat->'sys'->>'heap_used_mb')::float AS \"Heap\", (b.last_heartbeat->'sys'->>'http_p95_ms')::float AS \"p95 API\", (b.last_heartbeat->'sys'->>'disk_free_mb')::float AS \"Диск свободно\", (b.last_heartbeat->>'waiting')::int AS \"Ждут\", (b.last_heartbeat->>'outbox_pending')::int AS \"Не отправлено\", b.last_heartbeat->'sys'->>'app_version' AS \"Версия\", a.texts AS \"Аномалии\", b.last_heartbeat_at AS \"Данные на\" FROM branches b LEFT JOIN (SELECT branch_id, string_agg(text, '; ' ORDER BY severity) AS texts, min(CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END) AS sev FROM branch_alerts GROUP BY branch_id) a ON a.branch_id = b.id WHERE (b.last_heartbeat->>'events_via') IS NULL OR a.branch_id IS NOT NULL ORDER BY (b.last_heartbeat->>'events_via') IS NOT NULL, a.sev NULLS LAST, b.id LIMIT 200"
         }
       ],
       "fieldConfig": {
@@ -326,12 +326,13 @@
       },
       "options": {
         "showHeader": true
-      }
+      },
+      "description": "Свои отделения (собственный leaf) — всегда; отделения роя и регионов — только с аномалиями по правилам. Последний heartbeat каждого."
     },
     {
       "id": 6,
       "type": "table",
-      "title": "Аномалии по правилам мониторинга",
+      "title": "Аномалии по правилам мониторинга (до 500)",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "center-db"
@@ -352,7 +353,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT branch_id AS \"Отделение\", CASE severity WHEN 'critical' THEN 'критично' WHEN 'warning' THEN 'внимание' ELSE 'инфо' END AS \"Уровень\", text AS \"Что происходит\", since AS \"С\" FROM branch_alerts ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, since"
+          "rawSql": "SELECT branch_id AS \"Отделение\", CASE severity WHEN 'critical' THEN 'критично' WHEN 'warning' THEN 'внимание' ELSE 'инфо' END AS \"Уровень\", text AS \"Что происходит\", since AS \"С\" FROM branch_alerts ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, since DESC LIMIT 500"
         }
       ],
       "fieldConfig": {
@@ -368,7 +369,7 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "CPU ПК по отделениям",
+      "title": "CPU ПК: 10 самых загруженных отделений за 5 мин",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "center-db"
@@ -389,7 +390,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, branch_id AS metric, cpu_system AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, branch_id AS metric, cpu_system AS value FROM branch_metrics WHERE $__timeFilter(ts) AND branch_id IN (SELECT branch_id FROM branch_metrics WHERE ts > now() - interval '5 minutes' AND cpu_system IS NOT NULL GROUP BY branch_id ORDER BY max(cpu_system) DESC LIMIT 10) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -419,7 +420,7 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "p95 API по отделениям",
+      "title": "p95 API: 10 самых медленных отделений за 5 мин",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "center-db"
@@ -440,7 +441,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, branch_id AS metric, http_p95_ms AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, branch_id AS metric, http_p95_ms AS value FROM branch_metrics WHERE $__timeFilter(ts) AND branch_id IN (SELECT branch_id FROM branch_metrics WHERE ts > now() - interval '5 minutes' AND http_p95_ms IS NOT NULL GROUP BY branch_id ORDER BY max(http_p95_ms) DESC LIMIT 10) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -469,7 +470,7 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Ошибки в логах по отделениям (за 5 минут)",
+      "title": "Ошибки в логах: 10 отделений с наибольшим числом (за 5 минут)",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -487,7 +488,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (branch) (count_over_time({level=\"error\"}[5m]))",
+          "expr": "topk(10, sum by (branch) (count_over_time({level=\"error\"}[5m])))",
           "queryType": "range",
           "legendFormat": "{{branch}}"
         }
@@ -518,7 +519,7 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "События в центр: не отправлено",
+      "title": "События в центр не отправлены: 10 отделений с самой длинной очередью",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "center-db"
@@ -539,7 +540,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, branch_id AS metric, outbox_pending AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, branch_id AS metric, outbox_pending AS value FROM branch_metrics WHERE $__timeFilter(ts) AND branch_id IN (SELECT branch_id FROM branch_metrics WHERE ts > now() - interval '5 minutes' AND outbox_pending IS NOT NULL GROUP BY branch_id ORDER BY max(outbox_pending) DESC LIMIT 10) ORDER BY ts"
         }
       ],
       "fieldConfig": {

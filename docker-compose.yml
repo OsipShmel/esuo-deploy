@@ -218,7 +218,7 @@ services:
   loki:
     image: grafana/loki:3.7.8
     container_name: esuo-loki
-    profiles: [monitoring]
+    profiles: [monitoring, swarm]
     command: ["-config.file=/etc/loki/loki.yaml"]
     volumes: ["./infrastructure/loki/loki.yaml:/etc/loki/loki.yaml:ro", "loki-data:/loki"]
     ports: ["127.0.0.1:3100:3100"]
@@ -228,7 +228,7 @@ services:
   grafana:
     image: grafana/grafana:13.2.3
     container_name: esuo-grafana
-    profiles: [monitoring]
+    profiles: [monitoring, swarm]
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
       GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS:-true}      # на публичном сервере — false
@@ -239,7 +239,41 @@ services:
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana-ro-local}   # источник «Центр (метрики)», роль grafana_ro
     volumes: ["./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro", "grafana-data:/var/lib/grafana"]
     ports: ["127.0.0.1:3000:3000"]
-    depends_on: [loki]
+    depends_on: [loki, prometheus]
+    networks: [center]
+    restart: unless-stopped
+
+  # Метрики самого центра (JVM, его задачи, хаб NATS, БД центра); метрики отделений — в branch_metrics (Postgres)
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: esuo-prometheus
+    profiles: [monitoring, swarm]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus",
+              "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-7d}",
+              "--storage.tsdb.retention.size=${PROMETHEUS_MAX_SIZE:-10GB}"]
+    volumes: ["./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "prometheus-data:/prometheus"]
+    ports: ["127.0.0.1:9090:9090"]
+    networks: [center]
+    restart: unless-stopped
+
+  nats-exporter:                                 # хаб: соединения leaf (отделения и регионы), медленные потребители, JetStream
+    image: natsio/prometheus-nats-exporter:0.17.3
+    container_name: esuo-nats-exporter
+    profiles: [monitoring, swarm]
+    command: ["-varz", "-connz", "-subz", "-leafz", "-jsz=all", "-healthz", "http://nats-hub:8222"]
+    depends_on: [nats-hub]
+    networks: [center]
+    restart: unless-stopped
+
+  postgres-exporter:                             # БД центра: соединения, блокировки, размеры, долгие запросы
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+    container_name: esuo-postgres-exporter
+    profiles: [monitoring, swarm]
+    environment:
+      DATA_SOURCE_URI: postgres-center:5432/esuo_center?sslmode=disable
+      DATA_SOURCE_USER: ${DB_USER:-esuo}
+      DATA_SOURCE_PASS: ${DB_PASSWORD}
+    depends_on: [postgres-center]
     networks: [center]
     restart: unless-stopped
 
@@ -397,3 +431,4 @@ volumes:
   vector-b02-data:
   loki-data:
   grafana-data:
+  prometheus-data:

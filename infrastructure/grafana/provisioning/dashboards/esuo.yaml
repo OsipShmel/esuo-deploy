@@ -1,4 +1,4 @@
-# Dashboards "Отделение" and "Сеть" (design 6.5), read-only: edits go to the JSON files in this folder.
+# Dashboards "Отделение", "Сеть" (design 6.5) and "Центр" (scale design 6.2), read-only: edits go to the JSON files in this folder.
 apiVersion: 1
 providers:
   - name: esuo

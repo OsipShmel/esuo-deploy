@@ -1,0 +1,21 @@
+# Metrics of the center itself (scale design 6.2): the JVM and its work, the NATS hub, the center database.
+# Branch metrics stay in branch_metrics (Postgres): one series set per branch would be millions of series.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: center
+    scrape_interval: 5s                  # GC and scheduled tasks show up in seconds
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["center-app:9081"]
+  - job_name: nats-hub                   # hub, its leaf connections (branches and regions), JetStream consumers
+    static_configs:
+      - targets: ["nats-exporter:7777"]
+  - job_name: postgres-center
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
