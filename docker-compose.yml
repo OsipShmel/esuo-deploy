@@ -69,6 +69,13 @@ services:
       POSTGRES_DB: esuo_center
       POSTGRES_USER: ${DB_USER:-esuo}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
+    # Under a network of hundreds of thousands of branches (scale design 9.3): the defaults — 128 MB of buffers, a
+    # checkpoint every 1 GB of WAL, a throttled autovacuum — made every heartbeat flush wait for disk reads.
+    command: >-
+      postgres -c shared_buffers=${CENTER_DB_SHARED_BUFFERS:-1GB} -c effective_cache_size=3GB
+      -c max_wal_size=4GB -c checkpoint_timeout=15min -c wal_compression=lz4
+      -c autovacuum_vacuum_cost_limit=2000
+    shm_size: 256mb
     ports: ["127.0.0.1:5435:5432"]
     volumes: ["center-db:/var/lib/postgresql/data"]
     networks: [center]
