@@ -88,6 +88,11 @@ public class BranchOnboarding {
         }
     }
 
+    /** New branches waiting for the worker. */
+    public int queued() {
+        return queue.size();
+    }
+
     /** The branch waits for the worker: not yet registered, sourced or configured by it. */
     public boolean pending(String id) {
         return pending.containsKey(id);

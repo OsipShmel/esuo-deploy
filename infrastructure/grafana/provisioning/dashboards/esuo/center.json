@@ -1652,6 +1652,52 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 32,
+      "type": "row",
+      "title": "Логи центра",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 89,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 33,
+      "type": "logs",
+      "title": "WARN и ERROR центра",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Логи самого центра (vector-center → Loki, service=center). Всё остальное — Explore: {service=\"center\"}.",
+      "gridPos": {
+        "x": 0,
+        "y": 90,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{service=\"center\", level=~\"warn|error\"}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
     }
   ]
 }

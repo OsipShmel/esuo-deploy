@@ -1,0 +1,87 @@
+# Center log collector (scale design 6.2): the center's own log file → Loki, label service=center. The center sits next
+# to Loki, so no NATS on the way (branch logs travel BRANCH_LOG → CENTER_LOG → LogShipper). DEBUG and TRACE stay in the
+# file; a looping error is throttled, the dropped lines stay in the file too.
+data_dir: /var/lib/vector
+
+sources:
+  center_log:
+    type: file
+    include: ["/logs/center.log*"]             # current file and rotated ones (center.log.YYYY-MM-DD.i, no gzip)
+    read_from: beginning
+    ignore_older_secs: 604800                    # 7 days
+
+transforms:
+  parse:                                         # ECS JSON of Spring Boot: @timestamp, log.level, log.logger
+    type: remap
+    inputs: [center_log]
+    source: |
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        p = object!(parsed)
+        .level = downcase(string(p.log.level) ?? "info")
+        .logger = string(p.log.logger) ?? "unknown"
+        ts, terr = parse_timestamp(string(p."@timestamp") ?? "", "%+")
+        if terr == null { .timestamp = ts }
+      } else {
+        .level = "error"
+        .logger = "unparsed"
+      }
+
+  keep:
+    type: filter
+    inputs: [parse]
+    condition: '.level != "debug" && .level != "trace"'
+
+  calm:
+    type: throttle
+    inputs: [keep]
+    key_field: "{{ logger }}:{{ level }}"
+    threshold: 100
+    window_secs: 60
+
+sinks:
+  loki:
+    type: loki
+    inputs: [calm]
+    endpoint: "http://loki:3100"
+    encoding:
+      codec: text                                # the raw ECS line, as for branch logs
+    labels:
+      service: center
+      level: "{{ level }}"
+
+tests:
+  - name: an error line keeps its level and the time it was written
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: '{"@timestamp":"2026-10-01T07:00:00.123Z","log":{"level":"ERROR","logger":"honey.road.center.X"},"message":"boom"}'
+    outputs:
+      - extract_from: keep
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.level, "error")
+              assert_eq!(.logger, "honey.road.center.X")
+              assert_eq!(.timestamp, t'2026-10-01T07:00:00.123Z')
+  - name: debug stays in the file
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: '{"@timestamp":"2026-10-01T07:00:00.123Z","log":{"level":"DEBUG","logger":"a.B"},"message":"pass"}'
+    no_outputs_from: [keep]
+  - name: a line that is not JSON is kept as an error, not lost
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: 'Exception in thread "main" java.lang.OutOfMemoryError: Java heap space'
+    outputs:
+      - extract_from: keep
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.level, "error")
+              assert_eq!(.logger, "unparsed")

@@ -63,7 +63,8 @@ services:
       # Куча центра (на сервере с роем — 4g); при нехватке памяти JVM завершается и Docker поднимает её заново
       JAVA_TOOL_OPTIONS: >-
         -Xmx${CENTER_HEAP:-2g} -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/dumps
-    volumes: ["center-dumps:/app/dumps"]
+      LOG_FILE: /app/logs/center.log           # ECS JSON с ротацией: vector-center везёт его в Loki (service=center)
+    volumes: ["center-dumps:/app/dumps", "center-logs:/app/logs"]
     # 9081 — actuator (health, /actuator/prometheus): только localhost сервера, снаружи — через Grafana
     ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080", "127.0.0.1:${CENTER_MANAGEMENT_PORT:-9081}:9081"]
     depends_on:
@@ -107,6 +108,15 @@ services:
     depends_on: [loki, prometheus]
     restart: unless-stopped
 
+  vector-center:                                 # логи самого центра → Loki (service=center)
+    image: timberio/vector:0.58.0-alpine
+    profiles: [monitoring]
+    volumes: ["../../infrastructure/vector/center.yaml:/etc/vector/vector.yaml:ro", "center-logs:/logs:ro",
+              "vector-center-data:/var/lib/vector"]
+    mem_limit: 128m
+    depends_on: [center-app, loki]
+    restart: unless-stopped
+
   # Метрики самого центра (JVM, его задачи, хаб NATS, БД центра); снаружи — через Grafana, Prometheus — localhost
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -138,6 +148,8 @@ services:
 volumes:
   center-db:
   center-dumps:
+  center-logs:
+  vector-center-data:
   hub-data:
   loki-data:
   grafana-data:

@@ -47,6 +47,11 @@ public class CenterMeters {
                 .description("Branch events in CENTER_EVT not yet written by the ingest").register(meters);
     }
 
+    /** Branch events not yet written, as of the last refresh. */
+    public long eventsPending() {
+        return eventsPending.get();
+    }
+
     @Scheduled(fixedDelayString = "PT15S", initialDelayString = "PT5S")
     public void refresh() {
         try {

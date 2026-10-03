@@ -196,7 +196,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(count_over_time({level=\"error\"}[1h]))",
+          "expr": "sum(count_over_time({level=\"error\", branch=~\".+\"}[1h]))",
           "queryType": "instant"
         }
       ],
@@ -488,7 +488,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, sum by (branch) (count_over_time({level=\"error\"}[5m])))",
+          "expr": "topk(10, sum by (branch) (count_over_time({level=\"error\", branch=~\".+\"}[5m])))",
           "queryType": "range",
           "legendFormat": "{{branch}}"
         }
@@ -587,7 +587,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{level=\"error\"}",
+          "expr": "{level=\"error\", branch=~\".+\"}",
           "queryType": "range"
         }
       ],

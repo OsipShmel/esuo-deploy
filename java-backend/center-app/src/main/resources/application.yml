@@ -38,9 +38,18 @@ management:
         enabled: true
         add-additional-paths: true            # /livez and /readyz on the main port: scripts, Docker, load balancer
 logging:
+  file:
+    name: ${LOG_FILE:}                       # empty => console only (tests, local run); compose sets /app/logs/center.log
   structured:
     format:
       console: ecs
+      file: ecs
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_FILE:center.log}.%d{yyyy-MM-dd}.%i   # no .gz: vector-center reads rotated files as is
+      max-file-size: 50MB
+      max-history: 7
+      total-size-cap: 1GB
 esuo:
   center:
     nats-url: ${NATS_URL:nats://localhost:4222}

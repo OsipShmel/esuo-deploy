@@ -20,11 +20,7 @@ center_login() { # → sets CENTER_TOKEN; returns 1 if the center did not issue 
 
 center_curl() { # center_curl METHOD PATH [curl-args...]
   local method=$1 path=$2; shift 2
-  [ -n "${CENTER_TOKEN:-}" ] || center_card() { # center_card BRANCH → the branch's overview card as one JSON line, nothing if unknown
-  center_curl GET "/api/v1/network/branches?q=$1&limit=200" | jq -c --arg b "$1" '.items[]? | select(.id==$b)' 2>/dev/null
-}
-
-center_login || true
+  [ -n "${CENTER_TOKEN:-}" ] || center_login || true
   curl -s -X "$method" "$CENTER$path" -H "Authorization: Bearer ${CENTER_TOKEN:-}" "$@"
 }
 
