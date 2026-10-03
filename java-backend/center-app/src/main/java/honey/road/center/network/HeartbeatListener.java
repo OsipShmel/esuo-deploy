@@ -70,12 +70,13 @@ public class HeartbeatListener {
             var receivedAt = clock.instant();
             var body = new String(msg.getData(), StandardCharsets.UTF_8);
             JsonNode hb = json.readTree(body);
+            var eventsVia = EventsVia.of(hb.path("events_via").asString(null));
             var heartbeat = new Heartbeat(branchId, hb.path("name").asString(branchId),
-                    hb.path("timezone").asString("Europe/Moscow"), body, receivedAt);
+                    hb.path("timezone").asString("Europe/Moscow"), body, receivedAt, eventsVia != null);
             if (onboarding.known(branchId)) {
                 buffer.put(heartbeat);
             } else {
-                onboarding.offer(heartbeat, EventsVia.of(hb.path("events_via").asString(null)));
+                onboarding.offer(heartbeat, eventsVia);
             }
         } catch (RuntimeException e) {
             log.warn("bad heartbeat from {}: {}", branchId, e.toString());

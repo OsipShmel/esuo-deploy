@@ -22,7 +22,9 @@ import tools.jackson.databind.json.JsonMapper;
         "esuo.center.security.jwt-secret=" + AbstractCenterIT.JWT_SECRET,
         "esuo.center.security.admin-login=" + AbstractCenterIT.ADMIN_LOGIN,
         "esuo.center.security.admin-password=" + AbstractCenterIT.ADMIN_PASSWORD,
-        "esuo.center.mp.webhook-secret=" + AbstractCenterIT.MP_SECRET
+        "esuo.center.mp.webhook-secret=" + AbstractCenterIT.MP_SECRET,
+        // partitions only by explicit runs: a background run on the real clock would race MetricsPartitionsIT
+        "esuo.center.metrics.partitions-initial-delay=1h", "esuo.center.metrics.partitions-every=1h"
 })
 public abstract class AbstractCenterIT {
 

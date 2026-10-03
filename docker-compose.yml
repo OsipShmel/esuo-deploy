@@ -100,6 +100,12 @@ services:
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana-ro-local}
       # Демо-стенд: окна правил мониторинга ×0,1 (перезапуск, CPU и т. п. видны за минуту, а не за полчаса)
       DEMO_MODE: ${DEMO_MODE:-false}
+      # История метрик отделений: точка раз в 10 с у обычных отделений, раз в 60 с у отделений за региональным хабом
+      # (рой); старые часы удаляются целиком через 48 ч или раньше, если таблица больше METRICS_MAX_SIZE
+      METRICS_RESOLUTION: ${METRICS_RESOLUTION:-10s}
+      METRICS_RESOLUTION_REGIONAL: ${METRICS_RESOLUTION_REGIONAL:-60s}
+      METRICS_RETENTION: ${METRICS_RETENTION:-48h}
+      METRICS_MAX_SIZE: ${METRICS_MAX_SIZE:-100GB}
     ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}

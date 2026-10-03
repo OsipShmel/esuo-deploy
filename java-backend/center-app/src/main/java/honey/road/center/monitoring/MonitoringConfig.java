@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * {@code monitoring-rules.yml} (design 6.4). Checked while binding: a rule with an unknown kind, metric or operator,
@@ -18,13 +20,13 @@ public record MonitoringConfig(Duration evaluateEvery, double demoDurationScale,
     static final Set<String> KINDS = Set.of("threshold", "ratio", "increase", "decrease");
     static final Set<String> OPERATORS = Set.of(">", ">=", "<", "<=");
     static final Set<String> SEVERITIES = Set.of("info", "warning", "critical");
-    /** The sys block of the node (design 6.1) and the clock skew the center computes. */
-    static final Set<String> METRICS = Set.of("sys.uptime_sec", "sys.cpu_process", "sys.cpu_system", "sys.load_avg",
-            "sys.cpu_count", "sys.heap_used_mb", "sys.heap_max_mb", "sys.gc_pause_ms", "sys.db_pool_active",
-            "sys.db_pool_pending", "sys.db_pool_max", "sys.db_size_mb", "sys.disk_free_mb", "sys.disk_total_mb",
-            "sys.http_requests", "sys.http_rps", "sys.http_p95_ms", "sys.http_5xx_rate", "sys.sse_clients",
-            "sys.leaf_connected", "sys.leaf_rtt_ms", "sys.nats_reconnects", "sys.log_errors", "sys.log_warns",
-            "clock_skew_sec");
+    static final String CLOCK_SKEW = "clock_skew_sec";
+    /** The numeric columns of the sys block (design 6.1, {@link MetricColumns}) and the clock skew the center computes. */
+    static final Set<String> METRICS = Stream.concat(MetricColumns.SYS.stream()
+                    .filter(c -> c.type() != MetricColumns.Type.TEXT).map(c -> "sys." + c.name()), Stream.of(CLOCK_SKEW))
+            .collect(Collectors.toUnmodifiableSet());
+    /** {@code decrease} is restart detection: it compares process starts, which only the uptime has. */
+    static final String UPTIME = "sys.uptime_sec";
 
     public MonitoringConfig {
         evaluateEvery = evaluateEvery == null ? Duration.ofSeconds(15) : evaluateEvery;
@@ -67,9 +69,11 @@ public record MonitoringConfig(Duration evaluateEvery, double demoDurationScale,
                 if (!in(OPERATORS, op)) {
                     throw invalid(id, "unknown operator '" + op + "', expected one of " + OPERATORS);
                 }
-                if (value == null) {
-                    throw invalid(id, "kind " + kind + " needs 'value'");
+                if (value == null || !Double.isFinite(value)) {
+                    throw invalid(id, "kind " + kind + " needs a numeric 'value'");
                 }
+            } else if (!UPTIME.equals(metric)) {
+                throw invalid(id, "kind decrease detects restarts and works only on " + UPTIME + ", got '" + metric + "'");
             }
             switch (kind) {
                 case "threshold" -> require(id, kind, "for", holdFor);
@@ -80,11 +84,6 @@ public record MonitoringConfig(Duration evaluateEvery, double demoDurationScale,
                 }
                 default -> require(id, kind, "window", window);
             }
-        }
-
-        /** The stretch of history the rule looks back at. */
-        Duration span() {
-            return holdFor != null ? holdFor : window != null ? window : Duration.ZERO;
         }
 
         private static void require(String id, String kind, String field, @Nullable Duration value) {

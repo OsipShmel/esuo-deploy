@@ -50,8 +50,10 @@ esuo:
       admin-password: ${CENTER_ADMIN_PASSWORD:}   # empty => no account, the private API is closed
     metrics:                                    # design 6.2-6.3: heartbeats in batches, history for rules and Grafana
       flush-interval: 5s
-      resolution: ${METRICS_RESOLUTION:10s}     # one row per heartbeat; 60s for a big network
-      retention: 48h
+      resolution: ${METRICS_RESOLUTION:10s}     # one row per heartbeat of an ordinary branch
+      resolution-regional: ${METRICS_RESOLUTION_REGIONAL:60s}   # branches behind a regional hub (the swarm)
+      retention: ${METRICS_RETENTION:48h}
+      max-size: ${METRICS_MAX_SIZE:100GB}       # disk safety net: over it the oldest hours are dropped early
       max-range: 48h
     grafana:
       db-password: ${GRAFANA_DB_PASSWORD:}      # design 6.5: role grafana_ro for Grafana panels; empty => no role

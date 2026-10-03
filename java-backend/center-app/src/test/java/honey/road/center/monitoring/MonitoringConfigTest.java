@@ -66,4 +66,26 @@ class MonitoringConfigTest {
         assertThatThrownBy(() -> bind("{id: sys.w, kind: threshold, metric: sys.cpu_system, op: '=>', value: 1, for: 1m, severity: info, text: t}"))
                 .hasStackTraceContaining("sys.w").hasStackTraceContaining("=>");
     }
+
+    @Test
+    void decreaseIsOnlyForUptime() {                                       // it is restart detection by the process start
+        assertThatThrownBy(() -> bind("{id: sys.d, kind: decrease, metric: sys.heap_used_mb, window: 30m, severity: info, text: t}"))
+                .hasStackTraceContaining("sys.d").hasStackTraceContaining("sys.uptime_sec");
+    }
+
+    @Test
+    void everyNumericColumnIsAMetric() {
+        for (var c : MetricColumns.SYS) {
+            if (c.type() != MetricColumns.Type.TEXT) {
+                assertThat(MonitoringConfig.METRICS).contains("sys." + c.name());
+            }
+        }
+        assertThat(MonitoringConfig.METRICS).contains("clock_skew_sec");
+    }
+
+    @Test
+    void notANumberValueFails() {
+        assertThatThrownBy(() -> bind("{id: sys.n, kind: threshold, metric: sys.cpu_system, op: '>', value: .NaN, for: 1m, severity: info, text: t}"))
+                .hasStackTraceContaining("sys.n").hasStackTraceContaining("value");
+    }
 }

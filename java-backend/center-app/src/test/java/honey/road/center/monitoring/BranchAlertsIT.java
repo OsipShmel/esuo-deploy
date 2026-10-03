@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BranchAlertsIT extends AbstractCenterIT {
     @Autowired JdbcClient jdbc;
     @Autowired RuleEvaluator evaluator;
+    @Autowired BranchAlerts alerts;
 
     @BeforeEach
     void hotBranch() {
@@ -35,10 +36,15 @@ class BranchAlertsIT extends AbstractCenterIT {
         }
     }
 
+    @org.junit.jupiter.api.AfterEach
+    void cleanAlerts() {
+        jdbc.sql("DELETE FROM branch_alerts WHERE branch_id LIKE 'bz-%' OR branch_id IN ('ba2','ba3')").update();
+    }
+
     private void point(Instant ts, double cpu) {
         jdbc.sql("""
-                INSERT INTO branch_metrics(branch_id,ts,sys,queue) VALUES ('ba1',:ts,CAST(:sys AS jsonb),'{}'::jsonb)""")
-                .param("ts", Timestamp.from(ts)).param("sys", "{\"cpu_system\":" + cpu + "}").update();
+                INSERT INTO branch_metrics(branch_id,ts,cpu_system) VALUES ('ba1',:ts,:cpu)""")
+                .param("ts", Timestamp.from(ts)).param("cpu", cpu).update();
     }
 
     private JsonNode card() {
@@ -92,5 +98,50 @@ class BranchAlertsIT extends AbstractCenterIT {
 
         assertThat(card().path("alerts")).isEmpty();
         assertThat(card().path("anomalies").toString()).doesNotContain("sys.cpu");
+    }
+
+    @Test
+    void syncTakesMoreAlertsThanAStatementHasParameters() {        // a restarted swarm: every branch "restarted"
+        var now = Instant.now();
+        var many = new java.util.ArrayList<MonitoringRules.Alert>();
+        for (int i = 0; i < 70_000; i++) {
+            many.add(new MonitoringRules.Alert("bz-" + i, "sys.restart", "info", "restarted", 1, now));
+        }
+
+        alerts.sync(many, now);
+        assertThat(jdbc.sql("SELECT count(*) FROM branch_alerts").query(Long.class).single()).isEqualTo(70_000);
+
+        alerts.sync(many.subList(0, 10), now);
+        assertThat(jdbc.sql("SELECT count(*) FROM branch_alerts").query(Long.class).single()).isEqualTo(10);
+    }
+
+    @Test
+    void unchangedAlertIsNotRewritten() {
+        var now = Instant.now();
+        var alert = new MonitoringRules.Alert("ba2", "sys.disk", "critical", "8%", 0.08, now.minusSeconds(60));
+        alerts.sync(java.util.List.of(alert), now);
+        var version = jdbc.sql("SELECT xmin::text FROM branch_alerts WHERE branch_id='ba2'").query(String.class).single();
+
+        alerts.sync(java.util.List.of(alert), now.plusSeconds(15));
+        assertThat(jdbc.sql("SELECT xmin::text FROM branch_alerts WHERE branch_id='ba2'").query(String.class).single())
+                .isEqualTo(version);
+
+        alerts.sync(java.util.List.of(new MonitoringRules.Alert("ba2", "sys.disk", "critical", "7%", 0.07,
+                now.minusSeconds(60))), now.plusSeconds(30));
+        assertThat(jdbc.sql("SELECT text FROM branch_alerts WHERE branch_id='ba2'").query(String.class).single())
+                .isEqualTo("7%");
+    }
+
+    @Test
+    void sinceIsWrittenAsGiven() {                                  // the evaluator decides: kept or a new restart
+        var now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        alerts.sync(java.util.List.of(new MonitoringRules.Alert("ba3", "sys.restart", "info", "в 10:00", 1,
+                now.minusSeconds(600))), now);
+
+        alerts.sync(java.util.List.of(new MonitoringRules.Alert("ba3", "sys.restart", "info", "в 10:09", 1,
+                now.minusSeconds(60))), now);
+
+        assertThat(jdbc.sql("SELECT since FROM branch_alerts WHERE branch_id='ba3'").query(Timestamp.class).single()
+                .toInstant()).isEqualTo(now.minusSeconds(60));
     }
 }

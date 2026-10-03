@@ -2,6 +2,7 @@ package honey.road.center.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Name;
+import org.springframework.util.unit.DataSize;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -20,18 +21,23 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
         mp = mp == null ? new Mp(null, null, null, null, null, 0, null, null) : mp;
         security = security == null ? new Security(null, null, null, null, null) : security;
         logs = logs == null ? new Logs(null, 0, null, null, null, null, null, null, 0) : logs;
-        metrics = metrics == null ? new Metrics(null, null, null, null) : metrics;
+        metrics = metrics == null ? new Metrics(null, null, null, null, null, null) : metrics;
     }
 
     /**
-     * Heartbeats in batches and the metrics history (design 6.2, 6.3). {@code resolution} 10 s keeps every heartbeat;
-     * a big network writes one row a minute.
+     * Heartbeats in batches and the metrics history (design 6.2, 6.3, scale design 5.1). {@code resolution} 10 s keeps
+     * every heartbeat of an ordinary branch; {@code resolutionRegional} is for branches behind a regional hub (the
+     * swarm, a mass rollout), one row a minute by default. {@code maxSize} is a safety net for the disk: over it the
+     * oldest hours go before {@code retention}.
      */
-    public record Metrics(Duration flushInterval, Duration resolution, Duration retention, Duration maxRange) {
+    public record Metrics(Duration flushInterval, Duration resolution, Duration resolutionRegional, Duration retention,
+                          DataSize maxSize, Duration maxRange) {
         public Metrics {
             flushInterval = flushInterval == null ? Duration.ofSeconds(5) : flushInterval;
             resolution = resolution == null ? Duration.ofSeconds(10) : resolution;
+            resolutionRegional = resolutionRegional == null ? Duration.ofSeconds(60) : resolutionRegional;
             retention = retention == null ? Duration.ofHours(48) : retention;
+            maxSize = maxSize == null ? DataSize.ofGigabytes(100) : maxSize;
             maxRange = maxRange == null ? Duration.ofHours(48) : maxRange;
         }
     }

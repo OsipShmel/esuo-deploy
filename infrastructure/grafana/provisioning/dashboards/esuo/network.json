@@ -249,7 +249,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT DISTINCT ON (m.branch_id) m.branch_id AS \"Отделение\", b.name AS \"Название\", (now() - b.last_heartbeat_at) < interval '30 seconds' AS \"На связи\", (m.sys->>'cpu_system')::float AS \"CPU\", (m.sys->>'heap_used_mb')::float AS \"Heap\", (m.sys->>'http_p95_ms')::float AS \"p95 API\", (m.sys->>'disk_free_mb')::float AS \"Диск свободно\", (m.queue->>'waiting')::int AS \"Ждут\", (m.queue->>'outbox_pending')::int AS \"Не отправлено\", (m.sys->>'app_version') AS \"Версия\", m.ts AS \"Данные на\" FROM branch_metrics m JOIN branches b ON b.id = m.branch_id WHERE m.ts > now() - interval '15 minutes' ORDER BY m.branch_id, m.ts DESC"
+          "rawSql": "SELECT DISTINCT ON (m.branch_id) m.branch_id AS \"Отделение\", b.name AS \"Название\", (now() - b.last_heartbeat_at) < interval '30 seconds' AS \"На связи\", m.cpu_system AS \"CPU\", m.heap_used_mb AS \"Heap\", m.http_p95_ms AS \"p95 API\", m.disk_free_mb AS \"Диск свободно\", m.waiting AS \"Ждут\", m.outbox_pending AS \"Не отправлено\", b.last_heartbeat->'sys'->>'app_version' AS \"Версия\", m.ts AS \"Данные на\" FROM branch_metrics m JOIN branches b ON b.id = m.branch_id WHERE m.ts > now() - interval '15 minutes' ORDER BY m.branch_id, m.ts DESC"
         }
       ],
       "fieldConfig": {
@@ -389,7 +389,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, branch_id AS metric, (sys->>'cpu_system')::float AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, branch_id AS metric, cpu_system AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -440,7 +440,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, branch_id AS metric, (sys->>'http_p95_ms')::float AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, branch_id AS metric, http_p95_ms AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -539,7 +539,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, branch_id AS metric, (queue->>'outbox_pending')::float AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, branch_id AS metric, outbox_pending AS value FROM branch_metrics WHERE $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {

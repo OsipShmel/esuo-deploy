@@ -56,6 +56,10 @@ services:
       LOKI_URL: ${LOKI_URL:-http://loki:3100}             # профиль monitoring; без Loki строки ждут в CENTER_LOG
       GRAFANA_PUBLIC_URL: ${GRAFANA_PUBLIC_URL:-}         # ссылки на выгруженные логи; пусто => без ссылки
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-}       # роль grafana_ro для панелей метрик; пусто => роли нет
+      METRICS_RESOLUTION: ${METRICS_RESOLUTION:-10s}      # история метрик: обычные отделения
+      METRICS_RESOLUTION_REGIONAL: ${METRICS_RESOLUTION_REGIONAL:-60s}   # отделения за региональным хабом (рой)
+      METRICS_RETENTION: ${METRICS_RETENTION:-48h}
+      METRICS_MAX_SIZE: ${METRICS_MAX_SIZE:-100GB}        # страховка диска: сверх неё старые часы уходят раньше
     ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}

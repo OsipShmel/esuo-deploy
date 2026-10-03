@@ -7,6 +7,7 @@ import jakarta.annotation.PreDestroy;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -23,7 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Writes buffered heartbeats every few seconds (design 6.2): one transaction upserts {@code branches} and appends
  * {@code branch_metrics}, instead of a transaction per heartbeat. A failed write puts the batch back unless a fresher
- * heartbeat replaced it; the overview lags by at most one flush interval, far below the 30 s offline threshold.
+ * heartbeat replaced it; the overview lags by at most one flush interval, far below the 30 s offline threshold. The
+ * metrics go under a savepoint: whatever breaks them, the branches stay online and only that batch of metric rows is
+ * lost. Branches behind a regional hub get their own, coarser resolution (scale design 5.1).
  */
 @Component
 public class HeartbeatFlush {
@@ -35,12 +38,14 @@ public class HeartbeatFlush {
     private final TransactionTemplate tx;
     private final JsonMapper json;
     private final Duration resolution;
+    private final Duration resolutionRegional;
     private final Map<String, Instant> lastMetricAt = new ConcurrentHashMap<>();
 
     public HeartbeatFlush(HeartbeatBuffer buffer, BranchRegistry registry, BranchMetrics metrics,
                           PlatformTransactionManager transactions, JsonMapper json, CenterProperties props) {
         this.buffer = buffer; this.registry = registry; this.metrics = metrics;
-        this.tx = new TransactionTemplate(transactions); this.json = json; this.resolution = props.metrics().resolution();
+        this.tx = new TransactionTemplate(transactions); this.json = json;
+        this.resolution = props.metrics().resolution(); this.resolutionRegional = props.metrics().resolutionRegional();
     }
 
     /**
@@ -59,7 +64,7 @@ public class HeartbeatFlush {
         }
         var rows = new ArrayList<MetricsRow>();
         for (var hb : batch) {
-            if (due(lastMetricAt.get(hb.branchId()), hb.receivedAt(), resolution)) {
+            if (due(lastMetricAt.get(hb.branchId()), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution)) {
                 try {
                     rows.add(MetricsRow.of(hb.branchId(), json.readTree(hb.json()), hb.receivedAt()));
                 } catch (RuntimeException e) {
@@ -68,11 +73,22 @@ public class HeartbeatFlush {
             }
         }
         try {
-            tx.executeWithoutResult(s -> {
+            boolean written = Boolean.TRUE.equals(tx.execute(s -> {
                 registry.saveHeartbeats(batch);
-                metrics.insert(rows);
-            });
-            rows.forEach(r -> lastMetricAt.put(r.branchId(), r.ts()));
+                var savepoint = s.createSavepoint();
+                try {
+                    metrics.insert(rows);
+                    s.releaseSavepoint(savepoint);
+                    return true;
+                } catch (DataAccessException e) {
+                    s.rollbackToSavepoint(savepoint);
+                    log.warn("{} metric rows lost, heartbeats saved: {}", rows.size(), e.getMostSpecificCause().toString());
+                    return false;
+                }
+            }));
+            if (written) {
+                rows.forEach(r -> lastMetricAt.put(r.branchId(), r.ts()));
+            }
         } catch (RuntimeException e) {
             buffer.restore(batch);
             log.warn("heartbeat flush failed, {} branches kept for the next one: {}", batch.size(), e.toString());

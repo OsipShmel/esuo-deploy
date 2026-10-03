@@ -20,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * see {@link #register}), a known one waits in memory and is written with the next flush together with its metrics
  * row. Flushes here are explicit: the schedule is an hour.
  */
-@TestPropertySource(properties = "esuo.center.metrics.flush-interval=1h")
+@TestPropertySource(properties = {"esuo.center.metrics.flush-interval=1h", "esuo.center.metrics.resolution=1s",
+        "esuo.center.metrics.resolution-regional=1h"})
 class HeartbeatFlushIT extends AbstractCenterIT {
     @Autowired HeartbeatListener listener;
     @Autowired HeartbeatFlush flush;
@@ -97,8 +98,39 @@ class HeartbeatFlushIT extends AbstractCenterIT {
         beat("hf4", hb("B", 1, null));
         flush.run();
 
-        assertThat(jdbc.sql("SELECT count(*) FROM branch_metrics WHERE branch_id='hf4' AND sys IS NULL AND clock_skew_ms IS NULL")
+        assertThat(jdbc.sql("SELECT count(*) FROM branch_metrics WHERE branch_id='hf4' AND waiting = 1 AND cpu_count IS NULL AND clock_skew_ms IS NULL")
                 .query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void branchBehindARegionalHubHasItsOwnResolution() throws Exception {
+        register("hf8", hb("Own leaf", 0, null));
+        var regional = "{\"name\":\"Swarm\",\"timezone\":\"Europe/Moscow\",\"waiting\":0,\"events_via\":\"region-1\"}";
+        register("hf9", regional);
+        for (int i = 0; i < 2; i++) {
+            beat("hf8", hb("Own leaf", i, null));
+            beat("hf9", regional);
+            flush.run();
+            Thread.sleep(1100);                                         // past the 1 s resolution of an ordinary branch
+        }
+
+        assertThat(metricRows("hf8")).isEqualTo(2);
+        assertThat(metricRows("hf9")).isEqualTo(1);                    // 1 h for the regional ones here
+    }
+
+    @Test
+    void brokenMetricsWriteDoesNotLoseTheHeartbeat() {
+        register("hf7", hb("Before", 0, null));
+        beat("hf7", hb("After", 3, "{\"cpu_count\":4}"));
+        jdbc.sql("ALTER TABLE branch_metrics RENAME TO branch_metrics_away").update();
+        try {
+            flush.run();
+        } finally {
+            jdbc.sql("ALTER TABLE branch_metrics_away RENAME TO branch_metrics").update();
+        }
+
+        assertThat(name("hf7")).isEqualTo("After");                    // the branch stays online, its metrics row is lost
+        assertThat(metricRows("hf7")).isZero();
     }
 
     @Test

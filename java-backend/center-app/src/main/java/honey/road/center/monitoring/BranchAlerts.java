@@ -22,21 +22,61 @@ public class BranchAlerts {
         this.jdbc = jdbc; this.batch = batch;
     }
 
-    /** Makes the table equal to {@code alerts}; joins the caller's transaction. A continuing alert keeps its {@code since}. */
+    /**
+     * Makes the table equal to {@code alerts}; joins the caller's transaction. {@code since} is written as given: the
+     * evaluator keeps it for a continuing alert. The alerts go as arrays, so any number of them fits one statement
+     * (a list of keys stops at 65 535 JDBC parameters — a restarted swarm alone is more), and a row is rewritten only
+     * when what a person sees has changed.
+     */
     public void sync(List<Alert> alerts, Instant now) {
-        if (alerts.isEmpty()) {
-            jdbc.sql("DELETE FROM branch_alerts").update();
+        int n = alerts.size();
+        var branch = new String[n];
+        var rule = new String[n];
+        var severity = new String[n];
+        var text = new String[n];
+        var value = new Double[n];
+        var since = new String[n];
+        for (int i = 0; i < n; i++) {
+            var a = alerts.get(i);
+            branch[i] = a.branchId(); rule[i] = a.ruleId(); severity[i] = a.severity(); text[i] = a.text();
+            value[i] = Double.isFinite(a.value()) ? a.value() : null; since[i] = a.since().toString();
+        }
+        batch.update("""
+                DELETE FROM branch_alerts t WHERE NOT EXISTS (
+                  SELECT 1 FROM unnest(?::text[], ?::text[]) a(branch_id, rule_id)
+                  WHERE a.branch_id = t.branch_id AND a.rule_id = t.rule_id)""", ps -> {
+            ps.setArray(1, ps.getConnection().createArrayOf("text", branch));
+            ps.setArray(2, ps.getConnection().createArrayOf("text", rule));
+        });
+        if (n == 0) {
             return;
         }
-        jdbc.sql("DELETE FROM branch_alerts WHERE branch_id || '/' || rule_id NOT IN (:keys)")
-                .param("keys", alerts.stream().map(a -> a.branchId() + "/" + a.ruleId()).toList()).update();
-        batch.batchUpdate("""
-                        INSERT INTO branch_alerts(branch_id,rule_id,severity,text,value,since,updated_at)
-                        VALUES (?,?,?,?,?,?,?)
-                        ON CONFLICT (branch_id, rule_id) DO UPDATE SET severity=EXCLUDED.severity, text=EXCLUDED.text,
-                               value=EXCLUDED.value, updated_at=EXCLUDED.updated_at""",
-                alerts.stream().map(a -> new Object[]{a.branchId(), a.ruleId(), a.severity(), a.text(), a.value(),
-                        Timestamp.from(a.since()), Timestamp.from(now)}).toList());
+        batch.update("""
+                INSERT INTO branch_alerts(branch_id,rule_id,severity,text,value,since,updated_at)
+                SELECT a.branch_id, a.rule_id, a.severity, a.text, coalesce(a.value, 0), a.since::timestamptz, ?
+                FROM unnest(?::text[], ?::text[], ?::text[], ?::text[], ?::float8[], ?::text[])
+                     a(branch_id, rule_id, severity, text, value, since)
+                ON CONFLICT (branch_id, rule_id) DO UPDATE SET severity=EXCLUDED.severity, text=EXCLUDED.text,
+                       value=EXCLUDED.value, since=EXCLUDED.since, updated_at=EXCLUDED.updated_at
+                WHERE (branch_alerts.severity, branch_alerts.text, branch_alerts.since)
+                      IS DISTINCT FROM (EXCLUDED.severity, EXCLUDED.text, EXCLUDED.since)""", ps -> {
+            var c = ps.getConnection();
+            ps.setTimestamp(1, Timestamp.from(now));
+            ps.setArray(2, c.createArrayOf("text", branch));
+            ps.setArray(3, c.createArrayOf("text", rule));
+            ps.setArray(4, c.createArrayOf("text", severity));
+            ps.setArray(5, c.createArrayOf("text", text));
+            ps.setArray(6, c.createArrayOf("float8", value));
+            ps.setArray(7, c.createArrayOf("text", since));
+        });
+    }
+
+    /** {@code since} of every stored alert by {@code branch/rule}: the evaluator keeps it for a continuing one. */
+    public Map<String, Instant> sinceByKey() {
+        var m = new java.util.HashMap<String, Instant>();
+        jdbc.sql("SELECT branch_id, rule_id, since FROM branch_alerts")
+                .query(rs -> { m.put(rs.getString("branch_id") + "/" + rs.getString("rule_id"), rs.getTimestamp("since").toInstant()); });
+        return m;
     }
 
     /** Alerts per branch for the overview: {@code {code, severity, text, since}}, critical first. */

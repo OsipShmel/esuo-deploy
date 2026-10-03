@@ -15,10 +15,10 @@ import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Metrics history of a branch (design 6.3): API for the network admin and the 48 h retention. */
+/** Metrics history of a branch (design 6.3): API for the network admin over the typed columns (scale design 5.1). */
 class BranchMetricsApiIT extends AbstractCenterIT {
     @Autowired JdbcClient jdbc;
-    @Autowired MetricsRetention retention;
+    @Autowired BranchMetrics metrics;
 
     private final Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
@@ -32,9 +32,8 @@ class BranchMetricsApiIT extends AbstractCenterIT {
 
     private void row(Duration ago, int waiting) {
         jdbc.sql("""
-                INSERT INTO branch_metrics(branch_id,ts,sys,queue,clock_skew_ms)
-                VALUES ('bm1',:ts,'{"cpu_count":4}'::jsonb,CAST(:q AS jsonb),120)""")
-                .param("ts", Timestamp.from(now.minus(ago))).param("q", "{\"waiting\":" + waiting + "}").update();
+                INSERT INTO branch_metrics(branch_id,ts,cpu_count,waiting,clock_skew_ms) VALUES ('bm1',:ts,4,:w,120)""")
+                .param("ts", Timestamp.from(now.minus(ago))).param("w", waiting).update();
     }
 
     private MvcTestResult get(String query, boolean withToken) {
@@ -103,13 +102,49 @@ class BranchMetricsApiIT extends AbstractCenterIT {
     }
 
     @Test
-    void retentionDeletesOldRows() {
-        row(Duration.ofHours(49), 1);
-        row(Duration.ofHours(47), 2);
+    void everyColumnRoundTrips() {
+        var sys = json.createObjectNode();
+        int n = 1;
+        for (var c : MetricColumns.SYS) {
+            if (c.type() == MetricColumns.Type.BOOL) {
+                sys.put(c.name(), true);
+            } else {
+                sys.put(c.name(), n++);
+            }
+        }
+        sys.put("started_at", "2026-10-02T09:00:00Z").put("sent_at_system", now.minusSeconds(2).toString());
+        var hb = json.createObjectNode().put("waiting", 5).put("overdue", 1).put("oldest_wait_sec", 300)
+                .put("windows_open", 2).put("outbox_pending", 7).put("outbox_lag_sec", 3).put("load_level", "high")
+                .put("clear_time_min", 12.5);
+        hb.set("sys", sys);
 
-        retention.run();
+        metrics.insert(java.util.List.of(MetricsRow.of("bm1", hb, now.minusSeconds(30))));
 
-        assertThat(jdbc.sql("SELECT (queue->>'waiting')::int FROM branch_metrics WHERE branch_id='bm1'").query(Integer.class).list())
-                .containsExactly(2);
+        var row = body(get("", true)).get(0);
+        n = 1;
+        for (var c : MetricColumns.SYS) {
+            var v = row.path("sys").path(c.name());
+            if (c.type() == MetricColumns.Type.BOOL) {
+                assertThat(v.asBoolean()).as(c.name()).isTrue();
+            } else {
+                assertThat(v.asDouble()).as(c.name()).isEqualTo(n++);
+            }
+        }
+        assertThat(row.path("sys").path("started_at").asString()).isEqualTo("2026-10-02T09:00:00Z");
+        assertThat(row.path("clock_skew_ms").asInt()).isEqualTo(-28_000);
+        assertThat(row.path("queue").path("waiting").asInt()).isEqualTo(5);
+        assertThat(row.path("queue").path("load_level").asString()).isEqualTo("high");
+        assertThat(row.path("queue").path("clear_time_min").asDouble()).isEqualTo(12.5);
+        assertThat(row.path("queue").size()).isEqualTo(MetricColumns.QUEUE.size());
+    }
+
+    @Test
+    void rowWithoutSysHasNullSys() {
+        metrics.insert(java.util.List.of(MetricsRow.of("bm1", json.readTree("{\"waiting\":3}"), now.minusSeconds(30))));
+
+        var row = body(get("", true)).get(0);
+        assertThat(row.path("sys").isNull()).isTrue();
+        assertThat(row.path("clock_skew_ms").isNull()).isTrue();
+        assertThat(row.path("queue").path("waiting").asInt()).isEqualTo(3);
     }
 }

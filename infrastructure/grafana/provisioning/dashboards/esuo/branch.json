@@ -61,7 +61,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'uptime_sec')::float AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, uptime_sec AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -113,7 +113,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'cpu_system')::float AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, cpu_system AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -165,7 +165,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'disk_free_mb')::float AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, disk_free_mb AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -217,7 +217,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (queue->>'waiting')::float AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, waiting AS v FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -383,7 +383,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'cpu_system')::float AS \"ПК целиком\", (sys->>'cpu_process')::float AS \"Приложение\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, cpu_system AS \"ПК целиком\", cpu_process AS \"Приложение\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -434,7 +434,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'heap_used_mb')::float AS \"Занято\", (sys->>'heap_max_mb')::float AS \"Максимум\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, heap_used_mb AS \"Занято\", heap_max_mb AS \"Максимум\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -484,7 +484,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'http_p95_ms')::float AS \"p95\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, http_p95_ms AS \"p95\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -534,7 +534,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'http_rps')::float AS \"Запросов/с\", (sys->>'http_5xx_rate')::float AS \"Доля 5xx\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, http_rps AS \"Запросов/с\", http_5xx_rate AS \"Доля 5xx\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -601,7 +601,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'db_pool_active')::float AS \"Занято\", (sys->>'db_pool_pending')::float AS \"Ждут соединения\", (sys->>'db_pool_max')::float AS \"Всего\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, db_pool_active AS \"Занято\", db_pool_pending AS \"Ждут соединения\", db_pool_max AS \"Всего\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -651,7 +651,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'disk_free_mb')::float AS \"Свободно\", (sys->>'disk_total_mb')::float AS \"Всего\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, disk_free_mb AS \"Свободно\", disk_total_mb AS \"Всего\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -701,7 +701,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'leaf_rtt_ms')::float AS \"RTT\", (sys->>'nats_reconnects')::float AS \"Переподключения\", clock_skew_ms / 1000.0 AS \"Расхождение часов, с\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, leaf_rtt_ms AS \"RTT\", nats_reconnects AS \"Переподключения\", clock_skew_ms / 1000.0 AS \"Расхождение часов, с\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -784,7 +784,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (queue->>'outbox_pending')::float AS \"Не отправлено\", (queue->>'outbox_lag_sec')::float AS \"Задержка\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, outbox_pending AS \"Не отправлено\", outbox_lag_sec AS \"Задержка\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -851,7 +851,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (queue->>'waiting')::float AS \"Ждут\", (queue->>'overdue')::float AS \"Просрочены\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, waiting AS \"Ждут\", overdue AS \"Просрочены\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
@@ -901,7 +901,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT ts AS time, (sys->>'log_errors')::float AS \"ERROR\", (sys->>'log_warns')::float AS \"WARN\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, log_errors AS \"ERROR\", log_warns AS \"WARN\" FROM branch_metrics WHERE branch_id = '$branch' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "fieldConfig": {
