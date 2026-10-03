@@ -21,7 +21,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Heartbeat {@code branch.*.hb} → registry → source in {@code CENTER_EVT} and the first config version.
+ * Heartbeat {@code branch.*.hb} → registry → source in {@code CENTER_EVT} and the first config version. A heartbeat
+ * with {@code events_via} (branch of a regional leaf, design doc 3.8) brings in that region's stream instead.
  * A new branch only needs the center address and the leaf password; nothing is set up by hand at the center.
  * Periodic reconciliation picks up branches whose source could not be attached on the first attempt.
  */
@@ -65,8 +66,10 @@ public class HeartbeatListener {
             boolean isNew = registry.upsertHeartbeat(branchId, hb.path("name").asString(branchId),
                     hb.path("timezone").asString("Europe/Moscow"), body, clock.instant());
             if (isNew) {
-                log.info("new branch registered id={} name={}", branchId, hb.path("name").asString(""));
-                attach(branchId);
+                var via = EventsVia.of(hb.path("events_via").asString(null));
+                log.info("new branch registered id={} name={}{}", branchId, hb.path("name").asString(""),
+                        via == null ? "" : " events_via=" + via);
+                attach(branchId, via);
                 config.publishTo(branchId, "system");         // new branch gets its users and rules right away
             }
         } catch (RuntimeException e) {
@@ -79,14 +82,15 @@ public class HeartbeatListener {
     public void reconcile() {
         if (!streams.ready()) { return; }
         try {
-            registry.withoutSource().forEach(this::attach);
+            registry.withoutSource().forEach(b -> attach(b.id(), b.eventsVia()));
         } catch (RuntimeException e) {
             log.warn("reconcile failed: {}", e.toString());
         }
     }
 
-    private void attach(String branchId) {
-        if (streams.attachBranch(branchId)) {
+    /** Own {@code BRANCH_EVT} of the branch, or the {@code REGION_EVT} of its region when the heartbeat names one. */
+    private void attach(String branchId, String eventsVia) {
+        if (eventsVia == null ? streams.attachBranch(branchId) : streams.attachRegion(eventsVia)) {
             registry.markSourceAttached(branchId);
         }
     }

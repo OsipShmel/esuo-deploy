@@ -19,6 +19,7 @@
 		<module>shared-contracts</module>
 		<module>node-app</module>
 		<module>center-app</module>
+		<module>swarm-sim</module>
 	</modules>
 
 	<properties>

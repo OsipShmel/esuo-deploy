@@ -57,3 +57,5 @@
 | 2026-09-22 20:53 | 7208a34 | pension-ab | 6/7 | `010a8038ff73` | `runs/pension-ab-20260922T205341Z.json` |
 | 2026-09-22 21:44 | 53c723b | pension-ab | 7/7 | `010a8038ff73` | `runs/pension-ab-20260922T214416Z.json` |
 | 2026-10-01 05:59 | eaa2d27 | link-cut | 10/10 | `dd8724e64d83` | `runs/link-cut-20261001T055916Z.json` |
+| 2026-10-03 09:41 | 7c17469 | pension-day | 10/10 | `19366b4e7c08` | `runs/pension-day-20261003T094124Z.json` |
+| 2026-10-03 09:43 | 7c17469 | pension-day | 10/10 | `19366b4e7c08` | `runs/pension-day-20261003T094328Z.json` |

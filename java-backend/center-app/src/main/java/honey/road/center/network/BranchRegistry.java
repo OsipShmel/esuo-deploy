@@ -39,8 +39,17 @@ public class BranchRegistry {
         jdbc.sql("UPDATE branches SET source_attached=true WHERE id=:id").param("id", id).update();
     }
 
-    public List<String> withoutSource() {
-        return jdbc.sql("SELECT id FROM branches WHERE NOT source_attached").query(String.class).list();
+    /**
+     * A branch whose events are not yet sourced into {@code CENTER_EVT}, and where they live: its own leaf
+     * ({@code eventsVia} null) or a regional domain from its last heartbeat.
+     */
+    public record Unattached(String id, @Nullable String eventsVia) {
+    }
+
+    public List<Unattached> withoutSource() {
+        return jdbc.sql("SELECT id, last_heartbeat->>'events_via' AS via FROM branches WHERE NOT source_attached")
+                .query((rs, n) -> new Unattached(rs.getString("id"), EventsVia.of(rs.getString("via"))))
+                .list();
     }
 
     public List<String> allIds() {

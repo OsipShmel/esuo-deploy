@@ -15,13 +15,16 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 
 /**
 * Streams from the {@code center} domain (docs, section 10.4) and the connection of branches to {@code CENTER_EVT}.
 * <p>{@code CENTER_EVT} does not have its own subjects from {@code branch}: events arrive only via sources;
 * otherwise, with an active connection, each event would be received twice. A branch source is added automatically
-* upon the first heartbeat ({@link #attachBranch}).
+* upon the first heartbeat ({@link #attachBranch}); a branch whose events live in a regional leaf brings in that
+* region's {@code REGION_EVT} instead, once per region ({@link #attachRegion}, design doc 3.8).
  */
 @Component
 public class CenterStreams {
@@ -30,6 +33,8 @@ public class CenterStreams {
 
     private final CenterNats nats;
     private volatile boolean ready;
+    /** Regions already sourced by this process: 40 000 heartbeats must not mean 40 000 stream-info calls. */
+    private final Set<String> regions = ConcurrentHashMap.newKeySet();
 
     public CenterStreams(CenterNats nats) { this.nats = nats; }
 
@@ -69,11 +74,34 @@ public class CenterStreams {
     * @return true if the source exists (was added now or previously)
      */
     public synchronized boolean attachBranch(String branchId) {
+        return attachSource(Subjects.STREAM_BRANCH_EVT, Subjects.jsApiPrefix(Subjects.branchDomain(branchId)), "branch " + branchId);
+    }
+
+    /**
+     * Connects a regional {@code REGION_EVT} (JetStream domain {@code region-N}) to {@code CENTER_EVT}: one source for
+     * every branch of the region. Idempotent; after the first success answered from memory.
+     */
+    public boolean attachRegion(String domain) {
+        if (regions.contains(domain)) {
+            return true;
+        }
+        synchronized (this) {
+            if (regions.contains(domain)) {
+                return true;
+            }
+            boolean ok = attachSource(Subjects.STREAM_REGION_EVT, Subjects.jsApiPrefix(domain), "region " + domain);
+            if (ok) {
+                regions.add(domain);
+            }
+            return ok;
+        }
+    }
+
+    private boolean attachSource(String stream, String api, String who) {
         var connection = nats.connection();
         if (connection.isEmpty() || !ready) {
             return false;
         }
-        var api = Subjects.jsApiPrefix(Subjects.branchDomain(branchId));
         try {
             var jsm = connection.get().jetStreamManagement();
             var current = jsm.getStreamInfo(Subjects.STREAM_CENTER_EVT).getConfiguration();
@@ -82,16 +110,16 @@ public class CenterStreams {
             if (!present) {
                 var updated = StreamConfiguration.builder(current)
                         .addSources(Source.builder()
-                                .name(Subjects.STREAM_BRANCH_EVT)
+                                .name(stream)
                                 .external(External.builder().api(api).build())
                                 .build())
                         .build();
                 jsm.updateStream(updated);
-                log.info("branch {} attached to {} (source api={})", branchId, Subjects.STREAM_CENTER_EVT, api);
+                log.info("{} attached to {} (source {} api={})", who, Subjects.STREAM_CENTER_EVT, stream, api);
             }
             return true;
         } catch (IOException | JetStreamApiException e) {
-            log.error("cannot attach branch {} to {}", branchId, Subjects.STREAM_CENTER_EVT, e);
+            log.error("cannot attach {} to {}", who, Subjects.STREAM_CENTER_EVT, e);
             return false;
         }
     }

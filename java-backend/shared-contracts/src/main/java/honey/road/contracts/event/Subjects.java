@@ -27,6 +27,9 @@ public final class Subjects {
 
     public static final String ALL_HEARTBEATS = "branch.*.hb";
 
+    /** Config of every branch (core subscription of the swarm simulator to confirm versions like a node). */
+    public static final String CONFIG_ALL_BRANCHES = "center.config.branch.>";
+
     // ---- center → branch, sync
     public static String rpc(String branchId, String op) {
         return "branch." + branchId + ".rpc." + op;
@@ -53,6 +56,14 @@ public final class Subjects {
     public static final String STREAM_CENTER_EVT = "CENTER_EVT";
     public static final String STREAM_CONFIG = "CONFIG";
     public static final String STREAM_MP_INBOX = "MP_INBOX";
+    /**
+     * Regional level (design doc 3.8): one regional leaf collects the events of all its branches, and the center
+     * sources this stream once per region instead of one {@code BRANCH_EVT} per branch. The leaf denies importing
+     * {@code branch.*.evt.>} from the hub, so the stream holds only its own region's events.
+     */
+    public static final String STREAM_REGION_EVT = "REGION_EVT";
+    /** {@code events_via} of a heartbeat: the JetStream domain that holds the branch's events instead of its own leaf. */
+    public static final String REGION_DOMAIN_PATTERN = "region-[a-z0-9-]{1,32}";
 
     public static final String CENTER_DOMAIN = "center";
 

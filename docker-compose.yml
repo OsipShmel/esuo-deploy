@@ -23,6 +23,15 @@ x-link: &link
   command: ["-d", "tcp-listen:7422,fork,reuseaddr", "tcp-connect:nats-hub:7422"]
   restart: "no"
 
+x-region: &region
+  image: nats:2.10.26-alpine
+  command: ["-c", "/etc/nats/nats.conf"]
+  profiles: [swarm, swarm-run]
+  volumes: ["./infrastructure/nats/region.conf:/etc/nats/nats.conf:ro"]
+  depends_on: [nats-hub]
+  networks: [center]
+  restart: unless-stopped
+
 x-pg: &pg
   image: postgres:16-alpine
   healthcheck:
@@ -126,6 +135,58 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [center, b01, b02]
     restart: unless-stopped
+
+  # ------------------------------------------------------------------ рой отделений (план финала, C1)
+  # Четыре региональных leaf: docker compose --profile swarm up -d. Сам рой — java -jar с хоста (порты 4231–4234)
+  # или контейнером: docker compose --profile swarm run --rm swarm-sim --branches 40000 --duration 10m
+  nats-region-1:
+    <<: *region
+    container_name: esuo-nats-region-1
+    environment:
+      LEAF_SERVER_NAME: region-1
+      JS_DOMAIN: region-1
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
+    ports: [ "127.0.0.1:4231:4222" ]
+
+  nats-region-2:
+    <<: *region
+    container_name: esuo-nats-region-2
+    environment:
+      LEAF_SERVER_NAME: region-2
+      JS_DOMAIN: region-2
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
+    ports: [ "127.0.0.1:4232:4222" ]
+
+  nats-region-3:
+    <<: *region
+    container_name: esuo-nats-region-3
+    environment:
+      LEAF_SERVER_NAME: region-3
+      JS_DOMAIN: region-3
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
+    ports: [ "127.0.0.1:4233:4222" ]
+
+  nats-region-4:
+    <<: *region
+    container_name: esuo-nats-region-4
+    environment:
+      LEAF_SERVER_NAME: region-4
+      JS_DOMAIN: region-4
+      LEAF_REMOTE_URL: nats-leaf://leaf:${LEAF_PASSWORD}@nats-hub:7422
+    ports: [ "127.0.0.1:4234:4222" ]
+
+  swarm-sim:
+    build:
+      context: .
+      dockerfile: java-backend/Dockerfile
+      args: {MODULE: swarm-sim}
+    container_name: esuo-swarm-sim
+    profiles: [swarm-run]
+    command: ["--nats", "nats://nats-region-1:4222,nats://nats-region-2:4222,nats://nats-region-3:4222,nats://nats-region-4:4222",
+              "--report", "/reports"]
+    volumes: ["./docs/demo/load:/reports"]
+    depends_on: [nats-region-1, nats-region-2, nats-region-3, nats-region-4]
+    networks: [center]
 
   # ------------------------------------------------------------------ отделение b01
   nats-leaf-b01:
