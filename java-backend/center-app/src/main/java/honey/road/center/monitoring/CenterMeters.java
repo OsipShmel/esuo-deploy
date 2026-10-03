@@ -16,6 +16,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static honey.road.center.network.BranchRegistry.SEEN_AT;
+import static honey.road.center.network.BranchRegistry.WITH_SEEN;
+
 /**
  * Gauges of the center that need a query (scale design 6.2): branches online and offline, the size of the metrics
  * history, the backlog of branch events not yet written. Refreshed every 15 s, not on every scrape: a scrape must not
@@ -55,10 +58,9 @@ public class CenterMeters {
     @Scheduled(fixedDelayString = "PT15S", initialDelayString = "PT5S")
     public void refresh() {
         try {
-            jdbc.sql("""
-                            SELECT count(*) FILTER (WHERE last_heartbeat_at >= :since) AS online,
-                                   count(*) FILTER (WHERE last_heartbeat_at IS NULL OR last_heartbeat_at < :since) AS offline
-                            FROM branches""")
+            jdbc.sql("SELECT count(*) FILTER (WHERE " + SEEN_AT + " >= :since) AS online, "
+                            + "count(*) FILTER (WHERE " + SEEN_AT + " IS NULL OR " + SEEN_AT + " < :since) AS offline "
+                            + "FROM " + WITH_SEEN)
                     .param("since", Timestamp.from(clock.instant().minus(offlineAfter)))
                     .query(rs -> { online.set(rs.getLong("online")); offline.set(rs.getLong("offline")); });
             historyBytes.set(jdbc.sql("""

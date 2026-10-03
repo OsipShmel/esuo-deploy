@@ -1,5 +1,6 @@
 package honey.road.center.centralconfig;
 
+import honey.road.center.network.BranchRegistry;
 import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -178,11 +179,10 @@ class ConfigStore {
     }
 
     List<BranchState> states() {
-        return jdbc.sql("""
-                        SELECT id, last_heartbeat_at, COALESCE((last_heartbeat->>'config_version')::int, 0) AS hb_version,
-                               config_published_version, config_sent_at, config_applied_version, config_applied_at
-                          FROM branches ORDER BY id
-                        """)
+        return jdbc.sql("SELECT id, " + BranchRegistry.SEEN_AT + " AS last_heartbeat_at, "
+                        + "COALESCE((last_heartbeat->>'config_version')::int, 0) AS hb_version, "
+                        + "config_published_version, config_sent_at, config_applied_version, config_applied_at "
+                        + "FROM " + BranchRegistry.WITH_SEEN + " ORDER BY id")
                 .query((rs, n) -> new BranchState(rs.getString("id"), rs.getTimestamp("last_heartbeat_at").toInstant(),
                         rs.getInt("hb_version"), (Integer) rs.getObject("config_published_version"),
                         instant(rs, "config_sent_at"), (Integer) rs.getObject("config_applied_version"),

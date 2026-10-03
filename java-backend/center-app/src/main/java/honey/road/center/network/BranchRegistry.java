@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -79,8 +81,17 @@ public class BranchRegistry {
     }
 
     /**
-     * Only "seen at": for heartbeats whose content waits for its resolution (scale design 9.2). One statement per chunk;
-     * the row keeps its heartbeat JSON (in TOAST, untouched), so this is a small HOT update, not a rewrite.
+     * "Last heard of" of a branch, for {@code FROM }{@link #WITH_SEEN} (scale design 9.2): a heartbeat written whole sets
+     * {@code branches.last_heartbeat_at}, one that only says "alive" sets {@code branch_seen}. Every judgement of
+     * "online" reads it so.
+     */
+    public static final String SEEN_AT = "GREATEST(b.last_heartbeat_at, s.seen_at)";
+    public static final String WITH_SEEN = "branches b LEFT JOIN branch_seen s ON s.branch_id = b.id";
+
+    /**
+     * Only "seen at": for heartbeats whose content waits for its resolution (scale design 9.2). One statement per chunk
+     * into the narrow {@code branch_seen}: the wide row with the heartbeat JSON is not copied. An update for the branches
+     * it has, an insert for the rest — an upsert of every row took twice as long.
      */
     public void touch(List<Heartbeat> heartbeats) {
         if (heartbeats.isEmpty()) {
@@ -89,9 +100,11 @@ public class BranchRegistry {
         var ids = heartbeats.stream().map(Heartbeat::branchId).toArray(String[]::new);
         var at = heartbeats.stream().map(h -> h.receivedAt().toString()).toArray(String[]::new);
         batch.update("""
-                UPDATE branches b SET last_heartbeat_at = v.at::timestamptz
-                FROM unnest(?::text[], ?::text[]) AS v(id, at)
-                WHERE b.id = v.id AND b.last_heartbeat_at < v.at::timestamptz""", ps -> {
+                WITH v AS (SELECT id, at::timestamptz AS at FROM unnest(?::text[], ?::text[]) AS t(id, at)),
+                     u AS (UPDATE branch_seen s SET seen_at = v.at FROM v WHERE s.branch_id = v.id AND s.seen_at < v.at)
+                INSERT INTO branch_seen(branch_id, seen_at)
+                SELECT v.id, v.at FROM v WHERE NOT EXISTS (SELECT 1 FROM branch_seen s WHERE s.branch_id = v.id)
+                ON CONFLICT (branch_id) DO NOTHING""", ps -> {
             ps.setArray(1, ps.getConnection().createArrayOf("text", ids));
             ps.setArray(2, ps.getConnection().createArrayOf("text", at));
         });
@@ -126,7 +139,7 @@ public class BranchRegistry {
 
     /** Everything the overview judges a branch by, extracted by the database (C3c): no heartbeat JSON leaves it. */
     List<BranchStatus> statuses() {
-        return jdbc.sql("SELECT id, name, last_heartbeat_at, source_attached, "
+        return jdbc.sql("SELECT id, name, " + SEEN_AT + " AS last_heartbeat_at, source_attached, "
                         + num("waiting", "bigint") + ", " + num("overdue", "bigint") + ", " + num("oldest_wait_sec", "bigint") + ", "
                         + num("windows_open", "bigint") + ", " + num("outbox_lag_sec", "bigint") + ", "
                         + num("config_version", "int") + ", "
@@ -134,7 +147,7 @@ public class BranchRegistry {
                         + "last_heartbeat->>'sent_at' AS sent_at, "
                         + "CASE WHEN jsonb_typeof(last_heartbeat->'db_ok') = 'boolean' THEN (last_heartbeat->>'db_ok')::boolean ELSE true END AS db_ok, "
                         + "config_published_version, config_published_at, config_applied_version, "
-                        + "last_heartbeat->>'events_via' AS events_via FROM branches ORDER BY id")
+                        + "last_heartbeat->>'events_via' AS events_via FROM " + WITH_SEEN + " ORDER BY id")
                 .query((rs, n) -> {
                     var publishedAt = rs.getTimestamp("config_published_at");
                     return new BranchStatus(rs.getString("id"), rs.getString("name"), rs.getTimestamp("last_heartbeat_at").toInstant(),
@@ -151,28 +164,21 @@ public class BranchRegistry {
     /** Full rows of a few branches — the cards of one page or of the worst list. */
     List<BranchRow> rows(List<String> ids) {
         if (ids.isEmpty()) { return List.of(); }
-        return jdbc.sql("SELECT *, last_heartbeat::text AS hb FROM branches WHERE id = ANY(:ids)")
-                .param("ids", ids.toArray(String[]::new))
-                .query((rs, n) -> {
-                    var publishedAt = rs.getTimestamp("config_published_at");
-                    return new BranchRow(rs.getString("id"), rs.getString("name"), rs.getString("timezone"),
-                            rs.getTimestamp("first_seen_at").toInstant(), rs.getTimestamp("last_heartbeat_at").toInstant(),
-                            rs.getString("hb"), rs.getBoolean("source_attached"), (Integer) rs.getObject("config_published_version"),
-                            publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"));
-                })
-                .list();
+        return jdbc.sql(ROW + " WHERE b.id = ANY(:ids)").param("ids", ids.toArray(String[]::new)).query(BranchRegistry::row).list();
     }
 
     public List<BranchRow> all() {
-        return jdbc.sql("SELECT *, last_heartbeat::text AS hb FROM branches ORDER BY id")
-                .query((rs, n) -> {
-                    var publishedAt = rs.getTimestamp("config_published_at");
-                    return new BranchRow(rs.getString("id"), rs.getString("name"), rs.getString("timezone"),
-                            rs.getTimestamp("first_seen_at").toInstant(), rs.getTimestamp("last_heartbeat_at").toInstant(),
-                            rs.getString("hb"), rs.getBoolean("source_attached"), (Integer) rs.getObject("config_published_version"),
-                            publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"));
-                })
-                .list();
+        return jdbc.sql(ROW + " ORDER BY b.id").query(BranchRegistry::row).list();
+    }
+
+    private static final String ROW = "SELECT b.*, " + SEEN_AT + " AS heard_at, b.last_heartbeat::text AS hb FROM " + WITH_SEEN;
+
+    private static BranchRow row(ResultSet rs, int n) throws SQLException {
+        var publishedAt = rs.getTimestamp("config_published_at");
+        return new BranchRow(rs.getString("id"), rs.getString("name"), rs.getString("timezone"),
+                rs.getTimestamp("first_seen_at").toInstant(), rs.getTimestamp("heard_at").toInstant(),
+                rs.getString("hb"), rs.getBoolean("source_attached"), (Integer) rs.getObject("config_published_version"),
+                publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"));
     }
 
     public boolean exists(String id) {

@@ -28,6 +28,7 @@ class HeartbeatFlushIT extends AbstractCenterIT {
     @Autowired JdbcClient jdbc;
     @Autowired BranchOnboarding onboarding;
     @Autowired HeartbeatBuffer buffer;
+    @Autowired BranchRegistry registry;
 
     @org.junit.jupiter.api.AfterEach
     void emptyBuffer() {                                                // a failed test must not leave a poison behind
@@ -155,25 +156,30 @@ class HeartbeatFlushIT extends AbstractCenterIT {
         }
 
         assertThat(metricRows("hf8")).isEqualTo(2);
-        assertThat(metricRows("hf9")).isEqualTo(1);                    // 1 h for the regional ones here
+        assertThat(metricRows("hf9")).isZero();                        // 1 h here, and it waits for its own moment of it
     }
 
     @Test
     void regionalBranchContentFollowsItsResolutionButItStaysOnline() throws Exception {
         var swarm = "{\"name\":\"S\",\"timezone\":\"Europe/Moscow\",\"events_via\":\"region-2\",\"waiting\":%d}";
-        register("hr1", swarm.formatted(0));
-        beat("hr1", swarm.formatted(1));
-        flush.run();                                                   // first content after a start: written
+        register("hr1", swarm.formatted(0));                           // the registration writes its first content
+        var contentAt = contentAt("hr1");
         Thread.sleep(50);
         var before = Instant.now();
-        beat("hr1", swarm.formatted(2));
+        beat("hr1", swarm.formatted(1));
 
         flush.run();                                                   // within the 1 h regional resolution here
 
         assertThat(jdbc.sql("SELECT (last_heartbeat->>'waiting')::int FROM branches WHERE id='hr1'").query(Integer.class)
-                .single()).isEqualTo(1);                               // the content waits for its resolution
-        assertThat(jdbc.sql("SELECT last_heartbeat_at FROM branches WHERE id='hr1'").query(Timestamp.class).single()
-                .toInstant()).isAfterOrEqualTo(before.minusMillis(1)); // but the branch is seen as online now
+                .single()).isZero();                                   // the content waits for its resolution
+        assertThat(contentAt("hr1")).isEqualTo(contentAt);             // its wide row is not rewritten (scale design 9.2)
+        var seen = registry.statuses().stream().filter(s -> s.id().equals("hr1")).findFirst().orElseThrow();
+        assertThat(seen.lastHeartbeatAt()).isAfterOrEqualTo(before.minusMillis(1));   // but it is seen as online now
+    }
+
+    private Instant contentAt(String branch) {
+        return jdbc.sql("SELECT last_heartbeat_at FROM branches WHERE id=:id").param("id", branch).query(Timestamp.class)
+                .single().toInstant();
     }
 
     @Test

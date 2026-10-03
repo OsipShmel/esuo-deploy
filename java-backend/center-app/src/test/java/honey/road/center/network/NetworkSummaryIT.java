@@ -4,9 +4,16 @@ import honey.road.center.it.AbstractCenterIT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import honey.road.center.config.CenterProperties;
+import honey.road.center.monitoring.CenterMeters;
+import honey.road.center.nats.CenterNats;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.JsonNode;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class NetworkSummaryIT extends AbstractCenterIT {
     @Autowired JdbcClient jdbc;
+    @Autowired BranchRegistry registry;
+    @Autowired CenterNats nats;
+    @Autowired CenterProperties props;
     private String token;
 
     private void branch(String id, int ageSec, String heartbeat) {
@@ -137,5 +147,31 @@ class NetworkSummaryIT extends AbstractCenterIT {
         assertThat(region.path("total").asInt()).isEqualTo(2);
         assertThat(region.path("online").asInt()).isEqualTo(1);
         assertThat(region.path("problems").asInt()).isEqualTo(1);
+    }
+
+    /**
+     * Between its content writes a branch behind a regional hub only says "alive", and that goes to a narrow table of
+     * its own (scale design 9.2): every view of the network — and the gauge on the dashboard — judges "online" by it.
+     */
+    @Test
+    void aBranchSeenJustNowIsOnlineThoughItsContentIsOlder() {
+        branch("seen-1", 600, "{\"waiting\":1,\"windows_open\":1,\"events_via\":\"region-8\"}");
+        var now = Instant.now();
+        var meters = new SimpleMeterRegistry();
+        var gauges = new CenterMeters(jdbc, nats, props, Clock.fixed(now, ZoneOffset.UTC), meters);
+        gauges.refresh();
+        double before = meters.get("esuo.branches").tag("state", "online").gauge().value();
+
+        registry.touch(List.of(new Heartbeat("seen-1", "S", "Europe/Moscow", "{}", now, true)));
+
+        assertThat(get("/api/v1/network/branches?q=seen-1").path("items").get(0).path("online").asBoolean()).isTrue();
+        assertThat(get("/api/v1/network/overview").path("branches").valueStream()
+                .filter(b -> b.path("id").asString().equals("seen-1")).findFirst().orElseThrow()
+                .path("online").asBoolean()).isTrue();
+        var region = get("/api/v1/network/summary").path("regions").valueStream()
+                .filter(r -> "region-8".equals(r.path("events_via").asString(null))).findFirst().orElseThrow();
+        assertThat(region.path("online").asInt()).isEqualTo(1);
+        gauges.refresh();
+        assertThat(meters.get("esuo.branches").tag("state", "online").gauge().value()).isEqualTo(before + 1);
     }
 }

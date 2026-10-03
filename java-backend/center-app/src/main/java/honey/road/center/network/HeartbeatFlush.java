@@ -45,7 +45,7 @@ public class HeartbeatFlush {
     private final int chunk;
     private final Duration resolution;
     private final Duration resolutionRegional;
-    private final Map<String, Instant> lastMetricAt = new ConcurrentHashMap<>();
+    private final Cadence cadence = new Cadence();
 
     private final Timer flushTimer;
     private final DistributionSummary flushed;
@@ -77,6 +77,38 @@ public class HeartbeatFlush {
      */
     static boolean due(@Nullable Instant last, Instant now, Duration resolution) {
         return last == null || !Duration.between(last, now).minus(resolution.multipliedBy(4).dividedBy(5)).isNegative();
+    }
+
+    /**
+     * When each branch last had its metrics row (and, behind a regional hub, its content) written. A branch behind a
+     * regional hub seen for the first time since the start counts as written at its own moment of the last resolution:
+     * so they fall due a few at a time, after a start and ever after, not all in one flush once a minute — 250 000 of
+     * them in one flush outlasted the offline threshold (scale design 9.2). Their content from before the start stays in
+     * the database meanwhile; a new one has it written by its registration.
+     */
+    static final class Cadence {
+        private final Map<String, Instant> last = new ConcurrentHashMap<>();
+
+        boolean due(String branchId, Instant at, Duration resolution, boolean regional) {
+            var l = regional ? last.computeIfAbsent(branchId, id -> at.minus(phase(id, resolution))) : last.get(branchId);
+            return HeartbeatFlush.due(l, at, resolution);
+        }
+
+        /** A stable moment of the resolution for this branch, evenly spread over the branches. */
+        static Duration phase(String branchId, Duration resolution) {
+            int h = branchId.hashCode();                                // ids are sequential: mix them (MurmurHash3 fmix32)
+            h ^= h >>> 16;
+            h *= 0x85ebca6b;
+            h ^= h >>> 13;
+            h *= 0xc2b2ae35;
+            h ^= h >>> 16;
+            long window = Math.max(1, resolution.multipliedBy(4).dividedBy(5).toMillis());
+            return Duration.ofMillis(Math.floorMod(h, window));
+        }
+
+        void written(String branchId, Instant at) {
+            last.put(branchId, at);
+        }
     }
 
     @Scheduled(fixedDelayString = "${esuo.center.metrics.flush-interval:5s}")
@@ -117,7 +149,8 @@ public class HeartbeatFlush {
         var content = new ArrayList<Heartbeat>(part.size());
         var seen = new ArrayList<Heartbeat>();
         for (var hb : part) {
-            boolean due = due(lastMetricAt.get(hb.branchId()), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution);
+            boolean due = cadence.due(hb.branchId(), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution,
+                    hb.regional());
             if (due || !hb.regional()) {
                 content.add(hb);
             } else {
@@ -146,7 +179,7 @@ public class HeartbeatFlush {
             }
         }));
         if (written) {
-            rows.forEach(r -> lastMetricAt.put(r.branchId(), r.ts()));
+            rows.forEach(r -> cadence.written(r.branchId(), r.ts()));
             rowsWritten.increment(rows.size());
         } else {
             rowsLost.increment(rows.size());
