@@ -13,14 +13,16 @@ import honey.road.node.persistence.PolicyRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,7 +32,9 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 
 /**
  * The sections of a node snapshot (design 7): app, jvm, db_pool, db, outbox, nats, config, disk, lifecycle. Each one reads its
@@ -44,8 +48,6 @@ public class SnapshotSections {
 
     private final NodeProperties node;
     private final DataSource dataSource;
-    private final JdbcTemplate jdbc;
-    private final TransactionTemplate tx;
     private final OutboxWorker outbox;
     private final NatsGateway nats;
     private final LeafLinkMonitor leaf;
@@ -55,11 +57,10 @@ public class SnapshotSections {
     private final String logFile;
     private final Clock clock;
 
-    public SnapshotSections(NodeProperties node, DataSource dataSource, JdbcTemplate jdbc,
-                            PlatformTransactionManager transactions, OutboxWorker outbox, NatsGateway nats,
+    public SnapshotSections(NodeProperties node, DataSource dataSource, OutboxWorker outbox, NatsGateway nats,
                             LeafLinkMonitor leaf, BranchStreams streams, PolicyRepository policies, JsonCodec json,
                             @Value("${esuo.logs.file:}") String logFile, @Qualifier("realClock") Clock clock) {
-        this.node = node; this.dataSource = dataSource; this.jdbc = jdbc; this.tx = new TransactionTemplate(transactions);
+        this.node = node; this.dataSource = dataSource;
         this.outbox = outbox; this.nats = nats; this.leaf = leaf; this.streams = streams; this.policies = policies;
         this.json = json; this.logFile = logFile; this.clock = clock;
     }
@@ -136,18 +137,23 @@ public class SnapshotSections {
                 "waiting", pool.getThreadsAwaitingConnection(), "max", hikari.getMaximumPoolSize());
     }
 
-    /** Every query with a 2 s statement timeout: a snapshot is wanted exactly when the database is slow. */
+    /**
+     * Over its own connection, outside the pool: a snapshot is wanted exactly when locked requests hold every pooled
+     * connection. Each query has a 2 s statement timeout (a slow database); the socket timeout ends a read from a frozen
+     * one, so the section's thread does not hang until the database comes back.
+     */
     private Object db() {
         var m = new LinkedHashMap<String, Object>();
-        tx.executeWithoutResult(s -> {
-            jdbc.execute("SET LOCAL statement_timeout = '2s'");
-            m.put("activity", jdbc.queryForList("""
+        try (var connection = diagnosticsConnection()) {
+            var jdbc = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+            jdbc.execute("SET statement_timeout = '2s'");
+            m.put("activity", part(() -> jdbc.queryForList("""
                     SELECT pid, state, wait_event_type, wait_event,
                            EXTRACT(EPOCH FROM now() - query_start)::int AS running_sec, left(query, 200) AS query
                     FROM pg_stat_activity
                     WHERE datname = current_database() AND pid <> pg_backend_pid() AND state IS DISTINCT FROM 'idle'
-                    ORDER BY query_start NULLS LAST LIMIT 50"""));
-            m.put("blocking", jdbc.query("""
+                    ORDER BY query_start NULLS LAST LIMIT 50""")));
+            m.put("blocking", part(() -> jdbc.query("""
                     SELECT pid, pg_blocking_pids(pid) AS blocked_by, EXTRACT(EPOCH FROM now() - query_start)::int AS waiting_sec,
                            left(query, 200) AS query
                     FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0""", (rs, n) -> {
@@ -157,13 +163,46 @@ public class SnapshotSections {
                 row.put("waiting_sec", rs.getObject("waiting_sec"));
                 row.put("query", rs.getString("query"));
                 return row;
-            }));
-            m.put("largest_tables", jdbc.queryForList("""
+            })));
+            // sizes need a share lock on each table: under an exclusive lock this part times out, the rest stays
+            m.put("largest_tables", part(() -> jdbc.queryForList("""
                     SELECT relname AS table, round(pg_total_relation_size(relid) / 1048576.0, 1) AS size_mb
-                    FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 10"""));
-            m.put("size_mb", jdbc.queryForObject("SELECT pg_database_size(current_database()) / 1048576", Long.class));
-        });
+                    FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 10""")));
+            m.put("size_mb", part(() -> jdbc.queryForObject("SELECT pg_database_size(current_database()) / 1048576", Long.class)));
+        } catch (SQLException e) {
+            throw new IllegalStateException("database: " + e.getMessage(), e);
+        }
         return m;
+    }
+
+    /** One query of a section: its failure stays in its place, like a failed section in the snapshot. */
+    private static Object part(Supplier<Object> query) {
+        try {
+            return query.get();
+        } catch (RuntimeException e) {
+            Throwable cause = e;
+            while (cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            return Map.of("error", cause.getClass().getSimpleName() + ": " + cause.getMessage());
+        }
+    }
+
+    private Connection diagnosticsConnection() throws SQLException {
+        if (!(dataSource instanceof HikariDataSource hikari)) {
+            return dataSource.getConnection();
+        }
+        var props = new Properties();
+        if (hikari.getUsername() != null) {
+            props.setProperty("user", hikari.getUsername());
+        }
+        if (hikari.getPassword() != null) {
+            props.setProperty("password", hikari.getPassword());
+        }
+        props.setProperty("connectTimeout", "2");                      // seconds, pgjdbc
+        props.setProperty("socketTimeout", Long.toString(DiagnosticsSnapshot.DEADLINE.toSeconds()));
+        props.setProperty("ApplicationName", "esuo-diagnostics");
+        return DriverManager.getConnection(hikari.getJdbcUrl(), props);
     }
 
     private Object outbox() {

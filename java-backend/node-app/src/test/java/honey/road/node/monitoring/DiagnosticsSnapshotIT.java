@@ -1,9 +1,15 @@
 package honey.road.node.monitoring;
 
+import com.zaxxer.hikari.HikariDataSource;
 import honey.road.node.it.AbstractNodeIT;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -16,6 +22,7 @@ import static org.awaitility.Awaitility.await;
 @SuppressWarnings("unchecked")
 class DiagnosticsSnapshotIT extends AbstractNodeIT {
     @Autowired DiagnosticsSnapshot snapshot;
+    @Autowired DataSource dataSource;
 
     private static Map<String, Object> section(Map<String, Object> s, String name) {
         return (Map<String, Object>) s.get(name);
@@ -74,6 +81,47 @@ class DiagnosticsSnapshotIT extends AbstractNodeIT {
                 });
             });
             running.get();
+        }
+    }
+
+    /**
+     * The case a snapshot is taken for: a lock holds requests, they hold every pooled connection. The {@code db}
+     * section reads over its own connection, outside the pool, and still shows who blocks whom.
+     */
+    @Test
+    void lockWithExhaustedPoolIsStillDiagnosed() throws Exception {
+        var held = new ArrayList<Connection>();
+        Connection locker = null;
+        try {
+            for (int i = 0; i < ((HikariDataSource) dataSource).getMaximumPoolSize(); i++) {
+                held.add(dataSource.getConnection());
+            }
+            locker = held.get(0);
+            locker.setAutoCommit(false);
+            locker.createStatement().execute("LOCK TABLE tickets IN ACCESS EXCLUSIVE MODE");
+            var blocked = held.get(1);
+            startDaemon("blocked-by-lock", () -> {
+                try (var st = blocked.createStatement()) {
+                    st.executeQuery("SELECT count(*) FROM tickets");
+                } catch (SQLException ignored) {
+                    // released at the end of the test
+                }
+            });
+
+            await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+                var s = snapshot.take();
+                assertThat(section(s, "db")).doesNotContainKey("error");
+                assertThat((List<Map<String, Object>>) section(s, "db").get("blocking"))
+                        .anySatisfy(b -> assertThat(b.get("query").toString()).contains("FROM tickets"));
+                assertThat(section(s, "db_pool")).containsEntry("idle", 0);
+            });
+        } finally {
+            if (locker != null) {
+                locker.rollback();                                   // first: the blocked query must finish
+            }
+            for (var c : held) {
+                c.close();
+            }
         }
     }
 
