@@ -19,7 +19,9 @@ import jakarta.annotation.PreDestroy;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -31,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -43,6 +46,9 @@ import java.util.concurrent.TimeoutException;
  * {@link #DB_TIMEOUT} (a lock holding every pooled connection, a frozen server), the heartbeat still goes out with the
  * last known queue numbers, a fresh {@code sys} block and {@code db_ok=false}: otherwise the center would show the branch
  * as offline while only its database is stuck. A read still hanging is not started again.
+ *
+ * <p>Beats on a thread of its own, not on the shared scheduler: with the database stuck, the tasks that read it hold
+ * every scheduler thread, and the heartbeat — the branch's sign of life — would wait behind them.
  */
 @Component
 public class HeartbeatPublisher {
@@ -61,6 +67,9 @@ public class HeartbeatPublisher {
     private final JsonCodec json;
     private final Clock clock;
     private @Nullable Boolean dbStuck;                           // null until the first heartbeat
+    private final Duration interval;
+    private final ScheduledExecutorService timer =
+            Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().name("heartbeat").daemon().factory());
     private final ExecutorService reads = Executors.newVirtualThreadPerTaskExecutor();
     private @Nullable Future<Map<String, Object>> reading;
     private @Nullable Map<String, Object> lastQueue;
@@ -68,13 +77,18 @@ public class HeartbeatPublisher {
 
     public HeartbeatPublisher(NatsGateway nats, NodeProperties node, CatalogRepository catalog, WindowRepository windows,
                               TicketRepository tickets, PolicyRepository policies, LoadPlanner planner,
-                              OutboxWorker outbox, SysMetrics sys, JsonCodec json, Clock clock) {
+                              OutboxWorker outbox, SysMetrics sys, JsonCodec json, Clock clock,
+                              @Value("${esuo.nats.heartbeat-interval:10s}") Duration interval) {
         this.nats = nats; this.node = node; this.catalog = catalog; this.windows = windows; this.tickets = tickets;
         this.policies = policies; this.planner = planner; this.outbox = outbox; this.sys = sys; this.json = json;
-        this.clock = clock;
+        this.clock = clock; this.interval = interval;
     }
 
-    @Scheduled(fixedDelayString = "${esuo.nats.heartbeat-interval:10s}", initialDelayString = "2s")
+    @EventListener(ApplicationReadyEvent.class)
+    void startBeating() {
+        timer.scheduleWithFixedDelay(this::beat, 2_000, interval.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
     public void beat() {
         var connection = nats.connection();
         if (connection.isEmpty()) {
@@ -134,7 +148,8 @@ public class HeartbeatPublisher {
     }
 
     @PreDestroy
-    void stopReads() {
+    void stop() {
+        timer.shutdownNow();
         reads.shutdownNow();
     }
 
