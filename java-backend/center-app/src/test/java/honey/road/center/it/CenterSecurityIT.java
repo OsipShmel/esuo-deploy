@@ -51,7 +51,7 @@ class CenterSecurityIT extends AbstractCenterIT {
                 new Call(HttpMethod.POST, "/api/v1/branches/b01/tickets/" + TICKET + "/cancel"),
                 new Call(HttpMethod.POST, "/api/v1/branches/b01/tickets/" + TICKET + "/postpone"),
                 new Call(HttpMethod.POST, "/api/v1/branches/b01/tickets/" + TICKET + "/check-in"),
-                new Call(HttpMethod.GET, "/actuator/health"),
+                new Call(HttpMethod.GET, "/readyz"),
                 new Call(HttpMethod.GET, "/v3/api-docs"));
     }
 

@@ -25,15 +25,18 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
 management:
+  server:
+    port: ${MANAGEMENT_PORT:9081}             # actuator and /actuator/prometheus: inside the compose network only
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+        add-additional-paths: true            # /livez and /readyz on the main port: scripts, Docker, load balancer
 logging:
   structured:
     format:

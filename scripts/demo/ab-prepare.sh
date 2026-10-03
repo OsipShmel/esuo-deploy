@@ -68,7 +68,7 @@ for n in "$NODE" "$NODE2"; do
   [ "$(curl -sf "$n/api/v1/public/demo/clock" | jq -r .enabled)" = true ] \
     || die "на $n выключен DEMO_MODE: добавьте DEMO_MODE=true в .env и docker compose up -d node-b01 node-b02"
 done
-curl -sf "$CENTER/actuator/health" >/dev/null || die "центр $CENTER не отвечает"
+curl -sf "$CENTER/readyz" >/dev/null || die "центр $CENTER не отвечает"
 for c in "$PG_B01" "$PG_B02"; do docker inspect "$c" >/dev/null 2>&1 || die "нет контейнера БД $c (задайте PG_B01/PG_B02)"; done
 T1=$(token "$NODE"); T2=$(token "$NODE2")
 [ -n "$T1" ] && [ -n "$T2" ] || die "не удалось войти руководителем (DEMO_ADMIN_PASSWORD в .env)"

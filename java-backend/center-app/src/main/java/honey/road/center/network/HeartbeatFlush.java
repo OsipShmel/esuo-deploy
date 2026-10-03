@@ -1,5 +1,10 @@
 package honey.road.center.network;
 
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.Counter;
 import honey.road.center.config.CenterProperties;
 import honey.road.center.monitoring.BranchMetrics;
 import honey.road.center.monitoring.MetricsRow;
@@ -41,11 +46,27 @@ public class HeartbeatFlush {
     private final Duration resolutionRegional;
     private final Map<String, Instant> lastMetricAt = new ConcurrentHashMap<>();
 
+    private final Timer flushTimer;
+    private final DistributionSummary flushed;
+    private final Counter rowsWritten;
+    private final Counter rowsLost;
+
     public HeartbeatFlush(HeartbeatBuffer buffer, BranchRegistry registry, BranchMetrics metrics,
-                          PlatformTransactionManager transactions, JsonMapper json, CenterProperties props) {
+                          PlatformTransactionManager transactions, JsonMapper json, CenterProperties props,
+                          MeterRegistry meters) {
         this.buffer = buffer; this.registry = registry; this.metrics = metrics;
         this.tx = new TransactionTemplate(transactions); this.json = json;
         this.resolution = props.metrics().resolution(); this.resolutionRegional = props.metrics().resolutionRegional();
+        this.flushTimer = Timer.builder("esuo.heartbeat.flush").description("One flush of buffered heartbeats")
+                .register(meters);
+        this.flushed = DistributionSummary.builder("esuo.heartbeat.flush.branches")
+                .description("Branches written per flush").register(meters);
+        this.rowsWritten = Counter.builder("esuo.metrics.rows.written").description("Rows added to branch_metrics")
+                .register(meters);
+        this.rowsLost = Counter.builder("esuo.metrics.rows.lost").description("Metric rows lost to a failed write")
+                .register(meters);
+        Gauge.builder("esuo.heartbeats.buffered", buffer, HeartbeatBuffer::size)
+                .description("Heartbeats waiting for the next flush").register(meters);
     }
 
     /**
@@ -62,6 +83,7 @@ public class HeartbeatFlush {
         if (batch.isEmpty()) {
             return;
         }
+        long started = System.nanoTime();
         var rows = new ArrayList<MetricsRow>();
         for (var hb : batch) {
             if (due(lastMetricAt.get(hb.branchId()), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution)) {
@@ -88,10 +110,16 @@ public class HeartbeatFlush {
             }));
             if (written) {
                 rows.forEach(r -> lastMetricAt.put(r.branchId(), r.ts()));
+                rowsWritten.increment(rows.size());
+            } else {
+                rowsLost.increment(rows.size());
             }
+            flushed.record(batch.size());
         } catch (RuntimeException e) {
             buffer.restore(batch);
             log.warn("heartbeat flush failed, {} branches kept for the next one: {}", batch.size(), e.toString());
+        } finally {
+            flushTimer.record(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS);
         }
     }
 

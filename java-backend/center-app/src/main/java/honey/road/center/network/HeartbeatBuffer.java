@@ -26,6 +26,16 @@ public class HeartbeatBuffer {
         }
     }
 
+    /** Heartbeats waiting for the next flush. */
+    public int size() {
+        lock.readLock().lock();
+        try {
+            return pending.size();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
     /** Everything collected so far; later heartbeats go to a fresh map. */
     public Map<String, Heartbeat> drain() {
         lock.writeLock().lock();

@@ -64,7 +64,8 @@ services:
       JAVA_TOOL_OPTIONS: >-
         -Xmx${CENTER_HEAP:-2g} -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/dumps
     volumes: ["center-dumps:/app/dumps"]
-    ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080"]
+    # 9081 — actuator (health, /actuator/prometheus): только localhost сервера, снаружи — через Grafana
+    ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080", "127.0.0.1:${CENTER_MANAGEMENT_PORT:-9081}:9081"]
     depends_on:
       postgres-center: {condition: service_healthy}
       nats-hub: {condition: service_started}

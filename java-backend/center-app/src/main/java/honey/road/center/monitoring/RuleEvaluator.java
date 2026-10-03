@@ -1,6 +1,10 @@
 package honey.road.center.monitoring;
 
 import honey.road.center.config.CenterProperties;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -15,6 +19,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Runs the monitoring rules ({@link RuleQuery}) and replaces {@code branch_alerts} (design 6.4, scale design 5.1).
@@ -38,9 +43,18 @@ public class RuleEvaluator {
     private final TransactionTemplate tx;
     private final Clock clock;
 
+    private final Timer passTimer;
+    private final Counter failures;
+    private final AtomicInteger lastAlerts = new AtomicInteger();
+
     public RuleEvaluator(MonitoringConfig config, BranchAlerts alerts, JdbcClient jdbc,
-                         PlatformTransactionManager transactions, CenterProperties props, Clock clock) {
+                         PlatformTransactionManager transactions, CenterProperties props, Clock clock,
+                         MeterRegistry meters) {
         this.config = config; this.alerts = alerts; this.jdbc = jdbc;
+        this.passTimer = Timer.builder("esuo.rules.pass").description("One pass of the monitoring rules").register(meters);
+        this.failures = Counter.builder("esuo.rules.failures").description("Rule passes that failed").register(meters);
+        Gauge.builder("esuo.rules.alerts", lastAlerts, AtomicInteger::get)
+                .description("Alerts after the last rule pass").register(meters);
         this.tx = new TransactionTemplate(transactions);
         this.clock = clock;
         double scale = props.demoMode() ? config.demoDurationScale() : 1.0;
@@ -69,6 +83,10 @@ public class RuleEvaluator {
                 return result.size();
             });
             var took = Duration.ofNanos(System.nanoTime() - started);
+            if (count != null) {
+                passTimer.record(took);
+                lastAlerts.set(count);
+            }
             if (count != null && took.compareTo(config.evaluateEvery()) > 0) {
                 log.warn("monitoring rules pass took {} ms, longer than its period {}: {} alerts", took.toMillis(),
                         config.evaluateEvery(), count);
@@ -76,6 +94,7 @@ public class RuleEvaluator {
                 log.debug("monitoring rules pass: {} alerts in {} ms", count, took.toMillis());
             }
         } catch (RuntimeException e) {
+            failures.increment();
             log.warn("monitoring rules evaluation failed after {} ms: {}", Duration.ofNanos(System.nanoTime() - started).toMillis(),
                     e.toString());
         }

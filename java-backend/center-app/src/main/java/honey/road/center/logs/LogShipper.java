@@ -1,5 +1,8 @@
 package honey.road.center.logs;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.Counter;
 import honey.road.center.config.CenterProperties;
 import honey.road.center.nats.CenterNats;
 import honey.road.center.nats.CenterStreams;
@@ -48,8 +51,16 @@ public class LogShipper implements SmartLifecycle {
     private Boolean lokiUp;                                      // null until the first push
     private int failures;
 
-    public LogShipper(CenterNats nats, CenterStreams streams, LokiClient loki, CenterProperties props, Clock clock) {
+    private final Counter shipped;
+    private final Counter dropped;
+
+    public LogShipper(CenterNats nats, CenterStreams streams, LokiClient loki, CenterProperties props, Clock clock,
+                      MeterRegistry meters) {
         this.nats = nats; this.streams = streams; this.loki = loki; this.props = props.logs(); this.clock = clock;
+        this.shipped = Counter.builder("esuo.logs.shipped").description("Branch log lines shipped to Loki").register(meters);
+        this.dropped = Counter.builder("esuo.logs.dropped").description("Branch log lines Loki rejected").register(meters);
+        Gauge.builder("esuo.logs.loki.up", this, s -> Boolean.TRUE.equals(s.lokiUp) ? 1 : 0)
+                .description("1 when the last push to Loki went through").register(meters);
     }
 
     @Override
@@ -159,6 +170,7 @@ public class LogShipper implements SmartLifecycle {
         switch (result.outcome()) {
             case OK -> {
                 batch.forEach(Message::ack);
+                shipped.increment(records.size());
                 if (Boolean.FALSE.equals(lokiUp)) {
                     log.info("loki available again, shipping resumed");
                 }
@@ -167,6 +179,7 @@ public class LogShipper implements SmartLifecycle {
             }
             case REJECTED -> {
                 batch.forEach(Message::ack);
+                dropped.increment(records.size());
                 log.warn("loki rejected a batch of {} lines, dropped: status={} {}", records.size(), result.status(),
                         result.detail());
                 lokiUp = true;

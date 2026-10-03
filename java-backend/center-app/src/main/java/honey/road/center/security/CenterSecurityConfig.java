@@ -64,6 +64,8 @@ public class CenterSecurityConfig {
                 .headers(h -> h.referrerPolicy(r -> r.policy(ReferrerPolicy.NO_REFERRER)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_PATHS).permitAll()
+                        // the management port only, which compose does not publish: Prometheus scrapes it without a login
+                        .requestMatchers("/actuator/prometheus").permitAll()
                         .requestMatchers("/api/**", "/actuator/**").hasRole(CenterRole.NETWORK_ADMIN.name())
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(rs -> rs

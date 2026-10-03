@@ -1,5 +1,8 @@
 package honey.road.center.ingest;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.Counter;
 import honey.road.center.nats.CenterNats;
 import honey.road.center.nats.CenterStreams;
 import honey.road.contracts.event.Subjects;
@@ -49,8 +52,19 @@ public class EventIngest {
     private final Clock clock;
     private volatile Thread worker;
 
-    public EventIngest(CenterNats nats, CenterStreams streams, JdbcClient jdbc, JsonMapper json, Clock clock) {
+    private final Counter ingested;
+    private final Counter failed;
+    private final DistributionSummary batchSize;
+
+    public EventIngest(CenterNats nats, CenterStreams streams, JdbcClient jdbc, JsonMapper json, Clock clock,
+                       MeterRegistry meters) {
         this.nats = nats; this.streams = streams; this.jdbc = jdbc; this.json = json; this.clock = clock;
+        this.ingested = Counter.builder("esuo.events.ingested").description("Branch events written to the database")
+                .register(meters);
+        this.failed = Counter.builder("esuo.events.failed").description("Events of failed batches, redelivered")
+                .register(meters);
+        this.batchSize = DistributionSummary.builder("esuo.events.batch").description("Events per insert")
+                .register(meters);
     }
 
     @PostConstruct
@@ -129,11 +143,14 @@ public class EventIngest {
         try {
             insert(rows, now);
         } catch (RuntimeException e) {
+            failed.increment(rows.size());
             log.warn("ingest batch of {} failed, will be redelivered: {}", rows.size(), e.toString());
             stored.forEach(m -> m.nakWithDelay(Duration.ofSeconds(5)));
             return;
         }
         stored.forEach(Message::ack);
+        ingested.increment(rows.size());
+        batchSize.record(rows.size());
     }
 
     private void insert(List<EventRow> rows, java.time.Instant receivedAt) {

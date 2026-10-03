@@ -1,5 +1,8 @@
 package honey.road.center.network;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.Counter;
 import honey.road.center.centralconfig.ConfigPublisher;
 import honey.road.center.nats.CenterStreams;
 import jakarta.annotation.PostConstruct;
@@ -52,8 +55,15 @@ public class BranchOnboarding {
     private final Object idle = new Object();
     private volatile Thread worker;
 
-    BranchOnboarding(CenterStreams streams, BranchRegistry registry, ConfigPublisher config, HeartbeatBuffer buffer) {
+    private final Counter registeredCount;
+
+    BranchOnboarding(CenterStreams streams, BranchRegistry registry, ConfigPublisher config, HeartbeatBuffer buffer,
+                     MeterRegistry meters) {
         this.streams = streams; this.registry = registry; this.config = config; this.buffer = buffer;
+        this.registeredCount = Counter.builder("esuo.onboarding.registered").description("New branches registered")
+                .register(meters);
+        Gauge.builder("esuo.onboarding.queue", queue, LinkedBlockingQueue::size)
+                .description("New branches waiting for registration").register(meters);
     }
 
     @PostConstruct
@@ -146,6 +156,7 @@ public class BranchOnboarding {
         known.addAll(ids);
         var registered = fresh.stream().filter(f -> inserted.contains(f.heartbeat().branchId())).toList();
         if (registered.isEmpty()) { return; }
+        registeredCount.increment(registered.size());
 
         log(registered);
         var attached = new ArrayList<String>();

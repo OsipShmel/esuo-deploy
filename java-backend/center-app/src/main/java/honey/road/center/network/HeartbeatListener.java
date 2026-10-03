@@ -1,5 +1,7 @@
 package honey.road.center.network;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Counter;
 import honey.road.center.nats.CenterNats;
 import honey.road.center.nats.CenterStreams;
 import honey.road.contracts.event.Subjects;
@@ -45,10 +47,14 @@ public class HeartbeatListener {
     private final Clock clock;
     private volatile Dispatcher dispatcher;
 
+    private final Counter received;
+
     public HeartbeatListener(CenterNats nats, CenterStreams streams, BranchRegistry registry, HeartbeatBuffer buffer,
-                             BranchOnboarding onboarding, JsonMapper json, Clock clock) {
+                             BranchOnboarding onboarding, JsonMapper json, Clock clock, MeterRegistry meters) {
         this.nats = nats; this.streams = streams; this.registry = registry; this.buffer = buffer;
         this.onboarding = onboarding; this.json = json; this.clock = clock;
+        this.received = Counter.builder("esuo.heartbeats.received").description("Heartbeats received from branches")
+                .register(meters);
     }
 
     @PostConstruct
@@ -67,6 +73,7 @@ public class HeartbeatListener {
         var branchId = Subjects.branchIdOf(msg.getSubject());
         if (branchId == null || !branchId.matches("[a-zA-Z0-9_-]{1,64}")) { return; }
         try {
+            received.increment();
             var receivedAt = clock.instant();
             var body = new String(msg.getData(), StandardCharsets.UTF_8);
             JsonNode hb = json.readTree(body);

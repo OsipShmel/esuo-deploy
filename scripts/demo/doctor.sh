@@ -41,7 +41,11 @@ else
 fi
 
 hdr "Стенд"
-[ "$(code "$CENTER/actuator/health")" = 200 ] && ok "центр $CENTER" || bad "центр $CENTER не отвечает — docker compose up -d center-app (логи: docker logs esuo-center-app)"
+CENTER_MGMT=${CENTER_MGMT:-http://localhost:9081}
+if [ "$(code "$CENTER_MGMT/actuator/health")" = 200 ]; then ok "центр $CENTER"
+elif [ "$(code "$CENTER/readyz")" = 200 ]; then
+  bad "центр $CENTER отвечает, но не здоров: $(curl -s --max-time 5 "$CENTER_MGMT/actuator/health" | jq -c '[.components // {} | to_entries[] | select(.value.status != "UP") | .key]' 2>/dev/null) (логи: docker logs esuo-center-app)"
+else bad "центр $CENTER не отвечает — docker compose up -d center-app (логи: docker logs esuo-center-app)"; fi
 for n in "$NODE" "$NODE2"; do
   if [ "$(code "$n/actuator/health")" != 200 ]; then bad "нода $n не отвечает — docker compose ps"; continue; fi
   clock=$(curl -s --max-time 5 "$n/api/v1/public/demo/clock" | jq -r .enabled 2>/dev/null)
