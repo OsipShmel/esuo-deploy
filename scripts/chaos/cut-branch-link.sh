@@ -24,9 +24,12 @@ case "$ACTION" in
     if linked; then echo "связь $BRANCH ↔ центр уже есть"
     else docker start "$LINK" >/dev/null; echo "связь $BRANCH ↔ центр восстановлена (leaf переподключится за ~1 с, докачка событий — до ~1 мин)"; fi ;;
   status)
+    ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+    [ -f "$ROOT/.env" ] && { set -a; . "$ROOT/.env"; set +a; }
+    . "$ROOT/scripts/center-auth.sh"           # обзор сети — закрытый API центра
     linked && echo "кабель: $LINK работает" || echo "кабель: $LINK остановлен (связи с центром нет)"
     command -v jq >/dev/null || exit 0
-    curl -s "$CENTER/api/v1/network/overview" | jq -r --arg b "$BRANCH" \
+    center_curl GET /api/v1/network/overview | jq -r --arg b "$BRANCH" \
       '.branches[] | select(.id==$b) | "центр: online=\(.online), heartbeat \(.seconds_since_heartbeat) с назад"'
     local_n=$(docker exec "$LEAF" wget -qO- "http://localhost:8222/jsz?streams=true" 2>/dev/null \
       | jq '[.account_details[]?.stream_detail[]? | select(.name=="BRANCH_EVT") | .state.messages] | first // 0')

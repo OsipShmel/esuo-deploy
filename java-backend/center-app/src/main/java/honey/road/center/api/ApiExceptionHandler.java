@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -33,6 +35,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(EsuoException.class)
     ResponseEntity<Object> handleEsuo(EsuoException ex, WebRequest request) {
         return problem(ex.code(), ex.getMessage(), ex.violations(), request);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    ResponseEntity<Object> handleUnauthenticated(AuthenticationException ex, WebRequest request) {
+        return problem(ErrorCode.UNAUTHENTICATED, null, List.of(), request);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<Object> handleForbidden(AccessDeniedException ex, WebRequest request) {
+        return problem(ErrorCode.FORBIDDEN, null, List.of(), request);
     }
 
     @ExceptionHandler(Exception.class)

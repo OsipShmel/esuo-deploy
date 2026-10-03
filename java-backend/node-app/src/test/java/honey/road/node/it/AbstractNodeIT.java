@@ -43,6 +43,7 @@ import java.util.Map;
         "esuo.timers.interval=1h",
         "esuo.notifications.approaching.enabled=false",
         "esuo.nats.url=nats://127.0.0.1:1",
+        "esuo.nats.leaf-monitor-url=http://127.0.0.1:1",   // not the monitor of a stand running on this machine
         "management.health.nats.enabled=false"
 })
 public abstract class AbstractNodeIT {

@@ -25,6 +25,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Published"
+      security:
+      - bearerAuth: []
   /api/v1/config/branches/{branchId}:
     get:
       tags:
@@ -43,6 +45,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/BranchConfigView"
+      security:
+      - bearerAuth: []
     put:
       tags:
       - config-controller
@@ -67,6 +71,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Published"
+      security:
+      - bearerAuth: []
   /api/v1/webhooks/mp/appointments:
     post:
       tags:
@@ -263,6 +269,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UserView"
+      security:
+      - bearerAuth: []
     post:
       tags:
       - config-controller
@@ -286,6 +294,93 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/UserChange"
+      security:
+      - bearerAuth: []
+  /api/v1/branches/{branchId}/diagnostics/snapshots:
+    get:
+      tags:
+      - diagnostics-controller
+      operationId: snapshots
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: {}
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - diagnostics-controller
+      operationId: takeSnapshot
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
+  /api/v1/branches/{branchId}/diagnostics/logs:
+    post:
+      tags:
+      - diagnostics-controller
+      operationId: logs
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Request"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
+  /api/v1/auth/login:
+    post:
+      tags:
+      - center-auth-controller
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
   /api/v1/admin/dlq/{id}/retry:
     post:
       tags:
@@ -305,6 +400,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RetryResponse"
+      security:
+      - bearerAuth: []
   /api/v1/branches/{branchId}/users/{userId}:
     patch:
       tags:
@@ -335,6 +432,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/UserChange"
+      security:
+      - bearerAuth: []
   /api/v1/network/overview:
     get:
       tags:
@@ -348,6 +447,30 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+      security:
+      - bearerAuth: []
+  /api/v1/diagnostics/snapshots/{id}:
+    get:
+      tags:
+      - diagnostics-controller
+      operationId: snapshot
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+      security:
+      - bearerAuth: []
   /api/v1/config:
     get:
       tags:
@@ -360,6 +483,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ConfigOverview"
+      security:
+      - bearerAuth: []
   /api/v1/config/versions:
     get:
       tags:
@@ -387,6 +512,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/VersionView"
+      security:
+      - bearerAuth: []
   /api/v1/branches:
     get:
       tags:
@@ -520,6 +647,41 @@ paths:
             '*/*':
               schema:
                 type: object
+  /api/v1/branches/{branchId}/metrics:
+    get:
+      tags:
+      - metrics-controller
+      operationId: metrics
+      parameters:
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: {}
+      security:
+      - bearerAuth: []
   /api/v1/admin/notifications/status:
     get:
       tags:
@@ -532,6 +694,8 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Status"
+      security:
+      - bearerAuth: []
   /api/v1/admin/notifications/dlq:
     get:
       tags:
@@ -553,6 +717,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/DeadLetterView"
+      security:
+      - bearerAuth: []
   /api/v1/admin/mp/requests:
     get:
       tags:
@@ -575,6 +741,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/MpRequestView"
+      security:
+      - bearerAuth: []
   /api/v1/admin/dlq:
     get:
       tags:
@@ -608,6 +776,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/DeadLetterView"
+      security:
+      - bearerAuth: []
 components:
   schemas:
     Published:
@@ -679,6 +849,56 @@ components:
           type: string
         active:
           type: boolean
+    Request:
+      type: object
+      properties:
+        minutes:
+          type: integer
+          format: int32
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        min_level:
+          type: string
+        contains:
+          type: string
+        max_lines:
+          type: integer
+          format: int32
+    LoginRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          maxLength: 64
+          minLength: 0
+        password:
+          type: string
+          maxLength: 128
+          minLength: 0
+      required:
+      - login
+      - password
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        role:
+          type: string
+          enum:
+          - NETWORK_ADMIN
+        employee_id:
+          type: string
+          format: uuid
     RetryResponse:
       type: object
       properties:
@@ -804,6 +1024,9 @@ components:
         failure_rate:
           type: number
           format: float
+        window_calls:
+          type: integer
+          format: int32
     Status:
       type: object
       properties:
@@ -816,6 +1039,9 @@ components:
             format: int64
         last_error:
           type: string
+        last_error_at:
+          type: string
+          format: date-time
     DeadLetterView:
       type: object
       properties:
@@ -856,15 +1082,11 @@ components:
           type: boolean
         float:
           type: boolean
-        missing_node:
+        binary:
           type: boolean
-        value_node:
+        pojo:
           type: boolean
-        container:
-          type: boolean
-        integral_number:
-          type: boolean
-        floating_point_number:
+        string:
           type: boolean
         node_type:
           type: string
@@ -878,9 +1100,13 @@ components:
           - OBJECT
           - POJO
           - STRING
-        string:
+        value_node:
           type: boolean
-        pojo:
+        container:
+          type: boolean
+        integral_number:
+          type: boolean
+        floating_point_number:
           type: boolean
         short:
           type: boolean
@@ -899,7 +1125,7 @@ components:
           deprecated: true
         boolean:
           type: boolean
-        binary:
+        missing_node:
           type: boolean
         number:
           type: boolean
@@ -929,3 +1155,9 @@ components:
         updated_at:
           type: string
           format: date-time
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: "POST /api/v1/auth/login, role NETWORK_ADMIN"
+      scheme: bearer
+      bearerFormat: JWT

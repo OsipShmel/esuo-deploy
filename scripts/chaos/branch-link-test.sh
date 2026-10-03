@@ -14,13 +14,14 @@ LINK=./scripts/chaos/cut-branch-link.sh
 W1=00000000-0000-4000-8000-000000000003
 S_PARCEL=00000000-0000-4000-8000-000000000001
 [ -f .env ] && { set -a; . ./.env; set +a; }
+. ./scripts/center-auth.sh                     # обзор сети — закрытый API центра
 command -v jq >/dev/null || { echo "Нужен jq"; exit 2; }
 
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); printf '\033[32m  PASS  %s\033[0m\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '\033[31m  FAIL  %s\033[0m\n' "$1"; [ -n "${2:-}" ] && echo "        $2"; }
 step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
-online() { curl -s "$CENTER/api/v1/network/overview" | jq -r --arg b "$BRANCH" '.branches[] | select(.id==$b) | .online'; }
+online() { center_curl GET /api/v1/network/overview | jq -r --arg b "$BRANCH" '.branches[] | select(.id==$b) | .online'; }
 is_online()  { [ "$(online)" = true ]; }
 is_offline() { [ "$(online)" = false ]; }
 # событий отделения в БД центра (через ingest)

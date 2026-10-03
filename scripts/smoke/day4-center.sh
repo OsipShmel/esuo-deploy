@@ -12,11 +12,13 @@ BRANCH=${BRANCH:-b01}
 S_PARCEL=00000000-0000-4000-8000-000000000001
 command -v jq >/dev/null || { echo "Нужен jq"; exit 2; }
 [ -f .env ] && { set -a; . ./.env; set +a; }
+. ./scripts/center-auth.sh                     # закрытый API центра
 
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); printf '\033[32m  PASS  %s\033[0m\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '\033[31m  FAIL  %s\033[0m\n' "$1"; [ -n "${2:-}" ] && echo "        $2"; }
 req() { local method=$1 url=$2; shift 2
+  case "$url" in "$CENTER"*) set -- "$@" -H "Authorization: Bearer ${CENTER_TOKEN:-}";; esac
   BODY=$(curl -s -X "$method" "$url" -w $'\n%{http_code}' "$@"); STATUS=${BODY##*$'\n'}; BODY=${BODY%$'\n'*}; }
 expect() { local name=$1 want=$2 cond=${3:-true}
   if [ "$STATUS" = "$want" ] && echo "$BODY" | jq -e "$cond" >/dev/null 2>&1; then ok "$name"
@@ -38,7 +40,7 @@ req PUT "$CENTER/api/v1/config/branches/$BRANCH" "${J[@]}" -d '{"queue":{"slack_
 expect "PUT /config/branches/$BRANCH {slack_min: 7}" 200 '.version >= 100 and .published_to == ["'"$BRANCH"'"]'
 VER=$(echo "$BODY" | jq -r .version)
 wait_until "config.applied v$VER дошёл до центра, pending=false" 90 \
-  "curl -s $CENTER/api/v1/config | jq -e '.branches[] | select(.branch_id==\"$BRANCH\") | .applied_version >= $VER and (.pending|not)'"
+  "center_curl GET /api/v1/config | jq -e '.branches[] | select(.branch_id==\"$BRANCH\") | .applied_version >= $VER and (.pending|not)'"
 ADM=$(curl -s -X POST "$NODE/api/v1/auth/login" "${J[@]}" -d "{\"login\":\"admin\",\"password\":\"${DEMO_ADMIN_PASSWORD:-admin123}\"}" | jq -r .access_token)
 req GET "$NODE/api/v1/admin/config" -H "Authorization: Bearer $ADM"
 expect "нода: central_version=$VER, slack_min=7" 200 ".central_version == $VER and .effective.slack_min == 7"

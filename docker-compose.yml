@@ -21,7 +21,9 @@ x-leaf: &leaf
 x-link: &link
   image: alpine/socat:latest
   command: ["-d", "tcp-listen:7422,fork,reuseaddr", "tcp-connect:nats-hub:7422"]
-  restart: "no"
+  # unless-stopped: a link cut by scripts/chaos (docker stop) stays cut, but a Docker restart or a sleeping laptop
+  # does not leave both branches offline until someone notices
+  restart: unless-stopped
 
 x-region: &region
   image: nats:2.10.26-alpine
@@ -88,6 +90,16 @@ services:
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:?Задайте MP_WEBHOOK_SECRET в .env}
       MP_CALLBACK_URL: http://mp-simulator:8091/callback
       CENTER_PUBLIC_URL: ${CENTER_PUBLIC_URL:-http://localhost:8081}
+      # Оператор сети: вход в /network и закрытый API центра; пусто => закрытый API недоступен никому
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}
+      CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}
+      # Логи отделений → Loki (профиль monitoring). Без Loki строки ждут в CENTER_LOG, центр работает как обычно.
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      GRAFANA_PUBLIC_URL: ${GRAFANA_PUBLIC_URL:-http://localhost:3000}
+      # Роль grafana_ro (только чтение метрик и аномалий) для панелей Grafana; пусто => роли нет
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana-ro-local}
+      # Демо-стенд: окна правил мониторинга ×0,1 (перезапуск, CPU и т. п. видны за минуту, а не за полчаса)
+      DEMO_MODE: ${DEMO_MODE:-false}
     ports: ["127.0.0.1:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}
@@ -129,6 +141,8 @@ services:
       MP: http://mp-simulator:8091
       NOTIFY: http://notify-mock:8090
       HUB_MONITOR: http://nats-hub:8222
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}       # сценарии ходят в закрытый API центра
+      CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}
       TZ: ${BRANCH_TIMEZONE:-Europe/Moscow}
     volumes:
       - .:/repo
@@ -187,6 +201,35 @@ services:
     volumes: ["./docs/demo/load:/reports"]
     depends_on: [nats-region-1, nats-region-2, nats-region-3, nats-region-4]
     networks: [center]
+  # ------------------------------------------------------------------ мониторинг (docker compose --profile monitoring up -d)
+  # Loki и Grafana в центре; на каждом отделении — сборщик логов vector-bXX. Без профиля стенд прежний.
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: esuo-loki
+    profiles: [monitoring]
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes: ["./infrastructure/loki/loki.yaml:/etc/loki/loki.yaml:ro", "loki-data:/loki"]
+    ports: ["127.0.0.1:3100:3100"]
+    networks: [center]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    container_name: esuo-grafana
+    profiles: [monitoring]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS:-true}      # на публичном сервере — false
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_VIEWERS_CAN_EDIT: "true"                           # Explore для просмотра: туда ведут ссылки на выгрузки
+      GF_SERVER_ROOT_URL: ${GRAFANA_PUBLIC_URL:-http://localhost:3000}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana-ro-local}   # источник «Центр (метрики)», роль grafana_ro
+    volumes: ["./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro", "grafana-data:/var/lib/grafana"]
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [loki]
+    networks: [center]
+    restart: unless-stopped
 
   # ------------------------------------------------------------------ отделение b01
   nats-leaf-b01:
@@ -243,11 +286,24 @@ services:
       # Пульт сценариев на /demo: работает при DEMO_MODE=true и запущенном demo-runner (профиль demo)
       DEMO_RUNNER_URL: ${DEMO_RUNNER_URL:-http://demo-runner:8099}
       DEMO_RUNNER_TOKEN: ${DEMO_RUNNER_TOKEN:-${JWT_SECRET}}
+      LOG_FILE: /app/logs/node.log           # ECS JSON с ротацией: читают сборщик логов и diag.logs
     ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
+    volumes: ["b01-logs:/app/logs"]
     depends_on:
       postgres-b01: {condition: service_healthy}
       nats-leaf-b01: {condition: service_started}
     networks: [b01]
+
+  vector-b01:
+    build: infrastructure/vector
+    container_name: esuo-vector-b01
+    profiles: [monitoring]
+    environment: {BRANCH_ID: b01, NATS_URL: "nats://nats-leaf-b01:4222"}
+    volumes: ["b01-logs:/logs:ro", "vector-b01-data:/var/lib/vector"]
+    mem_limit: 64m
+    depends_on: [node-b01, nats-leaf-b01]          # том логов создаёт нода (владелец app), сборщик только читает
+    networks: [b01]
+    restart: unless-stopped
 
   # ------------------------------------------------------------------ отделение b02
   nats-leaf-b02:
@@ -290,10 +346,22 @@ services:
       BRANCH_NAME: Отделение 102000 (b02)
       NATS_URL: nats://nats-leaf-b02:4222
     ports: ["127.0.0.1:8090:8080"]
+    volumes: ["b02-logs:/app/logs"]
     depends_on:
       postgres-b02: {condition: service_healthy}
       nats-leaf-b02: {condition: service_started}
     networks: [b02]
+
+  vector-b02:
+    build: infrastructure/vector
+    container_name: esuo-vector-b02
+    profiles: [monitoring]
+    environment: {BRANCH_ID: b02, NATS_URL: "nats://nats-leaf-b02:4222"}
+    volumes: ["b02-logs:/logs:ro", "vector-b02-data:/var/lib/vector"]
+    mem_limit: 64m
+    depends_on: [node-b02, nats-leaf-b02]
+    networks: [b02]
+    restart: unless-stopped
 
 networks:
   center:
@@ -308,3 +376,9 @@ volumes:
   b01-db:
   leaf-b02-data:
   b02-db:
+  b01-logs:
+  b02-logs:
+  vector-b01-data:
+  vector-b02-data:
+  loki-data:
+  grafana-data:

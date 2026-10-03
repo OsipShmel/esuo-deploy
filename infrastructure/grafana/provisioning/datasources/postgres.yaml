@@ -1,0 +1,18 @@
+# Metrics history and alerts of the center (design 6.5): read-only role grafana_ro, created by center-app when
+# GRAFANA_DB_PASSWORD is set. The uid is fixed: the provisioned dashboards point at it.
+apiVersion: 1
+datasources:
+  - name: Центр (метрики)
+    uid: center-db
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres-center:5432
+    user: grafana_ro
+    jsonData:
+      database: esuo_center
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 5
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD

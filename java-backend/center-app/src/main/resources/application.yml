@@ -1,10 +1,15 @@
 spring:
   application:
     name: center-app
+  config:
+    import: classpath:monitoring-rules.yml      # infrastructure/config, like queue-defaults.yml of the node
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5435/esuo_center}
     username: ${DB_USER:esuo}
     password: ${DB_PASSWORD:?Задайте DB_PASSWORD в .env}
+    hikari:
+      data-source-properties:
+        reWriteBatchedInserts: true             # heartbeat flush: one multi-row INSERT instead of one per branch
   flyway:
     enabled: true
   jackson:
@@ -36,12 +41,23 @@ logging:
 esuo:
   center:
     nats-url: ${NATS_URL:nats://localhost:4222}
+    logs:                                       # design 5.5-5.7: CENTER_LOG and shipping to Loki
+      loki-url: ${LOKI_URL:}                    # empty => not shipped, lines wait in CENTER_LOG (7 days)
+      grafana-public-url: ${GRAFANA_PUBLIC_URL:}  # for links to pulled logs; empty => no link
+    security:                                   # design 4.2: everything but the public list needs NETWORK_ADMIN
+      jwt-secret: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      admin-login: ${CENTER_ADMIN_LOGIN:network}
+      admin-password: ${CENTER_ADMIN_PASSWORD:}   # empty => no account, the private API is closed
+    metrics:                                    # design 6.2-6.3: heartbeats in batches, history for rules and Grafana
+      flush-interval: 5s
+      resolution: ${METRICS_RESOLUTION:10s}     # one row per heartbeat; 60s for a big network
+      retention: 48h
+      max-range: 48h
+    grafana:
+      db-password: ${GRAFANA_DB_PASSWORD:}      # design 6.5: role grafana_ro for Grafana panels; empty => no role
+    demo-mode: ${DEMO_MODE:false}               # demo stand: rule durations ×demo-duration-scale
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s
-    heartbeat:                                  # C3b: heartbeats are buffered and written in batches
-      flush-interval: 5s
-      metrics-every: 1m                         # branch_metrics: one row per branch per minute
-      metrics-retention: 48h
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
     notify:                                     # sect 11.3
       url: ${NOTIFY_URL:http://notify-mock:8090/notify}

@@ -1,0 +1,45 @@
+# Loki of the center (design 5.9): single binary, files on a volume, 7 days. Reachable only inside the center network;
+# lines arrive from center-app (LogShipper), never from branches directly.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: 168h               # 7 days, as long as branches keep their own lines
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h     # lines from a week-long outage are still accepted
+  ingestion_rate_mb: 16                # catching up a whole network after an outage
+  ingestion_burst_size_mb: 32
+  max_line_size: 256KB                 # longer (a giant stack trace) → 400, acked by the shipper with a warning
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { BRANCH, CENTER, NODE } from './env';
+import { BRANCH, CENTER, CENTER_LOGIN, CENTER_PASSWORD, NODE } from './env';
 
 test('табло: включение звука, QR и счётчик ожидающих', async ({ page }) => {
   await page.goto(`${NODE}/board`);
@@ -9,14 +9,38 @@ test('табло: включение звука, QR и счётчик ожида
   await expect(page.getByText(/Ждут:/)).toBeVisible();
 });
 
-test('сеть отделений: карточки и вкладки', async ({ page }) => {
+test('сеть отделений: без входа — форма входа, после входа — карточки и вкладки', async ({ page }) => {
   await page.goto(`${CENTER}/network`);
+  await expect(page.getByLabel('Логин')).toBeVisible();
+  await page.getByLabel('Логин').fill(CENTER_LOGIN);
+  await page.getByLabel('Пароль').fill(CENTER_PASSWORD);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByText(/На связи \d+ из \d+/)).toBeVisible();
+  // Перезагрузка не выкидывает на вход: первые запросы уже идут с токеном из сохранённой сессии.
+  await page.reload();
   await expect(page.getByText(/На связи \d+ из \d+/)).toBeVisible();
   await expect(page.getByText(new RegExp(`^${BRANCH} ·`)).first()).toBeVisible();
   await page.getByRole('link', { name: 'Конфигурация' }).click();
   await expect(page.getByRole('heading', { name: 'Публикация и применение' })).toBeVisible();
   await page.getByRole('link', { name: 'Уведомления' }).click();
   await expect(page.locator('.tab.active', { hasText: 'Уведомления' })).toBeVisible();
+});
+
+test('сеть отделений: строка «Узел» — снимок скачивается, логи дают ссылку, графики ведут на дашборд', async ({ page }) => {
+  await page.goto(`${CENTER}/network`);
+  await page.getByLabel('Логин').fill(CENTER_LOGIN);
+  await page.getByLabel('Пароль').fill(CENTER_PASSWORD);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  const node = page.getByRole('region', { name: `Узел ${BRANCH}` });
+  await expect(node.getByText(/CPU \d+%/)).toBeVisible();
+  await expect(node.getByRole('link', { name: 'Графики' })).toHaveAttribute('href', new RegExp(`/d/esuo-branch/\\?var-branch=${BRANCH}$`));
+
+  const download = page.waitForEvent('download');
+  await node.getByRole('button', { name: 'Снять диагностику' }).click();
+  expect((await download).suggestedFilename()).toMatch(new RegExp(`^snapshot-${BRANCH}-.*\\.json$`));
+
+  await node.getByRole('button', { name: /Подробные логи/ }).click();
+  await expect(node.getByRole('link', { name: /Открыть логи \(\d+ строк\)/ })).toBeVisible({ timeout: 20_000 });
 });
 
 for (const [path, title] of [['/admin', 'ЕСУО · Руководитель отделения'], ['/operator', 'ЕСУО · Оператор'], ['/demo', 'ЕСУО · Демо-пульт']] as const) {

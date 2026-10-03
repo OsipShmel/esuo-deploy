@@ -7,6 +7,7 @@ import io.nats.client.JetStreamOptions;
 import io.nats.client.Nats;
 import io.nats.client.Options;
 import honey.road.node.config.NodeProperties;
+import honey.road.node.monitoring.Lifecycle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
@@ -64,6 +65,11 @@ public class NatsGateway implements SmartLifecycle {
         return connection().isPresent();
     }
 
+    /** Reconnects of the current connection since it was opened; {@code -1} while not connected. */
+    public long reconnects() {
+        return connection().map(c -> c.getStatistics().getReconnects()).orElse(-1L);
+    }
+
     public JetStream jetStream(Connection c) throws IOException {
         return c.jetStream(JetStreamOptions.builder().requestTimeout(props.publishTimeout()).build());
     }
@@ -82,10 +88,12 @@ public class NatsGateway implements SmartLifecycle {
             switch (event) {
                 case CONNECTED, RECONNECTED -> {
                     connection.set(conn);
-                    log.info("nats {} url={}", event.name().toLowerCase(), conn.getConnectedUrl());
+                    Lifecycle.info(log, "nats." + event.name().toLowerCase(), "nats {} url={}",
+                            event.name().toLowerCase(), conn.getConnectedUrl());
                     onConnected.forEach(a -> runSafely(a, conn));
                 }
-                case DISCONNECTED -> log.warn("nats disconnected, working autonomously; outbox accumulates");
+                case DISCONNECTED -> Lifecycle.warn(log, "nats.disconnected",
+                        "nats disconnected, working autonomously; outbox accumulates");
                 case CLOSED -> log.info("nats connection closed");
                 default -> log.debug("nats event {}", event);
             }

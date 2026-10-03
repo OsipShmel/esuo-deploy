@@ -51,8 +51,10 @@ uv run pytest                # 27 проверок, включая критер�
 
 ```bash
 uv run esuo-ml fit --out build/model-params.json        # 0 — версия принята, 1 — отклонена
+TOKEN=$(curl -s -X POST http://localhost:8081/api/v1/auth/login -H 'Content-Type: application/json' \
+     -d '{"login":"network","password":"network123"}' | jq -r .access_token)   # оператор сети из .env
 curl -X PUT http://localhost:8081/api/v1/config/global \
-     -H 'Content-Type: application/json' \
+     -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
      -d @build/model-params.json                        # или /config/branches/{b} для одного отделения
 ```
 

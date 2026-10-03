@@ -59,3 +59,8 @@
 | 2026-10-01 05:59 | eaa2d27 | link-cut | 10/10 | `dd8724e64d83` | `runs/link-cut-20261001T055916Z.json` |
 | 2026-10-03 09:41 | 7c17469 | pension-day | 10/10 | `19366b4e7c08` | `runs/pension-day-20261003T094124Z.json` |
 | 2026-10-03 09:43 | 7c17469 | pension-day | 10/10 | `19366b4e7c08` | `runs/pension-day-20261003T094328Z.json` |
+| 2026-10-02 13:03 | 06a0ca1 | link-cut | 10/10 | `dd8724e64d83` | `runs/link-cut-20261002T130315Z.json` |
+| 2026-10-02 13:05 | 06a0ca1 | notify-down | 8/8 | `c923a780b87b` | `runs/notify-down-20261002T130551Z.json` |
+| 2026-10-02 13:43 | e528c39 | monitoring | 7/12 | `d85c1e2ab664` | `runs/monitoring-20261002T134320Z.json` |
+| 2026-10-02 13:44 | e528c39 | monitoring | 12/12 | `d85c1e2ab664` | `runs/monitoring-20261002T134407Z.json` |
+| 2026-10-02 13:44 | e528c39 | link-cut | 10/10 | `dd8724e64d83` | `runs/link-cut-20261002T134458Z.json` |

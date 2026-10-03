@@ -1,0 +1,116 @@
+# Branch log collector (design 5.4). Reads the node log file, keeps WARN, ERROR and lifecycle lines and publishes them
+# to BRANCH_LOG on the local leaf. The file is the buffer while the leaf is away: the read position moves only after
+# JetStream acknowledged the line; a resend after a restart is dropped by Nats-Msg-Id.
+data_dir: /var/lib/vector
+
+sources:
+  node_log:
+    type: file
+    include: ["/logs/node.log*"]                # current file and rotated ones (node.log.YYYY-MM-DD.i, no gzip)
+    read_from: beginning
+    ignore_older_secs: 604800                    # 7 days, the same as BRANCH_LOG retention
+
+transforms:
+  parse:                                         # ECS JSON of Spring Boot: log.level, log.logger, event.kind
+    type: remap
+    inputs: [node_log]
+    source: |
+      .msg_id = md5(string!(.message))
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        p = object!(parsed)
+        .level = downcase(string(p.log.level) ?? "info")
+        .logger = string(p.log.logger) ?? "unknown"
+        .kind = string(p.event.kind) ?? ""
+      } else {
+        .level = "error"
+        .logger = "unparsed"
+        .kind = "unparsed"
+      }
+
+  keep:                                          # only what the center needs right away; the rest is pulled on request
+    type: filter
+    inputs: [parse]
+    condition: '.level == "warn" || .level == "error" || .kind == "lifecycle" || .kind == "unparsed"'
+
+  calm:                                          # a looping error must not flood the link; dropped lines stay in the file
+    type: throttle
+    inputs: [keep]
+    key_field: "{{ logger }}:{{ level }}"
+    threshold: 30
+    window_secs: 60
+
+sinks:
+  leaf:
+    type: nats
+    inputs: [calm]
+    url: "${NATS_URL:-nats://nats-leaf:4222}"
+    subject: "branch.${BRANCH_ID}.log.{{ level }}"
+    encoding:
+      codec: text                                # the raw line, byte for byte
+    jetstream:
+      enabled: true
+      headers:
+        message_id: "{{ msg_id }}"
+    acknowledgements:
+      enabled: true                              # the file position moves only after the JetStream ack
+
+tests:
+  - name: an error line is kept, with an id derived from the raw line
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: '{"@timestamp":"2026-10-01T07:00:00.123Z","log":{"level":"ERROR","logger":"honey.road.node.Example"},"message":"boom"}'
+    outputs:
+      - extract_from: keep
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.level, "error")
+              assert_eq!(.logger, "honey.road.node.Example")
+              assert_eq!(.msg_id, md5(string!(.message)))
+  - name: a warning is kept
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: '{"@timestamp":"2026-10-01T07:00:00.123Z","log":{"level":"WARN","logger":"a.B"},"message":"careful"}'
+    outputs:
+      - extract_from: keep
+        conditions:
+          - type: vrl
+            source: assert_eq!(.level, "warn")
+  - name: a plain info line is dropped
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: '{"@timestamp":"2026-10-01T07:00:00.123Z","log":{"level":"INFO","logger":"a.B"},"message":"routine"}'
+    no_outputs_from: [keep]
+  - name: an info lifecycle line is kept
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: '{"@timestamp":"2026-10-01T07:00:00.123Z","log":{"level":"INFO","logger":"a.B"},"message":"node started","event":{"kind":"lifecycle","action":"app.started"}}'
+    outputs:
+      - extract_from: keep
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.level, "info")
+              assert_eq!(.kind, "lifecycle")
+  - name: a line that is not JSON is kept as an error, not lost
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          message: 'Exception in thread "main" java.lang.OutOfMemoryError'
+    outputs:
+      - extract_from: keep
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.level, "error")
+              assert_eq!(.kind, "unparsed")

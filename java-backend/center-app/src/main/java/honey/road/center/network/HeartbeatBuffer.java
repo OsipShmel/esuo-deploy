@@ -1,51 +1,50 @@
 package honey.road.center.network;
 
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import org.springframework.stereotype.Component;
+
+import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Latest heartbeat of every branch until the next flush (C3b). Receiving is a map put — the NATS dispatcher never
- * waits on the database, so 4 000 heartbeats a second cannot make the center a slow consumer. A newer heartbeat of
- * the same branch replaces the older one: the registry only keeps the last state anyway, so memory is bounded by the
- * number of branches, not by the backlog.
+ * The last heartbeat of every known branch, waiting for the next batch write (design 6.2). Bounded by the number of
+ * branches: a newer heartbeat replaces the older one. Puts run concurrently; a drain waits for puts in progress, so a
+ * heartbeat never lands in a map that was already taken away.
  */
-final class HeartbeatBuffer {
-    record Received(String branchId, byte[] body, Instant receivedAt) {
-    }
+@Component
+public class HeartbeatBuffer {
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    private ConcurrentHashMap<String, Heartbeat> pending = new ConcurrentHashMap<>();
 
-    private final int maxBranches;
-    private volatile ConcurrentHashMap<String, Received> pending = new ConcurrentHashMap<>();
-    private long dropped;
-
-    HeartbeatBuffer(int maxBranches) {
-        this.maxBranches = maxBranches;
-    }
-
-    /** @return false when the buffer is full of other branches and this one is dropped until the next flush */
-    boolean offer(String branchId, byte[] body, Instant receivedAt) {
-        var map = pending;
-        if (map.size() >= maxBranches && !map.containsKey(branchId)) {
-            synchronized (this) { dropped++; }
-            return false;
+    public void put(Heartbeat hb) {
+        lock.readLock().lock();
+        try {
+            pending.merge(hb.branchId(), hb, (old, fresh) -> fresh.receivedAt().isBefore(old.receivedAt()) ? old : fresh);
+        } finally {
+            lock.readLock().unlock();
         }
-        map.put(branchId, new Received(branchId, body, receivedAt));
-        return true;
     }
 
-    /** Takes everything received since the previous drain. */
-    List<Received> drain() {
-        var map = pending;
-        pending = new ConcurrentHashMap<>();
-        return new ArrayList<>(map.values());
+    /** Everything collected so far; later heartbeats go to a fresh map. */
+    public Map<String, Heartbeat> drain() {
+        lock.writeLock().lock();
+        try {
+            var taken = pending;
+            pending = new ConcurrentHashMap<>();
+            return taken;
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
-    int size() {
-        return pending.size();
-    }
-
-    synchronized long dropped() {
-        return dropped;
+    /** Puts back a batch that could not be written, unless a fresher heartbeat of the branch came meanwhile. */
+    public void restore(Collection<Heartbeat> batch) {
+        lock.readLock().lock();
+        try {
+            batch.forEach(hb -> pending.putIfAbsent(hb.branchId(), hb));
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 }

@@ -1,5 +1,7 @@
 /** Общий HTTP-клиент: базовый адрес `/api/v1` того же хоста, `application/problem+json` (дизайн-док 9.2). */
 
+import { accessToken } from './session';
+
 export interface FieldViolation {
   field?: string;
   message?: string;
@@ -29,7 +31,9 @@ export class ApiError extends Error {
 export const API_BASE = '/api/v1';
 
 type TokenProvider = () => string | null;
-let tokenProvider: TokenProvider = () => null;
+// До настройки из AuthGate токен берётся прямо из сохранённой сессии: эффекты дочерних запросов срабатывают раньше
+// эффекта AuthGate, и после перезагрузки страницы первые запросы иначе уходят без токена и обрывают сессию.
+let tokenProvider: TokenProvider = accessToken;
 let unauthorizedHandler: () => void = () => undefined;
 
 export function configureHttp(opts: { getToken: TokenProvider; onUnauthorized: () => void }): void {

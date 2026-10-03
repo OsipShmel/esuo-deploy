@@ -9,7 +9,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,12 +20,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * Everything a newly seen branch needs, off the heartbeat path: its events sourced into {@code CENTER_EVT} (own
- * {@code BRANCH_EVT} or the region's {@code REGION_EVT}) and its first config. One worker thread, so 40 000 branches
- * appearing in one flush queue up here instead of piling on the database and NATS at once.
- *
- * <p>{@link #pending} lets the config reconciler leave queued branches alone: it would otherwise publish a second
- * version to every branch the worker has not reached yet.
+ * First heartbeat of a branch this process does not know yet, off the NATS thread (final plan, C1/C3b). One worker
+ * takes them in batches of up to {@value #BATCH}:
+ * <ul>
+ *   <li>branches already in the registry (a center restart) only become known — their heartbeat goes to the
+ *   {@link HeartbeatBuffer} like any other, nothing is registered or published again;</li>
+ *   <li>new branches are inserted with one multi-row statement, their events are sourced into {@code CENTER_EVT}
+ *   (own {@code BRANCH_EVT}, or the region's {@code REGION_EVT} once per region) and they get their first config.</li>
+ * </ul>
+ * 40 000 branches appearing at once queue up here instead of piling on the database and NATS. {@link #pending} lets
+ * the config reconciler and the source reconciliation leave queued branches alone: the reconciler used to publish a
+ * second version to every branch registration had not reached yet.
  */
 @Component
 public class BranchOnboarding {
@@ -31,18 +38,22 @@ public class BranchOnboarding {
     static final int BATCH = 1000;
     static final int LOG_EACH_UP_TO = 20;
 
-    record NewBranch(String id, @Nullable String eventsVia) {
+    record First(Heartbeat heartbeat, @Nullable String eventsVia) {
     }
 
     private final CenterStreams streams;
     private final BranchRegistry registry;
     private final ConfigPublisher config;
-    private final LinkedBlockingQueue<NewBranch> queue = new LinkedBlockingQueue<>();
-    private final Set<String> pending = ConcurrentHashMap.newKeySet();
+    private final HeartbeatBuffer buffer;
+    /** Latest first heartbeat per branch waiting for the worker; the queue holds each id once. */
+    private final Map<String, First> pending = new ConcurrentHashMap<>();
+    private final LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<>();
+    private final Set<String> known = ConcurrentHashMap.newKeySet();
+    private final Object idle = new Object();
     private volatile Thread worker;
 
-    BranchOnboarding(CenterStreams streams, BranchRegistry registry, ConfigPublisher config) {
-        this.streams = streams; this.registry = registry; this.config = config;
+    BranchOnboarding(CenterStreams streams, BranchRegistry registry, ConfigPublisher config, HeartbeatBuffer buffer) {
+        this.streams = streams; this.registry = registry; this.config = config; this.buffer = buffer;
     }
 
     @PostConstruct
@@ -56,60 +67,112 @@ public class BranchOnboarding {
         if (w != null) { w.interrupt(); }
     }
 
-    void enqueue(String id, @Nullable String eventsVia) {
-        if (pending.add(id)) {
-            queue.add(new NewBranch(id, eventsVia));
+    /** The branch is known to this process: its heartbeats go straight to the buffer. */
+    boolean known(String id) {
+        return known.contains(id);
+    }
+
+    void offer(Heartbeat heartbeat, @Nullable String eventsVia) {
+        if (pending.put(heartbeat.branchId(), new First(heartbeat, eventsVia)) == null) {
+            queue.add(heartbeat.branchId());
         }
     }
 
-    /** The branch is registered but not yet sourced and configured by this worker. */
+    /** The branch waits for the worker: not yet registered, sourced or configured by it. */
     public boolean pending(String id) {
-        return pending.contains(id);
+        return pending.containsKey(id);
     }
 
     public int backlog() {
-        return queue.size();
+        return pending.size();
+    }
+
+    /** For tests and shutdown: waits until every offered heartbeat has been handled. */
+    boolean awaitIdle(Duration timeout) {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        synchronized (idle) {
+            while (!pending.isEmpty()) {
+                long left = (deadline - System.nanoTime()) / 1_000_000;
+                if (left <= 0) { return false; }
+                try {
+                    idle.wait(left);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private void run() {
-        var batch = new ArrayList<NewBranch>(BATCH);
+        var ids = new ArrayList<String>(BATCH);
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                batch.add(queue.take());
-                queue.drainTo(batch, BATCH - 1);
+                ids.add(queue.take());
+                queue.drainTo(ids, BATCH - 1);
+                var batch = new ArrayList<First>(ids.size());
+                ids.forEach(id -> { var f = pending.get(id); if (f != null) { batch.add(f); } });
                 onboard(batch);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (RuntimeException e) {
-                log.warn("onboarding batch failed: {}", e.toString());
+                log.warn("onboarding batch of {} failed, next heartbeats retry it: {}", ids.size(), e.toString());
             } finally {
-                batch.forEach(b -> pending.remove(b.id()));
-                batch.clear();
+                ids.forEach(pending::remove);
+                ids.clear();
+                synchronized (idle) { idle.notifyAll(); }
             }
         }
     }
 
-    void onboard(List<NewBranch> batch) {
-        var byVia = new TreeMap<String, Integer>();
-        batch.forEach(b -> byVia.merge(b.eventsVia() == null ? "own leaf" : b.eventsVia(), 1, Integer::sum));
-        if (batch.size() <= LOG_EACH_UP_TO) {
-            batch.forEach(b -> log.info("new branch registered id={}{}", b.id(), b.eventsVia() == null ? "" : " events_via=" + b.eventsVia()));
-        } else {
-            log.info("{} new branches registered: {}", batch.size(), Map.copyOf(byVia));
+    void onboard(List<First> batch) {
+        var ids = batch.stream().map(f -> f.heartbeat().branchId()).toList();
+        var existing = new HashSet<>(registry.existing(ids));
+        var fresh = new ArrayList<First>();
+        for (var f : batch) {
+            if (existing.contains(f.heartbeat().branchId())) {
+                buffer.put(f.heartbeat());                   // known from before a restart: just the next flush
+            } else {
+                fresh.add(f);
+            }
         }
+        var inserted = new HashSet<>(registry.register(fresh.stream().map(First::heartbeat).toList()));
+        for (var f : fresh) {
+            if (!inserted.contains(f.heartbeat().branchId())) {
+                buffer.put(f.heartbeat());                   // another center replica registered it meanwhile
+            }
+        }
+        known.addAll(ids);
+        var registered = fresh.stream().filter(f -> inserted.contains(f.heartbeat().branchId())).toList();
+        if (registered.isEmpty()) { return; }
+
+        log(registered);
         var attached = new ArrayList<String>();
-        for (var b : batch) {
-            if (b.eventsVia() == null ? streams.attachBranch(b.id()) : streams.attachRegion(b.eventsVia())) {
-                attached.add(b.id());
+        for (var f : registered) {
+            var id = f.heartbeat().branchId();
+            if (f.eventsVia() == null ? streams.attachBranch(id) : streams.attachRegion(f.eventsVia())) {
+                attached.add(id);
             }
         }
-        registry.markSourceAttached(attached);       // the rest are retried by HeartbeatListener.reconcile
-        for (var b : batch) {
+        registry.markSourceAttached(attached);           // the rest are retried by HeartbeatListener.reconcile
+        for (var f : registered) {
             try {
-                config.publishTo(b.id(), "system");  // a new branch gets its users and rules right away
+                config.publishTo(f.heartbeat().branchId(), "system");   // a new branch gets its users and rules right away
             } catch (RuntimeException e) {
-                log.warn("first config for {} not published (reconciler retries): {}", b.id(), e.toString());
+                log.warn("first config for {} not published (reconciler retries): {}", f.heartbeat().branchId(), e.toString());
             }
         }
+    }
+
+    private static void log(List<First> registered) {
+        if (registered.size() <= LOG_EACH_UP_TO) {
+            registered.forEach(f -> log.info("new branch registered id={} name={}{}", f.heartbeat().branchId(),
+                    f.heartbeat().name(), f.eventsVia() == null ? "" : " events_via=" + f.eventsVia()));
+            return;
+        }
+        var byVia = new TreeMap<String, Integer>();
+        registered.forEach(f -> byVia.merge(f.eventsVia() == null ? "own leaf" : f.eventsVia(), 1, Integer::sum));
+        log.info("{} new branches registered: {}", registered.size(), byVia);
     }
 }

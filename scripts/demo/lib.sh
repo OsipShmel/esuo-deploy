@@ -24,6 +24,7 @@ ALL_SERVICES="\"$S_PARCEL\",\"$S_SEND\",\"$S_FIN\""
 OP_PASS=${DEMO_OPERATOR_PASSWORD:-operator123}
 ADMIN_PASS=${DEMO_ADMIN_PASSWORD:-admin123}
 J=(-H 'Content-Type: application/json')
+. "$ROOT/scripts/center-auth.sh"                    # закрытый API центра: CENTER_TOKEN, center_curl
 
 # ------------------------------------------------------------------ вывод
 
@@ -76,6 +77,8 @@ token() { # token НОДА ЛОГИН ПАРОЛЬ → JWT (кеш в рабоч
 }
 op()  { local node=$1 m=$2 p=$3; shift 3; http "$m" "$node$p" -H "Authorization: Bearer $(token "$node" operator "$OP_PASS")" "${J[@]}" "$@"; }
 adm() { local node=$1 m=$2 p=$3; shift 3; http "$m" "$node$p" -H "Authorization: Bearer $(token "$node" admin "$ADMIN_PASS")" "${J[@]}" "$@"; }
+center() { local m=$1 p=$2; shift 2; [ -n "${CENTER_TOKEN:-}" ] || center_login || true  # center МЕТОД ПУТЬ — закрытый API центра
+  http "$m" "$CENTER$p" -H "Authorization: Bearer ${CENTER_TOKEN:-}" "${J[@]}" "$@"; }
 
 preflight() { # preflight НОДА... — узлы отвечают, вход работает
   local n

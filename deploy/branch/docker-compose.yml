@@ -53,12 +53,28 @@ services:
       QR_LOCAL_BASE_URL: ${QR_LOCAL_BASE_URL:-}
       QR_SECRET: ${QR_SECRET:-}
       QR_STICKER_KEY_VERSION: ${QR_STICKER_KEY_VERSION:-1}
+      LOG_FILE: /app/logs/node.log           # ECS JSON с ротацией: читают сборщик логов и diag.logs
     ports: ["${NODE_BIND:-0.0.0.0}:${NODE_PORT:-8080}:8080"]
+    volumes: ["branch-logs:/app/logs"]
     depends_on:
       postgres: {condition: service_healthy}
       nats-leaf: {condition: service_started}
     restart: unless-stopped
 
+  # Сборщик важных логов узла в BRANCH_LOG (docker compose --profile monitoring up -d); без профиля не запускается.
+  vector:
+    build: ../../infrastructure/vector
+    profiles: [monitoring]
+    environment:
+      BRANCH_ID: ${BRANCH_ID}
+      NATS_URL: nats://nats-leaf:4222
+    volumes: ["branch-logs:/logs:ro", "vector-data:/var/lib/vector"]
+    mem_limit: 64m
+    depends_on: [node-app, nats-leaf]
+    restart: unless-stopped
+
 volumes:
   branch-db:
   leaf-data:
+  branch-logs:
+  vector-data:

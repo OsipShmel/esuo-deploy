@@ -21,6 +21,7 @@ import honey.road.contracts.error.EsuoException;
 import honey.road.contracts.error.FieldViolation;
 import honey.road.node.api.web.RequestIdFilter;
 import honey.road.node.queue.domain.DomainException;
+import honey.road.node.monitoring.Lifecycle;
 
 import java.net.URI;
 import java.util.List;
@@ -64,7 +65,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<Object> handleUnexpected(Exception ex, WebRequest request) {
-        log.error("unhandled exception", ex);
+        Lifecycle.error(log, "error.unhandled", ex, "unhandled exception in request handler");
         return problem(ErrorCode.INTERNAL_ERROR, null, List.of(), request);
     }
 

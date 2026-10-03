@@ -1,11 +1,14 @@
 package honey.road.center.network;
 
 import honey.road.center.config.CenterProperties;
+import honey.road.center.monitoring.BranchAlerts;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -24,12 +27,14 @@ public class NetworkController {
     static final Duration CONFIG_PENDING_AFTER = Duration.ofMinutes(2);
 
     private final BranchRegistry registry;
+    private final BranchAlerts alerts;
     private final CenterProperties props;
     private final JsonMapper json;
     private final Clock clock;
 
-    public NetworkController(BranchRegistry registry, CenterProperties props, JsonMapper json, Clock clock) {
-        this.registry = registry; this.props = props; this.json = json; this.clock = clock;
+    public NetworkController(BranchRegistry registry, BranchAlerts alerts, CenterProperties props, JsonMapper json,
+                             Clock clock) {
+        this.registry = registry; this.alerts = alerts; this.props = props; this.json = json; this.clock = clock;
     }
 
     /** Public branch list for the client (with the service catalog from heartbeat –
@@ -93,6 +98,7 @@ public class NetworkController {
     public Map<String, Object> overview() {
         var now = clock.instant();
         var branches = new ArrayList<Map<String, Object>>();
+        var alertsByBranch = alerts.byBranch();
         int online = 0;
         for (var b : registry.all()) {
             JsonNode hb = json.readTree(b.lastHeartbeat());
@@ -108,6 +114,9 @@ public class NetworkController {
             if (hb.path("windows_open").asLong(0) == 0 && waiting > 0) { anomalies.add("no_open_windows"); }
             if (hb.path("outbox_lag_sec").asLong(0) > 60) { anomalies.add("outbox_lag"); }
             if (isOnline && overloadedFor(hb, now)) { anomalies.add("overload"); }
+            // the branch is reachable but its database is not: queue numbers are the last known ones
+            boolean dbStuck = isOnline && !hb.path("db_ok").asBoolean(true);
+            if (dbStuck) { anomalies.add("db_unavailable"); }
             int hbConfig = hb.path("config_version").asInt(0);
             Integer published = b.configPublishedVersion();
             int applied = Math.max(hbConfig, b.configAppliedVersion() == null ? 0 : b.configAppliedVersion());
@@ -115,6 +124,9 @@ public class NetworkController {
                     && Duration.between(b.configPublishedAt(), now).compareTo(CONFIG_PENDING_AFTER) > 0) {
                 anomalies.add("config_pending");
             }
+            // monitoring rules (design 6.4): the code joins the anomalies, the text is ready for a person
+            var branchAlerts = alertsByBranch.getOrDefault(b.id(), List.of());
+            branchAlerts.forEach(a -> anomalies.add((String) a.get("code")));
             var m = new LinkedHashMap<String, Object>();
             m.put("id", b.id());
             m.put("name", b.name());
@@ -136,7 +148,11 @@ public class NetworkController {
             m.put("clear_time_min", hb.hasNonNull("clear_time_min") ? hb.path("clear_time_min").asInt() : null);
             m.put("day_profile", hb.path("day_profile").asString(null));
             m.put("demo_rate", hb.hasNonNull("demo_rate") ? hb.path("demo_rate").asDouble() : null);
+            m.put("db_unavailable_sec", dbStuck ? hb.path("db_unavailable_sec").asLong(0) : null);
             m.put("anomalies", anomalies);
+            m.put("alerts", branchAlerts);
+            m.put("node", nodeLine(hb.path("sys")));
+            m.put("dashboard_url", dashboardUrl(b.id()));
             branches.add(m);
         }
         var result = new LinkedHashMap<String, Object>();
@@ -145,6 +161,27 @@ public class NetworkController {
         result.put("branches_online", online);
         result.put("branches", branches);
         return result;
+    }
+
+    /** The «Узел» line of the card (B7): a few numbers of the last heartbeat; the rest is on the Grafana dashboard. */
+    private static Map<String, Object> nodeLine(JsonNode sys) {
+        if (!sys.isObject()) {
+            return null;
+        }
+        var m = new LinkedHashMap<String, Object>();
+        m.put("cpu_pct", sys.hasNonNull("cpu_system") ? (Object) Math.round(sys.path("cpu_system").asDouble() * 100) : null);
+        m.put("http_p95_ms", sys.hasNonNull("http_p95_ms") ? sys.path("http_p95_ms").asLong() : null);
+        m.put("disk_free_mb", sys.hasNonNull("disk_free_mb") ? sys.path("disk_free_mb").asLong() : null);
+        m.put("disk_total_mb", sys.hasNonNull("disk_total_mb") ? sys.path("disk_total_mb").asLong() : null);
+        m.put("app_version", sys.path("app_version").asString(null));
+        m.put("uptime_sec", sys.hasNonNull("uptime_sec") ? sys.path("uptime_sec").asLong() : null);
+        return m;
+    }
+
+    /** Dashboard «ЕСУО · Отделение» (uid {@code esuo-branch}) opened on this branch; none without a public Grafana URL. */
+    private String dashboardUrl(String branchId) {
+        var grafana = props.logs().grafanaPublicUrl();
+        return grafana.isEmpty() ? null : grafana + "/d/esuo-branch/?var-branch=" + URLEncoder.encode(branchId, StandardCharsets.UTF_8);
     }
 
     private boolean online(Instant lastHeartbeat, Instant now) {
