@@ -29,6 +29,9 @@ scenario() {
       '[.account_details[]?.stream_detail[]? | select(.name=="CENTER_EVT") | .sources[]? | select(.external.api==$api) | .lag] | first // "нет"'
   }
 
+  for i in $(seq 1 10); do                        # после рестарта Loki отвечает 503, пока ingester не готов
+    [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$LOKI/ready")" = 200 ] && break; sleep 3
+  done
   [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$LOKI/ready")" = 200 ] \
     || { warn "Loki не отвечает ($LOKI): docker compose --profile monitoring up -d"; return 1; }
   [ "$(docker inspect -f '{{.State.Running}}' "esuo-vector-$BRANCH" 2>/dev/null)" = true ] \
