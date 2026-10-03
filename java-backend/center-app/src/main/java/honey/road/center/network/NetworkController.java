@@ -114,6 +114,9 @@ public class NetworkController {
             if (hb.path("windows_open").asLong(0) == 0 && waiting > 0) { anomalies.add("no_open_windows"); }
             if (hb.path("outbox_lag_sec").asLong(0) > 60) { anomalies.add("outbox_lag"); }
             if (isOnline && overloadedFor(hb, now)) { anomalies.add("overload"); }
+            // the branch is reachable but its database is not: queue numbers are the last known ones
+            boolean dbStuck = isOnline && !hb.path("db_ok").asBoolean(true);
+            if (dbStuck) { anomalies.add("db_unavailable"); }
             int hbConfig = hb.path("config_version").asInt(0);
             Integer published = b.configPublishedVersion();
             int applied = Math.max(hbConfig, b.configAppliedVersion() == null ? 0 : b.configAppliedVersion());
@@ -145,6 +148,7 @@ public class NetworkController {
             m.put("clear_time_min", hb.hasNonNull("clear_time_min") ? hb.path("clear_time_min").asInt() : null);
             m.put("day_profile", hb.path("day_profile").asString(null));
             m.put("demo_rate", hb.hasNonNull("demo_rate") ? hb.path("demo_rate").asDouble() : null);
+            m.put("db_unavailable_sec", dbStuck ? hb.path("db_unavailable_sec").asLong(0) : null);
             m.put("anomalies", anomalies);
             m.put("alerts", branchAlerts);
             m.put("node", nodeLine(hb.path("sys")));

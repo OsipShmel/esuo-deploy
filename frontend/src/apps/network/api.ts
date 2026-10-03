@@ -28,6 +28,8 @@ export interface BranchCard {
   day_profile: string | null;
   demo_rate: number | null;
   anomalies: string[];
+  /** База отделения не отвечает столько секунд; цифры очереди — последние известные. null — отвечает. */
+  db_unavailable_sec?: number | null;
   /** Сработавшие правила мониторинга (`sys.*`): готовый текст для человека. */
   alerts?: BranchAlert[];
   /** Строка «Узел»: несколько цифр последнего heartbeat; null — нода их ещё не присылает. */
