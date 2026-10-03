@@ -43,7 +43,7 @@ import java.util.concurrent.TimeoutException;
  * Carries the service catalog for the public branch picker.
  *
  * <p>The queue part reads the database, the {@code sys} block does not. When the database does not answer within
- * {@link #DB_TIMEOUT} (a lock holding every pooled connection, a frozen server), the heartbeat still goes out with the
+ * {@link #DB_TIMEOUT} (a lock holding every pooled connection, a frozen server, a starved CPU), the heartbeat still goes out with the
  * last known queue numbers, a fresh {@code sys} block and {@code db_ok=false}: otherwise the center would show the branch
  * as offline while only its database is stuck. A read still hanging is not started again.
  *

@@ -15,7 +15,7 @@ const ANOMALY: Record<string, (b: BranchCard) => string> = {
   outbox_lag: (b) => `${b.id}: события задерживаются в отделении`,
   config_pending: (b) => `${b.id}: конфигурация v${b.config_published_version ?? '?'} ещё не применена`,
   overload: (b) => `${b.id}: перегрузка дольше 15 минут`,
-  db_unavailable: (b) => `${b.id}: база отделения не отвечает ${formatSeconds(b.db_unavailable_sec ?? 0)} — связь есть, цифры очереди последние известные`,
+  db_unavailable: (b) => `${b.id}: данные очереди не обновляются ${formatSeconds(b.db_unavailable_sec ?? 0)} — база отделения не отвечает или ПК перегружен; связь есть`,
 };
 const DANGER = new Set(['offline', 'no_open_windows', 'overload', 'db_unavailable']);
 /** Правила мониторинга (`sys.*`) присылают текст сами. */
@@ -63,7 +63,7 @@ export function OverviewPage() {
 function Card({ b }: { b: BranchCard }) {
   const lost = !b.online;
   const dbStuck = b.db_unavailable_sec != null;
-  const suffix = lost ? ' (на момент потери связи)' : dbStuck ? ' (пока база не отвечает)' : '';
+  const suffix = lost ? ' (на момент потери связи)' : dbStuck ? ' (последние известные)' : '';
   const pending = b.config_published_version !== null && b.config_applied_version !== null && b.config_published_version > b.config_applied_version;
   return (
     <article className={`card branch-card${lost ? ' offline' : ''}`}>
