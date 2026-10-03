@@ -60,6 +60,10 @@ services:
       METRICS_RESOLUTION_REGIONAL: ${METRICS_RESOLUTION_REGIONAL:-60s}   # отделения за региональным хабом (рой)
       METRICS_RETENTION: ${METRICS_RETENTION:-48h}
       METRICS_MAX_SIZE: ${METRICS_MAX_SIZE:-100GB}        # страховка диска: сверх неё старые часы уходят раньше
+      # Куча центра (на сервере с роем — 4g); при нехватке памяти JVM завершается и Docker поднимает её заново
+      JAVA_TOOL_OPTIONS: >-
+        -Xmx${CENTER_HEAP:-2g} -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/dumps
+    volumes: ["center-dumps:/app/dumps"]
     ports: ["${CENTER_BIND:-0.0.0.0}:${CENTER_PORT:-8081}:8080"]
     depends_on:
       postgres-center: {condition: service_healthy}
@@ -104,6 +108,7 @@ services:
 
 volumes:
   center-db:
+  center-dumps:
   hub-data:
   loki-data:
   grafana-data:

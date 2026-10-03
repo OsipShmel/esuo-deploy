@@ -36,6 +36,7 @@ services:
       dockerfile: java-backend/Dockerfile
       args: {MODULE: node-app}
     environment:
+      JAVA_TOOL_OPTIONS: -XX:+ExitOnOutOfMemoryError     # нехватка памяти — перезапуск, а не зомби
       DB_URL: jdbc:postgresql://postgres:5432/esuo
       DB_USER: ${DB_USER:-esuo}
       DB_PASSWORD: ${DB_PASSWORD}
