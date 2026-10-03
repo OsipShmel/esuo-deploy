@@ -78,6 +78,25 @@ public class BranchRegistry {
                         Timestamp.from(h.receivedAt()), Timestamp.from(h.receivedAt()), h.json()}).toList());
     }
 
+    /**
+     * Only "seen at": for heartbeats whose content waits for its resolution (scale design 9.2). One statement per chunk;
+     * the row keeps its heartbeat JSON (in TOAST, untouched), so this is a small HOT update, not a rewrite.
+     */
+    public void touch(List<Heartbeat> heartbeats) {
+        if (heartbeats.isEmpty()) {
+            return;
+        }
+        var ids = heartbeats.stream().map(Heartbeat::branchId).toArray(String[]::new);
+        var at = heartbeats.stream().map(h -> h.receivedAt().toString()).toArray(String[]::new);
+        batch.update("""
+                UPDATE branches b SET last_heartbeat_at = v.at::timestamptz
+                FROM unnest(?::text[], ?::text[]) AS v(id, at)
+                WHERE b.id = v.id AND b.last_heartbeat_at < v.at::timestamptz""", ps -> {
+            ps.setArray(1, ps.getConnection().createArrayOf("text", ids));
+            ps.setArray(2, ps.getConnection().createArrayOf("text", at));
+        });
+    }
+
     public void markSourceAttached(String id) {
         jdbc.sql("UPDATE branches SET source_attached=true WHERE id=:id").param("id", id).update();
     }

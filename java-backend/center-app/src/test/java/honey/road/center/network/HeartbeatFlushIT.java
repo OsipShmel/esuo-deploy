@@ -159,6 +159,24 @@ class HeartbeatFlushIT extends AbstractCenterIT {
     }
 
     @Test
+    void regionalBranchContentFollowsItsResolutionButItStaysOnline() throws Exception {
+        var swarm = "{\"name\":\"S\",\"timezone\":\"Europe/Moscow\",\"events_via\":\"region-2\",\"waiting\":%d}";
+        register("hr1", swarm.formatted(0));
+        beat("hr1", swarm.formatted(1));
+        flush.run();                                                   // first content after a start: written
+        Thread.sleep(50);
+        var before = Instant.now();
+        beat("hr1", swarm.formatted(2));
+
+        flush.run();                                                   // within the 1 h regional resolution here
+
+        assertThat(jdbc.sql("SELECT (last_heartbeat->>'waiting')::int FROM branches WHERE id='hr1'").query(Integer.class)
+                .single()).isEqualTo(1);                               // the content waits for its resolution
+        assertThat(jdbc.sql("SELECT last_heartbeat_at FROM branches WHERE id='hr1'").query(Timestamp.class).single()
+                .toInstant()).isAfterOrEqualTo(before.minusMillis(1)); // but the branch is seen as online now
+    }
+
+    @Test
     void brokenMetricsWriteDoesNotLoseTheHeartbeat() {
         register("hf7", hb("Before", 0, null));
         beat("hf7", hb("After", 3, "{\"cpu_count\":4}"));

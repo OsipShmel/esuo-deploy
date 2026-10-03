@@ -106,11 +106,24 @@ public class HeartbeatFlush {
         flushTimer.record(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS);
     }
 
-    /** One chunk in one transaction: branches, then their metric rows under a savepoint. */
+    /**
+     * One chunk in one transaction: branches, then their metric rows under a savepoint. An ordinary branch has its
+     * heartbeat written whole every time; a branch behind a regional hub has its content written at the regional
+     * metrics resolution and in between only "seen at" (scale design 9.2): at 250 000 branches rewriting every
+     * heartbeat JSON every 10 s was more than the database could write, and "online" lagged towards offline.
+     */
     private void write(List<Heartbeat> part) {
         var rows = new ArrayList<MetricsRow>();
+        var content = new ArrayList<Heartbeat>(part.size());
+        var seen = new ArrayList<Heartbeat>();
         for (var hb : part) {
-            if (due(lastMetricAt.get(hb.branchId()), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution)) {
+            boolean due = due(lastMetricAt.get(hb.branchId()), hb.receivedAt(), hb.regional() ? resolutionRegional : resolution);
+            if (due || !hb.regional()) {
+                content.add(hb);
+            } else {
+                seen.add(hb);
+            }
+            if (due) {
                 try {
                     rows.add(MetricsRow.of(hb.branchId(), json.readTree(hb.body()), hb.receivedAt()));
                 } catch (RuntimeException e) {
@@ -119,7 +132,8 @@ public class HeartbeatFlush {
             }
         }
         boolean written = Boolean.TRUE.equals(tx.execute(s -> {
-            registry.saveHeartbeats(part);
+            registry.saveHeartbeats(content);
+            registry.touch(seen);
             var savepoint = s.createSavepoint();
             try {
                 metrics.insert(rows);
