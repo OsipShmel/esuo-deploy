@@ -4,6 +4,7 @@ import honey.road.node.api.sse.SseHub;
 import honey.road.node.messaging.nats.LeafLinkMonitor;
 import honey.road.node.messaging.nats.NatsGateway;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PreDestroy;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The {@code sys} block of the heartbeat (design 6.1): the state of the branch server itself. Every source is read on
@@ -31,6 +38,7 @@ import java.util.Map;
 public class SysMetrics {
     private static final Logger log = LoggerFactory.getLogger(SysMetrics.class);
     private static final Duration DB_SIZE_TTL = Duration.ofSeconds(60);
+    private static final Duration DB_SIZE_WAIT = Duration.ofMillis(500);
     private static final long MB = 1024 * 1024;
 
     private final MeterReadings meters;
@@ -44,8 +52,10 @@ public class SysMetrics {
     private final Clock clock;
 
     private @Nullable Instant lastSample;
-    private @Nullable Long dbSizeMb;
+    private volatile @Nullable Long dbSizeMb;
     private @Nullable Instant dbSizeAt;
+    private @Nullable Future<?> dbSizeRead;
+    private final ExecutorService reads = Executors.newVirtualThreadPerTaskExecutor();
 
     public SysMetrics(MeterRegistry registry, HttpStatsFilter http, SseHub sse, LeafLinkMonitor leaf, NatsGateway nats,
                       JdbcTemplate jdbc, PlatformTransactionManager transactions, @Value("${esuo.logs.file:}") String logFile,
@@ -85,10 +95,15 @@ public class SysMetrics {
         return sys;
     }
 
-    /** Once a minute, with a short timeout: a locked database must not hold up the heartbeat. Stale beats nothing. */
+    /**
+     * Once a minute and on a side thread: waiting for a pooled connection (every one held by a lock) or for a frozen
+     * server must not hold up the heartbeat. The last known value is sent meanwhile; a read still hanging is not repeated.
+     */
     private void putDbSize(Map<String, Object> sys, Instant now) {
-        if (dbSizeAt == null || Duration.between(dbSizeAt, now).compareTo(DB_SIZE_TTL) >= 0) {
-            try {
+        if ((dbSizeAt == null || Duration.between(dbSizeAt, now).compareTo(DB_SIZE_TTL) >= 0)
+                && (dbSizeRead == null || dbSizeRead.isDone())) {
+            dbSizeAt = now;
+            dbSizeRead = reads.submit(() -> {
                 var bytes = tx.execute(s -> {
                     jdbc.execute("SET LOCAL statement_timeout = '2s'");
                     return jdbc.queryForObject("SELECT pg_database_size(current_database())", Long.class);
@@ -96,14 +111,26 @@ public class SysMetrics {
                 if (bytes != null) {
                     dbSizeMb = bytes / MB;
                 }
-            } catch (RuntimeException e) {
-                log.debug("database size unavailable: {}", e.toString());
-            }
-            dbSizeAt = now;
+                return null;
+            });
+        }
+        try {
+            dbSizeRead.get(DB_SIZE_WAIT.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            // still reading: the last value goes out
+        } catch (ExecutionException e) {
+            log.debug("database size unavailable: {}", e.getCause() == null ? e.toString() : e.getCause().toString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         if (dbSizeMb != null) {
             sys.put("db_size_mb", dbSizeMb);
         }
+    }
+
+    @PreDestroy
+    void stopReads() {
+        reads.shutdownNow();
     }
 
     private void putDisk(Map<String, Object> sys) {

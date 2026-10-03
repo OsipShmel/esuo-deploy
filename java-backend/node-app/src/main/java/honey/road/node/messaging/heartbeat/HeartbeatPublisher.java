@@ -7,6 +7,7 @@ import honey.road.node.config.JsonCodec;
 import honey.road.node.config.NodeProperties;
 import honey.road.node.messaging.nats.NatsGateway;
 import honey.road.node.messaging.outbox.OutboxWorker;
+import honey.road.node.monitoring.Lifecycle;
 import honey.road.node.monitoring.SysMetrics;
 import honey.road.node.persistence.CatalogRepository;
 import honey.road.node.planning.LoadPlanner;
@@ -14,6 +15,8 @@ import honey.road.node.persistence.PolicyRepository;
 import honey.road.node.persistence.TicketRepository;
 import honey.road.node.persistence.WindowRepository;
 import io.nats.client.impl.Headers;
+import jakarta.annotation.PreDestroy;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,15 +27,27 @@ import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.time.Duration;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Heartbeat {@code branch.{b}.hb} (core NATS, sect 10.1); also registers the branch in the center: the first heartbeat
  * of an unknown branch adds it to the registry and as a {@code CENTER_EVT} source.
  * Carries the service catalog for the public branch picker.
+ *
+ * <p>The queue part reads the database, the {@code sys} block does not. When the database does not answer within
+ * {@link #DB_TIMEOUT} (a lock holding every pooled connection, a frozen server), the heartbeat still goes out with the
+ * last known queue numbers, a fresh {@code sys} block and {@code db_ok=false}: otherwise the center would show the branch
+ * as offline while only its database is stuck. A read still hanging is not started again.
  */
 @Component
 public class HeartbeatPublisher {
     private static final Logger log = LoggerFactory.getLogger(HeartbeatPublisher.class);
+    static final Duration DB_TIMEOUT = Duration.ofSeconds(3);
 
     private final NatsGateway nats;
     private final NodeProperties node;
@@ -45,6 +60,11 @@ public class HeartbeatPublisher {
     private final SysMetrics sys;
     private final JsonCodec json;
     private final Clock clock;
+    private @Nullable Boolean dbStuck;                           // null until the first heartbeat
+    private final ExecutorService reads = Executors.newVirtualThreadPerTaskExecutor();
+    private @Nullable Future<Map<String, Object>> reading;
+    private @Nullable Map<String, Object> lastQueue;
+    private long lastQueueNanos;
 
     public HeartbeatPublisher(NatsGateway nats, NodeProperties node, CatalogRepository catalog, WindowRepository windows,
                               TicketRepository tickets, PolicyRepository policies, LoadPlanner planner,
@@ -61,7 +81,11 @@ public class HeartbeatPublisher {
             return;
         }
         try {
-            var body = json.writeValueAsString(snapshot());
+            var hb = current();
+            if (hb == null) {
+                return;
+            }
+            var body = json.writeValueAsString(hb);
             connection.get().publish(Subjects.heartbeat(node.branchId()),
                     new Headers().add(EsuoHeaders.CONTENT_TYPE, "application/json"),
                     body.getBytes(StandardCharsets.UTF_8));
@@ -70,6 +94,51 @@ public class HeartbeatPublisher {
         }
     }
 
+    /** What goes out now; {@code null} when the database has not answered once since the start. */
+    public synchronized @Nullable Map<String, Object> current() {
+        if (reading == null || reading.isDone()) {
+            reading = reads.submit(this::snapshot);
+        }
+        Map<String, Object> hb;
+        try {
+            hb = new LinkedHashMap<>(reading.get(DB_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+            lastQueue = hb;
+            lastQueueNanos = System.nanoTime();
+            if (Boolean.TRUE.equals(dbStuck)) {
+                Lifecycle.info(log, "db.answering", "database answers again, heartbeat carries fresh queue numbers");
+            }
+            dbStuck = false;
+        } catch (TimeoutException | ExecutionException e) {
+            if (e instanceof ExecutionException) {
+                reading = null;
+            }
+            if (lastQueue == null) {
+                log.warn("heartbeat skipped: the database has not answered yet ({})", e.toString());
+                return null;
+            }
+            if (!Boolean.TRUE.equals(dbStuck)) {
+                Lifecycle.warn(log, "db.stuck", "database does not answer within {} ms, heartbeat carries the last known queue numbers: {}",
+                        DB_TIMEOUT.toMillis(), e instanceof ExecutionException ee && ee.getCause() != null ? ee.getCause().toString() : "timeout");
+            }
+            dbStuck = true;
+            hb = new LinkedHashMap<>(lastQueue);
+            hb.put("sent_at", clock.instant());
+            hb.put("db_ok", false);
+            hb.put("db_unavailable_sec", Duration.ofNanos(System.nanoTime() - lastQueueNanos).toSeconds());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+        putSys(hb);
+        return hb;
+    }
+
+    @PreDestroy
+    void stopReads() {
+        reads.shutdownNow();
+    }
+
+    /** The database part of a heartbeat: queue, windows, config versions, load, catalog. */
     public Map<String, Object> snapshot() {
         var branch = catalog.branch(node.branchId());
         var stats = outbox.stats();
@@ -99,7 +168,6 @@ public class HeartbeatPublisher {
         hb.put("oldest_wait_sec", waiting.stream().map(t -> Duration.between(t.issuedAt(), now).toSeconds())
                 .max(Long::compare).orElse(0L));
         putLoad(hb);
-        putSys(hb);
         hb.put("services", catalog.services(node.branchId()).stream().filter(s -> s.active())
                 .map(s -> Map.of("id", s.id(), "code", s.code(), "name", s.name(), "number_prefix", s.numberPrefix()))
                 .toList());
