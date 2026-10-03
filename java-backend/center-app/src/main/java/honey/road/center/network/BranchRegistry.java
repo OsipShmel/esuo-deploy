@@ -20,9 +20,14 @@ public class BranchRegistry {
 
     public BranchRegistry(JdbcClient jdbc, JdbcTemplate batch) { this.jdbc = jdbc; this.batch = batch; }
 
+    /**
+     * @param lastHeartbeatAt last heard of, by any heartbeat ({@link #SEEN_AT})
+     * @param contentAt       when {@code lastHeartbeat} came: behind a regional hub up to a minute before the last "alive"
+     */
     public record BranchRow(String id, String name, String timezone, Instant firstSeenAt, Instant lastHeartbeatAt,
-                            String lastHeartbeat, boolean sourceAttached, @Nullable Integer configPublishedVersion,
-                            @Nullable Instant configPublishedAt, @Nullable Integer configAppliedVersion) {
+                            Instant contentAt, String lastHeartbeat, boolean sourceAttached,
+                            @Nullable Integer configPublishedVersion, @Nullable Instant configPublishedAt,
+                            @Nullable Integer configAppliedVersion) {
     }
 
     static final int BATCH = 500;
@@ -177,7 +182,7 @@ public class BranchRegistry {
         var publishedAt = rs.getTimestamp("config_published_at");
         return new BranchRow(rs.getString("id"), rs.getString("name"), rs.getString("timezone"),
                 rs.getTimestamp("first_seen_at").toInstant(), rs.getTimestamp("heard_at").toInstant(),
-                rs.getString("hb"), rs.getBoolean("source_attached"), (Integer) rs.getObject("config_published_version"),
+                rs.getTimestamp("last_heartbeat_at").toInstant(), rs.getString("hb"), rs.getBoolean("source_attached"), (Integer) rs.getObject("config_published_version"),
                 publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"));
     }
 
@@ -186,6 +191,6 @@ public class BranchRegistry {
     }
 
     public Optional<BranchRow> get(String id) {
-        return all().stream().filter(b -> b.id().equals(id)).findFirst();
+        return rows(List.of(id)).stream().findFirst();
     }
 }

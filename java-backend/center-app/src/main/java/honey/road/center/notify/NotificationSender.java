@@ -114,14 +114,15 @@ public class NotificationSender implements DeadLetterRetrier {
 
     /**
      * "Now" on the branch scale (sect 11.3): a demo node runs on accelerated time, so it is estimated from the last
-     * heartbeat as {@code sent_at + real elapsed × demo_rate}.
+     * heartbeat as {@code sent_at + real elapsed × demo_rate} — elapsed since that heartbeat came, not since the last
+     * "alive" of a branch behind a regional hub (scale design 9.2).
      */
     Instant branchNow(String branchId, Instant realNow) {
         return registry.get(branchId).map(b -> {
             var hb = json.readTree(b.lastHeartbeat());
             double rate = hb.path("demo_rate").asDouble(0);
             if (rate <= 0 || !hb.hasNonNull("sent_at")) { return realNow; }
-            var elapsed = Duration.between(b.lastHeartbeatAt(), realNow).toMillis();
+            var elapsed = Duration.between(b.contentAt(), realNow).toMillis();
             return Instant.parse(hb.path("sent_at").asString()).plusMillis((long) (elapsed * rate));
         }).orElse(realNow);
     }
