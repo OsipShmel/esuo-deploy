@@ -4,8 +4,9 @@ import honey.road.center.nats.CenterNats;
 import honey.road.center.nats.CenterStreams;
 import honey.road.contracts.event.Subjects;
 import io.nats.client.Connection;
+import io.nats.client.ConsumerContext;
+import io.nats.client.FetchConsumeOptions;
 import io.nats.client.Message;
-import io.nats.client.MessageConsumer;
 import io.nats.client.api.AckPolicy;
 import io.nats.client.api.ConsumerConfiguration;
 import io.nats.client.api.DeliverPolicy;
@@ -14,33 +15,39 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.UUID;
-import org.springframework.scheduling.annotation.Scheduled;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
-* {@code analytics-ingest} (docs, section 10.5): durable pull consumer {@code CENTER_EVT} → {@code events} table.
-* "At-least-once", deduplication via {@code ON CONFLICT (event_id) DO NOTHING}.
-* After a center restart, reading resumes from the durable consumer's position.
-*/
+ * {@code analytics-ingest} (docs, section 10.5): durable pull consumer {@code CENTER_EVT} → {@code events} table.
+ * "At-least-once", deduplication via {@code ON CONFLICT (event_id) DO NOTHING}.
+ * After a center restart, reading resumes from the durable consumer's position.
+ *
+ * <p>Batched (final plan, C3a): up to {@value #BATCH} messages or {@value #WAIT_MS} ms per fetch (a full batch returns at
+ * once; jnats does not allow waiting less than a second), one multi-row insert,
+ * acks after it succeeded; a database error naks the whole batch for redelivery. One insert per event used to cap
+ * the center at about a thousand events a second, well under what a swarm of branches delivers.
+ */
 @Component
 public class EventIngest {
     private static final Logger log = LoggerFactory.getLogger(EventIngest.class);
     static final String CONSUMER = "analytics-ingest";
+    static final int BATCH = 500;
+    static final int WAIT_MS = 1000;
 
     private final CenterNats nats;
     private final CenterStreams streams;
     private final JdbcClient jdbc;
     private final JsonMapper json;
     private final Clock clock;
-    private volatile MessageConsumer consumer;
+    private volatile Thread worker;
 
     public EventIngest(CenterNats nats, CenterStreams streams, JdbcClient jdbc, JsonMapper json, Clock clock) {
         this.nats = nats; this.streams = streams; this.jdbc = jdbc; this.json = json; this.clock = clock;
@@ -52,7 +59,7 @@ public class EventIngest {
     }
 
     synchronized void start(Connection c) {
-        if (consumer != null || !streams.ready()) { return; }
+        if (running() || !streams.ready()) { return; }
         try {
             c.jetStreamManagement().addOrUpdateConsumer(Subjects.STREAM_CENTER_EVT, ConsumerConfiguration.builder()
                     .durable(CONSUMER)
@@ -60,61 +67,113 @@ public class EventIngest {
                     .deliverPolicy(DeliverPolicy.All)
                     .ackWait(Duration.ofSeconds(30))
                     .maxDeliver(-1)
+                    .maxAckPending(BATCH * 20)
                     .build());
             var context = c.getConsumerContext(Subjects.STREAM_CENTER_EVT, CONSUMER);
-            consumer = context.consume(this::handle);
-            log.info("ingest consuming {} as {}", Subjects.STREAM_CENTER_EVT, CONSUMER);
+            worker = Thread.ofPlatform().name("analytics-ingest").daemon().start(() -> loop(context));
+            log.info("ingest consuming {} as {} in batches of {}", Subjects.STREAM_CENTER_EVT, CONSUMER, BATCH);
         } catch (Exception e) {
             log.error("cannot start ingest consumer", e);
         }
     }
 
-    void handle(Message msg) {
+    static FetchConsumeOptions fetchOptions() {
+        return FetchConsumeOptions.builder().maxMessages(BATCH).expiresIn(WAIT_MS).build();
+    }
+
+    private void loop(ConsumerContext context) {
         try {
-            var body = new String(msg.getData(), StandardCharsets.UTF_8);
-            var e = json.readTree(body);
-            var eventId = e.path("event_id").asString(null);
-            if (eventId == null) {
-                log.warn("event without event_id on {}, skipped", msg.getSubject());
-                msg.ack();
+            run(context, fetchOptions());
+        } catch (RuntimeException | Error e) {
+            log.error("ingest worker stopped, restarting within 10 s", e);   // never die silently again
+        }
+    }
+
+    private void run(ConsumerContext context, FetchConsumeOptions options) {
+        while (!Thread.currentThread().isInterrupted()) {
+            var batch = new ArrayList<Message>(BATCH);
+            try (var fetch = context.fetch(options)) {
+                for (Message m; (m = fetch.nextMessage()) != null; ) {
+                    batch.add(m);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 return;
+            } catch (Exception e) {
+                // NATS reconnecting or the consumer recreated: try again shortly, the durable keeps its position.
+                log.debug("ingest fetch failed: {}", e.toString());
+                pause();
+                continue;
             }
-            var aggregateId = e.path("aggregate_id").asString(null);
-            jdbc.sql("""
-                            INSERT INTO events(event_id,branch_id,event_type,aggregate_type,aggregate_id,occurred_at,received_at,payload)
-                            VALUES (:id,:b,:type,:at,:aid,:occurred,:now,CAST(:payload AS jsonb))
-                            ON CONFLICT (event_id) DO NOTHING
-                            """)
-                    .param("id", UUID.fromString(eventId))
-                    .param("b", e.path("branch_id").asString(Subjects.branchIdOf(msg.getSubject())))
-                    .param("type", e.path("event_type").asString("unknown"))
-                    .param("at", e.path("aggregate_type").asString(null))
-                    .param("aid", aggregateId == null ? null : UUID.fromString(aggregateId))
-                    .param("occurred", Timestamp.from(Instant.parse(e.path("occurred_at").asString(clock.instant().toString()))))
-                    .param("now", Timestamp.from(clock.instant()))
-                    .param("payload", body)
-                    .update();
-            msg.ack();
-        } catch (RuntimeException ex) {
-            log.warn("ingest failed, will be redelivered: {}", ex.toString());
-            msg.nakWithDelay(Duration.ofSeconds(5));
+            if (!batch.isEmpty()) {
+                write(batch);
+            }
+        }
+    }
+
+    /** Parses, inserts the good rows in one statement, then acks; malformed ones are terminated, not redelivered. */
+    void write(List<Message> batch) {
+        var now = clock.instant();
+        var rows = new ArrayList<EventRow>(batch.size());
+        var stored = new ArrayList<Message>(batch.size());
+        for (var msg : batch) {
+            try {
+                rows.add(EventRow.parse(json, msg.getSubject(), msg.getData(), now));
+                stored.add(msg);
+            } catch (EventRow.Malformed e) {
+                log.warn("{}, skipped", e.getMessage());
+                msg.term();
+            }
+        }
+        if (rows.isEmpty()) { return; }
+        try {
+            insert(rows, now);
+        } catch (RuntimeException e) {
+            log.warn("ingest batch of {} failed, will be redelivered: {}", rows.size(), e.toString());
+            stored.forEach(m -> m.nakWithDelay(Duration.ofSeconds(5)));
+            return;
+        }
+        stored.forEach(Message::ack);
+    }
+
+    private void insert(List<EventRow> rows, java.time.Instant receivedAt) {
+        var sql = new StringBuilder(
+                "INSERT INTO events(event_id,branch_id,event_type,aggregate_type,aggregate_id,occurred_at,received_at,payload) VALUES ");
+        var params = new ArrayList<Object>(rows.size() * 8);
+        var received = Timestamp.from(receivedAt);
+        for (int i = 0; i < rows.size(); i++) {
+            var r = rows.get(i);
+            sql.append(i == 0 ? "" : ",").append("(?,?,?,?,?,?,?,CAST(? AS jsonb))");
+            params.add(r.eventId()); params.add(r.branchId()); params.add(r.eventType()); params.add(r.aggregateType());
+            params.add(r.aggregateId()); params.add(Timestamp.from(r.occurredAt())); params.add(received); params.add(r.payload());
+        }
+        sql.append(" ON CONFLICT (event_id) DO NOTHING");
+        jdbc.sql(sql.toString()).params(params).update();
+    }
+
+    private static void pause() {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
     @Scheduled(fixedDelayString = "PT10S", initialDelayString = "PT10S")
     public void ensureStarted() {
-        if (consumer == null) {
+        if (!running()) {
             nats.connection().ifPresent(this::start);
         }
     }
 
-    public boolean running() { return consumer != null; }
+    public boolean running() {
+        var w = worker;
+        return w != null && w.isAlive();
+    }
 
     @PreDestroy
     void stop() {
-        var c = consumer;
-        if (c != null) {
-            try { c.stop(); } catch (RuntimeException ignored) { }
-        }
+        var w = worker;
+        if (w != null) { w.interrupt(); }
     }
 }

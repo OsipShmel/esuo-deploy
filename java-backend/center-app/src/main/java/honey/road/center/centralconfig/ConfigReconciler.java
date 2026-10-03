@@ -1,6 +1,7 @@
 package honey.road.center.centralconfig;
 
 import honey.road.center.config.CenterProperties;
+import honey.road.center.network.BranchOnboarding;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,7 +18,9 @@ import java.time.Duration;
  *   <li>published but not applied for {@code resend-after} since the last send → resend with a new {@code Nats-Msg-Id};</li>
  *   <li>node reports a version above the published one → move the sequence past it so the next change wins.</li>
  * </ul>
- * Offline branches are skipped: the message waits in {@code CONFIG} and is sourced when the link is back.
+ * Offline branches are skipped: the message waits in {@code CONFIG} and is sourced when the link is back. So are
+ * branches still queued in {@link BranchOnboarding}, which publishes their first version itself: otherwise a wave of
+ * new branches got a second version from here before the first one was even sent.
  */
 @Component
 class ConfigReconciler {
@@ -28,9 +31,12 @@ class ConfigReconciler {
     private final ConfigPublisher publisher;
     private final CenterProperties props;
     private final Clock clock;
+    private final BranchOnboarding onboarding;
 
-    ConfigReconciler(ConfigStore store, ConfigPublisher publisher, CenterProperties props, Clock clock) {
+    ConfigReconciler(ConfigStore store, ConfigPublisher publisher, CenterProperties props, Clock clock,
+                     BranchOnboarding onboarding) {
         this.store = store; this.publisher = publisher; this.props = props; this.clock = clock;
+        this.onboarding = onboarding;
     }
 
     @Scheduled(fixedDelayString = "PT15S", initialDelayString = "PT20S")
@@ -38,7 +44,8 @@ class ConfigReconciler {
         var now = clock.instant();
         for (var s : store.states()) {
             try {
-                if (Duration.between(s.lastHeartbeatAt(), now).compareTo(props.offlineAfter()) > 0) {
+                if (Duration.between(s.lastHeartbeatAt(), now).compareTo(props.offlineAfter()) > 0
+                        || onboarding.pending(s.id())) {
                     continue;
                 }
                 if (s.published() == null) {

@@ -15,7 +15,7 @@ spring:
   task:
     scheduling:
       pool:
-        size: 2
+        size: 4                                 # heartbeat flush must not wait behind the config reconciler
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
@@ -38,6 +38,10 @@ esuo:
     nats-url: ${NATS_URL:nats://localhost:4222}
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s
+    heartbeat:                                  # C3b: heartbeats are buffered and written in batches
+      flush-interval: 5s
+      metrics-every: 1m                         # branch_metrics: one row per branch per minute
+      metrics-retention: 48h
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
     notify:                                     # sect 11.3
       url: ${NOTIFY_URL:http://notify-mock:8090/notify}

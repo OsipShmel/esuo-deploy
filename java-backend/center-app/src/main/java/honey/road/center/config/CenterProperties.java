@@ -9,7 +9,7 @@ import java.util.List;
 
 @ConfigurationProperties("esuo.center")
 public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration offlineAfter, List<String> corsOrigins,
-                               @Name("notify") Notify notification, Mp mp) {
+                               @Name("notify") Notify notification, Mp mp, Heartbeat heartbeat) {
     public CenterProperties {
         natsUrl = natsUrl == null || natsUrl.isBlank() ? "nats://localhost:4222" : natsUrl;
         rpcTimeout = rpcTimeout == null ? Duration.ofSeconds(3) : rpcTimeout;
@@ -17,6 +17,24 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
         corsOrigins = corsOrigins == null ? List.of() : List.copyOf(corsOrigins);
         notification = notification == null ? new Notify(null, null, null, null, 0, null, null) : notification;
         mp = mp == null ? new Mp(null, null, null, null, null, 0, null, null) : mp;
+        heartbeat = heartbeat == null ? new Heartbeat(null, null, null, 0) : heartbeat;
+    }
+
+    /**
+     * Heartbeat intake (final plan, C3b/B2).
+     *
+     * @param flushInterval   how often buffered heartbeats are written; the network overview lags by at most this
+     * @param metricsEvery    one {@code branch_metrics} row per branch at most this often
+     * @param metricsRetention raw metrics kept this long
+     * @param maxBranches     buffer cap: heartbeats of branches beyond it wait for the next flush
+     */
+    public record Heartbeat(Duration flushInterval, Duration metricsEvery, Duration metricsRetention, int maxBranches) {
+        public Heartbeat {
+            flushInterval = flushInterval == null ? Duration.ofSeconds(5) : flushInterval;
+            metricsEvery = metricsEvery == null ? Duration.ofMinutes(1) : metricsEvery;
+            metricsRetention = metricsRetention == null ? Duration.ofHours(48) : metricsRetention;
+            maxBranches = maxBranches < 1 ? 200_000 : maxBranches;
+        }
     }
 
     /** Notification delivery (sect 11.3). */
