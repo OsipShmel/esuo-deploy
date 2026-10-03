@@ -1,5 +1,7 @@
 package honey.road.center.centralconfig;
 
+import honey.road.center.config.CenterProperties;
+import honey.road.center.network.NetworkSnapshot;
 import honey.road.contracts.error.ErrorCode;
 import honey.road.contracts.error.EsuoException;
 import honey.road.contracts.error.FieldViolation;
@@ -11,8 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,12 +28,16 @@ public class ConfigService {
 
     private final ConfigStore store;
     private final ConfigPublisher publisher;
+    private final NetworkSnapshot network;
+    private final Duration offlineAfter;
     private final TransactionTemplate tx;
     private final Clock clock;
     private final PasswordEncoder passwords = new BCryptPasswordEncoder();
 
-    ConfigService(ConfigStore store, ConfigPublisher publisher, TransactionTemplate tx, Clock clock) {
-        this.store = store; this.publisher = publisher; this.tx = tx; this.clock = clock;
+    ConfigService(ConfigStore store, ConfigPublisher publisher, NetworkSnapshot network, CenterProperties props,
+                  TransactionTemplate tx, Clock clock) {
+        this.store = store; this.publisher = publisher; this.network = network; this.offlineAfter = props.offlineAfter();
+        this.tx = tx; this.clock = clock;
     }
 
     // ------------------------------------------------------------------ views
@@ -42,11 +50,12 @@ public class ConfigService {
                             @Nullable Map<String, Object> planning, @Nullable Map<String, Object> model) {
     }
 
-    public record BranchConfigStatus(String branchId, Overrides overrides, @Nullable Integer publishedVersion,
+    public record BranchConfigStatus(String branchId, boolean online, Overrides overrides, @Nullable Integer publishedVersion,
                                      @Nullable Integer appliedVersion, @Nullable Instant appliedAt, boolean pending) {
     }
 
-    public record ConfigOverview(SectionsView global, List<BranchConfigStatus> branches) {
+    /** The global sections and one page of branches (scale design 8.2): 250 000 of them never come at once. */
+    public record ConfigOverview(SectionsView global, int total, int offset, int limit, List<BranchConfigStatus> branches) {
     }
 
     public record BranchConfigView(Overrides overrides, @Nullable Map<String, Object> effective,
@@ -65,11 +74,24 @@ public class ConfigService {
                               Instant createdAt) {
     }
 
-    public ConfigOverview overview() {
+    /**
+     * The global sections and a page of branches by a search and a region ({@code events_via} or {@code own}), found in
+     * the shared picture of the network; their states and overrides — one query each. {@code limit} 1…200.
+     */
+    public ConfigOverview overview(@Nullable String q, @Nullable String region, int offset, int limit) {
         var g = store.global();
         var global = new SectionsView(g.queue(), g.bounds(), g.planning(), g.model(), g.updatedAt(), g.updatedBy());
-        var branches = store.states().stream().map(s -> status(s, store.branch(s.id()))).toList();
-        return new ConfigOverview(global, branches);
+        var matched = network.current().select(q, null, region, null);
+        int size = Math.clamp(limit, 1, 200);
+        int from = Math.clamp(offset, 0, matched.size());
+        var ids = matched.subList(from, Math.min(matched.size(), from + size)).stream().map(NetworkSnapshot.Entry::id).toList();
+        var states = new HashMap<String, ConfigStore.BranchState>();
+        store.states(ids).forEach(s -> states.put(s.id(), s));
+        var overrides = store.branches(ids);
+        var now = clock.instant();
+        var branches = ids.stream().filter(states::containsKey)
+                .map(id -> status(states.get(id), overrides.getOrDefault(id, ConfigStore.Sections.empty()), now)).toList();
+        return new ConfigOverview(global, matched.size(), from, size, branches);
     }
 
     public BranchConfigView branch(String branchId) {
@@ -164,10 +186,11 @@ public class ConfigService {
         }
     }
 
-    private static BranchConfigStatus status(ConfigStore.BranchState s, ConfigStore.Sections overrides) {
+    private BranchConfigStatus status(ConfigStore.BranchState s, ConfigStore.Sections overrides, Instant now) {
         var applied = applied(s);
         boolean pending = s.published() != null && (applied == null || applied < s.published());
-        return new BranchConfigStatus(s.id(), overrides(overrides), s.published(), applied, s.appliedAt(), pending);
+        boolean online = !Duration.between(s.lastHeartbeatAt(), now).minus(offlineAfter).isPositive();
+        return new BranchConfigStatus(s.id(), online, overrides(overrides), s.published(), applied, s.appliedAt(), pending);
     }
 
     /** Applied version: {@code config.applied} or heartbeat, whichever is higher. */

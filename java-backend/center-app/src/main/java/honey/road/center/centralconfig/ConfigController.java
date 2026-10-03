@@ -36,9 +36,13 @@ class ConfigController {
     record UpdateUser(@Nullable String password, @Nullable String role, @Nullable Boolean active) {
     }
 
+    /** Global sections and a page of branches: {@code q} — part of the id or name, {@code region} — events_via or own. */
     @GetMapping("/config")
-    ConfigService.ConfigOverview overview() {
-        return config.overview();
+    ConfigService.ConfigOverview overview(@RequestParam(required = false) @Nullable String q,
+                                          @RequestParam(required = false) @Nullable String region,
+                                          @RequestParam(defaultValue = "0") int offset,
+                                          @RequestParam(defaultValue = "50") int limit) {
+        return config.overview(q, region, offset, limit);
     }
 
     /** Body {@code {queue?, bounds?, planning?}}: an absent section is unchanged, {@code null} clears it. */

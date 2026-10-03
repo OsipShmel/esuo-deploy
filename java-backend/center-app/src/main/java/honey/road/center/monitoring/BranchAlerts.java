@@ -79,20 +79,33 @@ public class BranchAlerts {
         return m;
     }
 
+    private static final String SELECT = "SELECT branch_id, rule_id, severity, text, since FROM branch_alerts ";
+    private static final String ORDER =
+            " ORDER BY branch_id, CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, since";
+
     /** Alerts per branch for the overview: {@code {code, severity, text, since}}, critical first. */
     public Map<String, List<Map<String, Object>>> byBranch() {
+        return collect(jdbc.sql(SELECT + ORDER));
+    }
+
+    /** {@link #byBranch()} of a few branches: the cards of one page. */
+    public Map<String, List<Map<String, Object>>> forBranches(List<String> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return collect(jdbc.sql(SELECT + "WHERE branch_id = ANY(:ids)" + ORDER).param("ids", ids.toArray(String[]::new)));
+    }
+
+    private static Map<String, List<Map<String, Object>>> collect(JdbcClient.StatementSpec query) {
         var result = new LinkedHashMap<String, List<Map<String, Object>>>();
-        jdbc.sql("""
-                        SELECT branch_id, rule_id, severity, text, since FROM branch_alerts
-                        ORDER BY branch_id, CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, since""")
-                .query(rs -> {
-                    var a = new LinkedHashMap<String, Object>();
-                    a.put("code", rs.getString("rule_id"));
-                    a.put("severity", rs.getString("severity"));
-                    a.put("text", rs.getString("text"));
-                    a.put("since", rs.getTimestamp("since").toInstant());
-                    result.computeIfAbsent(rs.getString("branch_id"), k -> new ArrayList<>()).add(a);
-                });
+        query.query(rs -> {
+            var a = new LinkedHashMap<String, Object>();
+            a.put("code", rs.getString("rule_id"));
+            a.put("severity", rs.getString("severity"));
+            a.put("text", rs.getString("text"));
+            a.put("since", rs.getTimestamp("since").toInstant());
+            result.computeIfAbsent(rs.getString("branch_id"), k -> new ArrayList<>()).add(a);
+        });
         return result;
     }
 }

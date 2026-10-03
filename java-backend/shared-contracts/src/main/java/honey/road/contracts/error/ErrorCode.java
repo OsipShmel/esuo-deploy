@@ -37,6 +37,8 @@ public enum ErrorCode {
     QR_CODE_INVALID(422, "QR-код недействителен"),
     CONFIG_OUT_OF_BOUNDS(422, "Значение вне допустимых границ"),
     SERVICE_NOT_IN_WINDOW(422, "Услуга не оказывается в этом окне"),
+    /** Every card of the network at once, above the limit of the center (scale design 8.2): summary and pages instead. */
+    NETWORK_TOO_LARGE(422, "Сеть слишком большая для полного обзора"),
 
     RATE_LIMITED(429, "Слишком много запросов"),
     INTERNAL_ERROR(500, "Внутренняя ошибка"),

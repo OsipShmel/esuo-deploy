@@ -149,6 +149,101 @@ class NetworkSummaryIT extends AbstractCenterIT {
         assertThat(region.path("problems").asInt()).isEqualTo(1);
     }
 
+    private JsonNode region(JsonNode summary, String name) {
+        return summary.path("regions").valueStream()
+                .filter(r -> name.equals(r.path("events_via").asString(null))).findFirst().orElseThrow();
+    }
+
+    /** A region tile (scale design 8.1): its queue is that of the branches on line now, its worst branch by name. */
+    @Test
+    void regionsCarryTheirQueueAndWorstBranch() {
+        var region = region(get("/api/v1/network/summary"), "region-9");
+
+        assertThat(region.path("waiting").asLong()).isEqualTo(1);        // ns-r1b is off line: its numbers are old
+        assertThat(region.path("windows_open").asLong()).isEqualTo(1);
+        assertThat(region.path("overdue").asLong()).isZero();
+        assertThat(region.path("anomalies").path("offline").asInt()).isEqualTo(1);
+        assertThat(region.path("worst").asString()).isEqualTo("ns-r1b");
+    }
+
+    @Test
+    void aRegionHasItsOwnSummaryWithTheWorstCards() {
+        var region = get("/api/v1/network/regions/region-9");
+
+        assertThat(region.path("events_via").asString()).isEqualTo("region-9");
+        assertThat(region.path("total").asInt()).isEqualTo(2);
+        assertThat(region.path("online").asInt()).isEqualTo(1);
+        assertThat(ids(region.path("problems"))).containsExactly("ns-r1b");
+        assertThat(region.path("problems").get(0).has("node")).isTrue();               // a full card
+        mvc.get().uri("/api/v1/network/regions/region-404").header("Authorization", "Bearer " + token).exchange()
+                .assertThat().hasStatus(404);
+    }
+
+    @Test
+    void branchesAreListedByRegionAndByAnomaly() {
+        assertThat(ids(get("/api/v1/network/branches?region=region-9").path("items")))
+                .containsExactly("ns-r1a", "ns-r1b");
+        assertThat(ids(get("/api/v1/network/branches?q=ns-&region=own&limit=200").path("items")))
+                .contains("ns-ok1", "ns-shut").doesNotContain("ns-r1a", "ns-r1b");
+        assertThat(ids(get("/api/v1/network/branches?q=ns-&anomaly=overdue_tickets").path("items")))
+                .containsExactlyInAnyOrder("ns-over", "ns-shut");
+    }
+
+    @Test
+    void oneBranchCard() {
+        var card = get("/api/v1/network/branches/ns-shut");
+
+        assertThat(card.path("id").asString()).isEqualTo("ns-shut");
+        assertThat(card.path("anomalies").valueStream().map(JsonNode::asString).toList()).contains("no_open_windows");
+        mvc.get().uri("/api/v1/network/branches/nope").header("Authorization", "Bearer " + token).exchange()
+                .assertThat().hasStatus(404);
+    }
+
+    /** The «Центр» line of the network screen (scale design 8.1): read from the center's own meters, no Prometheus. */
+    @Test
+    void theCenterLine() {
+        var center = get("/api/v1/network/center");
+
+        assertThat(center.path("heap_used_mb").asLong()).isPositive();
+        assertThat(center.path("heap_max_mb").asLong()).isPositive();
+        for (var field : new String[]{"cpu", "gc_pct", "heartbeats_per_sec", "events_per_sec", "flush_sec", "rules_sec",
+                "heartbeats_buffered", "events_pending"}) {
+            assertThat(center.has(field)).as(field).isTrue();
+        }
+    }
+
+    /** The client's branch picker (public, no login): searched and paged — never the whole network at once. */
+    @Test
+    void publicBranchListIsSearchedAndPaged() {
+        var result = mvc.get().uri("/api/v1/branches?q=ns-ok&limit=2").exchange();
+        result.assertThat().hasStatusOk();
+        var page = json.readTree(result.getResponse().getContentAsByteArray());
+
+        assertThat(page.path("total").asInt()).isEqualTo(3);
+        assertThat(ids(page.path("items"))).containsExactly("ns-ok1", "ns-ok2");
+        var item = page.path("items").get(0);
+        assertThat(item.path("online").asBoolean()).isTrue();
+        assertThat(item.has("services")).isTrue();
+        assertThat(item.has("load_level")).isTrue();
+        assertThat(item.path("timezone").asString()).isEqualTo("Europe/Moscow");
+        var capped = json.readTree(mvc.get().uri("/api/v1/branches?limit=100000").exchange().getResponse()
+                .getContentAsByteArray());
+        assertThat(capped.path("limit").asInt()).isEqualTo(200);
+    }
+
+    /** «Конфигурация» of a big network (scale design 8.1): the branches come a page at a time, searched and by region. */
+    @Test
+    void configIsPaged() {
+        var page = get("/api/v1/config?q=ns-&limit=3");
+
+        assertThat(page.has("global")).isTrue();
+        assertThat(page.path("total").asInt()).isEqualTo(8);
+        assertThat(page.path("branches").valueStream().map(b -> b.path("branch_id").asString()).toList())
+                .containsExactly("ns-off", "ns-ok1", "ns-ok2");
+        assertThat(get("/api/v1/config?region=region-9").path("branches").valueStream()
+                .map(b -> b.path("branch_id").asString()).toList()).containsExactly("ns-r1a", "ns-r1b");
+    }
+
     /**
      * Between its content writes a branch behind a regional hub only says "alive", and that goes to a narrow table of
      * its own (scale design 9.2): every view of the network — and the gauge on the dashboard — judges "online" by it.

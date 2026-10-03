@@ -2,7 +2,10 @@ package honey.road.center.network;
 
 import honey.road.center.config.CenterProperties;
 import honey.road.center.monitoring.BranchAlerts;
+import honey.road.contracts.error.ErrorCode;
+import honey.road.contracts.error.EsuoException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
@@ -14,40 +17,57 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 
 /**
- * Network overview (sect 9.5, 14): online/offline by heartbeat, queue, outbox lag, config versions and anomalies.
- * {@code /network/overview} returns every card (scripts read it); a big network uses {@code /network/summary} and
- * the paged {@code /network/branches} instead (final plan, C3c).
+ * Network overview (sect 9.5, 14; scale design 8.2). Lists, counts and filters come from {@link NetworkSnapshot}, one
+ * picture of the network shared by every screen; cards — only those shown — are read fresh from the database, so a
+ * script waiting for a branch to go off line sees it at once. {@code /network/overview} returns every card and is
+ * refused above {@code overview-max} branches: on a big network it took the center down.
  * Role of NETWORK_MONITOR — TODO! after the hub security component;
  */
 @RestController
 public class NetworkController {
+    static final int MAX_TOP = 100;
+    static final int MAX_PAGE = 200;
+    static final int PUBLIC_PAGE = 50;
+    static final int REGION_WORST = 10;
+
     private final BranchRegistry registry;
     private final BranchAlerts alerts;
+    private final NetworkSnapshot snapshot;
     private final CenterProperties props;
     private final JsonMapper json;
     private final Clock clock;
 
-    public NetworkController(BranchRegistry registry, BranchAlerts alerts, CenterProperties props, JsonMapper json,
-                             Clock clock) {
-        this.registry = registry; this.alerts = alerts; this.props = props; this.json = json; this.clock = clock;
+    public NetworkController(BranchRegistry registry, BranchAlerts alerts, NetworkSnapshot snapshot, CenterProperties props,
+                             JsonMapper json, Clock clock) {
+        this.registry = registry; this.alerts = alerts; this.snapshot = snapshot; this.props = props; this.json = json;
+        this.clock = clock;
     }
 
-    /** Public branch list for the client (with the service catalog from heartbeat –
-     * вот бы хоть раз сходит на почту и узнать, как она работает). */
+    /**
+     * Public branch list for the client's picker (with the service catalog from heartbeat – вот бы хоть раз сходит на
+     * почту и узнать, как она работает): searched and paged by the shared picture of the network, so an anonymous
+     * request costs the center no more than that picture. {@code limit} 1…{@value #MAX_PAGE}.
+     */
     @GetMapping("/api/v1/branches")
-    public List<Map<String, Object>> branches() {
+    public Map<String, Object> branches(@RequestParam(required = false) String q, @RequestParam(defaultValue = "0") int offset,
+                                        @RequestParam(defaultValue = "" + PUBLIC_PAGE) int limit) {
         var now = clock.instant();
-        var result = new ArrayList<Map<String, Object>>();
-        for (var b : registry.all()) {
+        var matched = snapshot.current().select(q, null, null, null);
+        var ids = slice(matched, offset, limit).stream().map(NetworkSnapshot.Entry::id).toList();
+        var rows = new HashMap<String, BranchRegistry.BranchRow>();
+        registry.rows(ids).forEach(r -> rows.put(r.id(), r));
+        var items = new ArrayList<Map<String, Object>>();
+        for (var id : ids) {
+            var b = rows.get(id);
+            if (b == null) {
+                continue;
+            }
             var hb = json.readTree(b.lastHeartbeat());
             var m = new LinkedHashMap<String, Object>();
             m.put("id", b.id());
@@ -56,13 +76,19 @@ public class NetworkController {
             m.put("online", NetworkAnomalies.online(b.lastHeartbeatAt(), now, props.offlineAfter()));
             m.put("services", hb.path("services"));
             m.put("load_level", hb.path("load_level").asString(null));
-            result.add(m);
+            items.add(m);
         }
-        return result;
+        return pageOf(now, matched.size(), offset, limit, items);
     }
 
+    /** Every card at once — for the scripts of a small stand; refused above {@code overview-max} branches. */
     @GetMapping("/api/v1/network/overview")
     public Map<String, Object> overview() {
+        int max = props.network().overviewMax();
+        if (registry.countUpTo(max + 1) > max) {
+            throw new EsuoException(ErrorCode.NETWORK_TOO_LARGE, "Больше " + max
+                    + " отделений: используйте /api/v1/network/summary и /api/v1/network/branches");
+        }
         var now = clock.instant();
         var alertsByBranch = alerts.byBranch();
         var branches = new ArrayList<Map<String, Object>>();
@@ -81,119 +107,93 @@ public class NetworkController {
     }
 
     /**
-     * Network summary for a big network (final plan, C3c): counts by status, load level, anomaly and region, plus the
-     * {@code top} worst branches as full cards. Judged from a dozen fields the database extracts from each heartbeat:
-     * 40 000 branches cost a few megabytes per poll, not every card. {@code top}: 1…{@value #MAX_TOP}.
+     * Network summary (C3c, scale design 8.1): counts by status, load level and anomaly, a tile per region, and the
+     * {@code top} worst branches as full cards. {@code top}: 1…{@value #MAX_TOP}.
      */
     @GetMapping("/api/v1/network/summary")
     public Map<String, Object> summary(@RequestParam(defaultValue = "20") int top) {
-        var now = clock.instant();
-        var alertsByBranch = alerts.byBranch();
-        var judged = judge(registry.statuses(), alertsByBranch, now);
-        int online = 0;
-        var loadLevels = new TreeMap<String, Integer>();
-        var anomalies = new TreeMap<String, Integer>();
-        var regions = new LinkedHashMap<String, int[]>();               // events_via → total, online, problems
-        var problems = new ArrayList<Judged>();
-        for (var j : judged) {
-            if (j.online) { online++; }
-            loadLevels.merge(j.status.loadLevel() == null ? "unknown" : j.status.loadLevel(), 1, Integer::sum);
-            j.anomalies.forEach(a -> anomalies.merge(a, 1, Integer::sum));
-            var r = regions.computeIfAbsent(j.status.eventsVia() == null ? OWN_LEAF : j.status.eventsVia(), k -> new int[3]);
-            r[0]++;
-            if (j.online) { r[1]++; }
-            if (!j.anomalies.isEmpty()) { r[2]++; problems.add(j); }
-        }
-        problems.sort(WORST_FIRST);
-        var shown = problems.subList(0, Math.min(problems.size(), Math.clamp(top, 1, MAX_TOP)));
+        var v = snapshot.current();
         var result = new LinkedHashMap<String, Object>();
-        result.put("generated_at", now);
-        result.put("branches_total", judged.size());
-        result.put("branches_online", online);
-        result.put("branches_offline", judged.size() - online);
-        result.put("problem_branches_total", problems.size());
-        result.put("load_levels", loadLevels);
-        result.put("anomalies", anomalies);
-        var regionList = new ArrayList<Map<String, Object>>();
-        regions.forEach((via, r) -> {
-            var m = new LinkedHashMap<String, Object>();
-            m.put("events_via", OWN_LEAF.equals(via) ? null : via);
-            m.put("total", r[0]);
-            m.put("online", r[1]);
-            m.put("problems", r[2]);
-            regionList.add(m);
-        });
-        result.put("regions", regionList);
-        result.put("problems", cards(shown, alertsByBranch, now));
+        result.put("generated_at", v.generatedAt());
+        result.put("branches_total", v.network().total());
+        result.put("branches_online", v.network().online());
+        result.put("branches_offline", v.network().total() - v.network().online());
+        result.put("problem_branches_total", v.network().problems());
+        result.put("load_levels", v.network().loadLevels());
+        result.put("anomalies", v.network().anomalies());
+        result.put("regions", v.regions().entrySet().stream()
+                .map(e -> e.getValue().view(NetworkSnapshot.OWN.equals(e.getKey()) ? null : e.getKey())).toList());
+        result.put("problems", cards(v.problems().subList(0, Math.min(v.problems().size(), Math.clamp(top, 1, MAX_TOP)))));
+        return result;
+    }
+
+    /** One region (scale design 8.1): its tile and its {@value #REGION_WORST} worst branches as cards. */
+    @GetMapping("/api/v1/network/regions/{region}")
+    public Map<String, Object> region(@PathVariable String region) {
+        var v = snapshot.current();
+        var sums = v.regions().get(region);
+        if (sums == null) {
+            throw new EsuoException(ErrorCode.NOT_FOUND, "Региона " + region + " нет");
+        }
+        var result = new LinkedHashMap<String, Object>(sums.view(NetworkSnapshot.OWN.equals(region) ? null : region));
+        result.put("generated_at", v.generatedAt());
+        result.put("problems", cards(v.select(null, "problems", region, null).stream().limit(REGION_WORST).toList()));
         return result;
     }
 
     /**
-     * One page of branch cards (C3c). {@code q} — part of the id or the name, any case; {@code status} — all, online,
-     * offline or problems (worst first; otherwise by id); {@code limit} 1…{@value #MAX_PAGE}.
+     * One page of branch cards. {@code q} — part of the id or the name, any case; {@code status} — all, online,
+     * offline or problems; {@code region} — {@code events_via} or {@value NetworkSnapshot#OWN}; {@code anomaly} — its
+     * code. Problems and anomalies come worst first, the rest by id. {@code limit} 1…{@value #MAX_PAGE}.
      */
     @GetMapping("/api/v1/network/branches")
     public Map<String, Object> page(@RequestParam(required = false) String q, @RequestParam(defaultValue = "all") String status,
+                                    @RequestParam(required = false) String region, @RequestParam(required = false) String anomaly,
                                     @RequestParam(defaultValue = "0") int offset, @RequestParam(defaultValue = "50") int limit) {
-        var now = clock.instant();
-        var alertsByBranch = alerts.byBranch();
-        var needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
-        var matched = new ArrayList<Judged>();
-        for (var j : judge(registry.statuses(), alertsByBranch, now)) {
-            if (!needle.isEmpty() && !j.status.id().toLowerCase(Locale.ROOT).contains(needle)
-                    && !j.status.name().toLowerCase(Locale.ROOT).contains(needle)) {
-                continue;
-            }
-            boolean keep = switch (status) {
-                case "online" -> j.online;
-                case "offline" -> !j.online;
-                case "problems" -> !j.anomalies.isEmpty();
-                default -> true;
-            };
-            if (keep) { matched.add(j); }
+        var v = snapshot.current();
+        var matched = v.select(q, status, region, anomaly);
+        return pageOf(v.generatedAt(), matched.size(), offset, limit, cards(slice(matched, offset, limit)));
+    }
+
+    /** One branch card, fresh: the panel of a branch. */
+    @GetMapping("/api/v1/network/branches/{id}")
+    public Map<String, Object> branch(@PathVariable String id) {
+        var cards = cardsOf(List.of(id));
+        if (cards.isEmpty()) {
+            throw new EsuoException(ErrorCode.BRANCH_NOT_FOUND, "Отделение " + id + " не зарегистрировано");
         }
-        if ("problems".equals(status)) { matched.sort(WORST_FIRST); }
-        int size = Math.clamp(limit, 1, MAX_PAGE);
+        return cards.getFirst();
+    }
+
+    private static <T> List<T> slice(List<T> matched, int offset, int limit) {
         int from = Math.clamp(offset, 0, matched.size());
+        return matched.subList(from, Math.min(matched.size(), from + Math.clamp(limit, 1, MAX_PAGE)));
+    }
+
+    private static Map<String, Object> pageOf(Instant generatedAt, int total, int offset, int limit, List<?> items) {
         var result = new LinkedHashMap<String, Object>();
-        result.put("generated_at", now);
-        result.put("total", matched.size());
-        result.put("offset", from);
-        result.put("limit", size);
-        result.put("items", cards(matched.subList(from, Math.min(matched.size(), from + size)), alertsByBranch, now));
+        result.put("generated_at", generatedAt);
+        result.put("total", total);
+        result.put("offset", Math.clamp(offset, 0, total));
+        result.put("limit", Math.clamp(limit, 1, MAX_PAGE));
+        result.put("items", items);
         return result;
     }
 
-    static final int MAX_TOP = 100;
-    static final int MAX_PAGE = 200;
-    private static final String OWN_LEAF = "";
-
-    /** A branch with its verdict: online, anomaly codes, severity. */
-    private record Judged(BranchStatus status, boolean online, List<String> anomalies, int severity) {
+    private List<Map<String, Object>> cards(List<NetworkSnapshot.Entry> entries) {
+        return cardsOf(entries.stream().map(NetworkSnapshot.Entry::id).toList());
     }
 
-    private static final Comparator<Judged> WORST_FIRST =
-            Comparator.comparingInt(Judged::severity).reversed().thenComparing(j -> j.status().id());
-
-    private List<Judged> judge(List<BranchStatus> statuses, Map<String, List<Map<String, Object>>> alertsByBranch, Instant now) {
-        var out = new ArrayList<Judged>(statuses.size());
-        for (var s : statuses) {
-            var branchAlerts = alertsByBranch.getOrDefault(s.id(), List.of());
-            var anomalies = NetworkAnomalies.of(s, branchAlerts, now, props.offlineAfter());
-            out.add(new Judged(s, NetworkAnomalies.online(s.lastHeartbeatAt(), now, props.offlineAfter()), anomalies,
-                    NetworkAnomalies.severity(anomalies, branchAlerts, s.overdue())));
-        }
-        return out;
-    }
-
-    /** Full cards of a few judged branches, in their order. */
-    private List<Map<String, Object>> cards(List<Judged> judged, Map<String, List<Map<String, Object>>> alertsByBranch, Instant now) {
+    /** Full cards of a few branches, in the order given, from their rows and alerts read now. */
+    private List<Map<String, Object>> cardsOf(List<String> ids) {
+        var now = clock.instant();
         var rows = new HashMap<String, BranchRegistry.BranchRow>();
-        registry.rows(judged.stream().map(j -> j.status().id()).toList()).forEach(r -> rows.put(r.id(), r));
-        var out = new ArrayList<Map<String, Object>>(judged.size());
-        for (var j : judged) {
-            var row = rows.get(j.status().id());
-            if (row != null) { out.add(card(row, alertsByBranch.getOrDefault(row.id(), List.of()), now)); }
+        registry.rows(ids).forEach(r -> rows.put(r.id(), r));
+        var alertsByBranch = alerts.forBranches(ids);
+        var out = new ArrayList<Map<String, Object>>(ids.size());
+        for (var id : ids) {
+            var row = rows.get(id);
+            if (row != null) { out.add(card(row, alertsByBranch.getOrDefault(id, List.of()), now)); }
         }
         return out;
     }

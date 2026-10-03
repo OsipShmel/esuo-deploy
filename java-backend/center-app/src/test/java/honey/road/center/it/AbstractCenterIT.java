@@ -24,7 +24,9 @@ import tools.jackson.databind.json.JsonMapper;
         "esuo.center.security.admin-password=" + AbstractCenterIT.ADMIN_PASSWORD,
         "esuo.center.mp.webhook-secret=" + AbstractCenterIT.MP_SECRET,
         // partitions only by explicit runs: a background run on the real clock would race MetricsPartitionsIT
-        "esuo.center.metrics.partitions-initial-delay=1h", "esuo.center.metrics.partitions-every=1h"
+        "esuo.center.metrics.partitions-initial-delay=1h", "esuo.center.metrics.partitions-every=1h",
+        // tests write branches and read them back at once: no shared picture of the network here (NetworkSnapshotIT has its own)
+        "esuo.center.network.snapshot-max-age=0s"
 })
 public abstract class AbstractCenterIT {
 

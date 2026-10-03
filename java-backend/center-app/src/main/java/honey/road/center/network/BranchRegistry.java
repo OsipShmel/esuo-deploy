@@ -2,8 +2,11 @@ package honey.road.center.network;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,13 +15,23 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 @Repository
 public class BranchRegistry {
     private final JdbcClient jdbc;
     private final JdbcTemplate batch;
 
-    public BranchRegistry(JdbcClient jdbc, JdbcTemplate batch) { this.jdbc = jdbc; this.batch = batch; }
+    private final JdbcTemplate cursor;
+    private final TransactionTemplate readOnly;
+
+    public BranchRegistry(JdbcClient jdbc, JdbcTemplate batch, PlatformTransactionManager transactions) {
+        this.jdbc = jdbc; this.batch = batch;
+        this.cursor = new JdbcTemplate(batch.getDataSource());
+        this.cursor.setFetchSize(5000);
+        this.readOnly = new TransactionTemplate(transactions);
+        this.readOnly.setReadOnly(true);
+    }
 
     /**
      * @param lastHeartbeatAt last heard of, by any heartbeat ({@link #SEEN_AT})
@@ -144,26 +157,44 @@ public class BranchRegistry {
 
     /** Everything the overview judges a branch by, extracted by the database (C3c): no heartbeat JSON leaves it. */
     List<BranchStatus> statuses() {
-        return jdbc.sql("SELECT id, name, " + SEEN_AT + " AS last_heartbeat_at, source_attached, "
-                        + num("waiting", "bigint") + ", " + num("overdue", "bigint") + ", " + num("oldest_wait_sec", "bigint") + ", "
-                        + num("windows_open", "bigint") + ", " + num("outbox_lag_sec", "bigint") + ", "
-                        + num("config_version", "int") + ", "
-                        + "last_heartbeat->>'load_level' AS load_level, last_heartbeat->>'load_level_since' AS load_level_since, "
-                        + "last_heartbeat->>'sent_at' AS sent_at, "
-                        + "CASE WHEN jsonb_typeof(last_heartbeat->'db_ok') = 'boolean' THEN (last_heartbeat->>'db_ok')::boolean ELSE true END AS db_ok, "
-                        + "config_published_version, config_published_at, config_applied_version, "
-                        + "last_heartbeat->>'events_via' AS events_via FROM " + WITH_SEEN + " ORDER BY id")
-                .query((rs, n) -> {
-                    var publishedAt = rs.getTimestamp("config_published_at");
-                    return new BranchStatus(rs.getString("id"), rs.getString("name"), rs.getTimestamp("last_heartbeat_at").toInstant(),
-                            rs.getBoolean("source_attached"), rs.getLong("waiting"), rs.getLong("overdue"), rs.getLong("oldest_wait_sec"),
-                            rs.getLong("windows_open"), rs.getLong("outbox_lag_sec"), rs.getString("load_level"),
-                            NetworkAnomalies.instant(rs.getString("load_level_since")), NetworkAnomalies.instant(rs.getString("sent_at")),
-                            rs.getBoolean("db_ok"), rs.getInt("config_version"), (Integer) rs.getObject("config_published_version"),
-                            publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"),
-                            rs.getString("events_via"));
-                })
-                .list();
+        var out = new ArrayList<BranchStatus>();
+        eachStatus(out::add);
+        return out;
+    }
+
+    private static final String STATUSES = "SELECT id, name, " + SEEN_AT + " AS last_heartbeat_at, source_attached, "
+            + num("waiting", "bigint") + ", " + num("overdue", "bigint") + ", " + num("oldest_wait_sec", "bigint") + ", "
+            + num("windows_open", "bigint") + ", " + num("outbox_lag_sec", "bigint") + ", "
+            + num("config_version", "int") + ", "
+            + "last_heartbeat->>'load_level' AS load_level, last_heartbeat->>'load_level_since' AS load_level_since, "
+            + "last_heartbeat->>'sent_at' AS sent_at, "
+            + "CASE WHEN jsonb_typeof(last_heartbeat->'db_ok') = 'boolean' THEN (last_heartbeat->>'db_ok')::boolean ELSE true END AS db_ok, "
+            + "config_published_version, config_published_at, config_applied_version, "
+            + "last_heartbeat->>'events_via' AS events_via FROM " + WITH_SEEN + " ORDER BY id";
+
+    /**
+     * {@link #statuses()} one by one, from a cursor in a read-only transaction: at 250 000 branches the network is never
+     * one list in memory — neither ours nor the driver's.
+     */
+    void eachStatus(Consumer<BranchStatus> consumer) {
+        readOnly.executeWithoutResult(t -> cursor.query(STATUSES, (RowCallbackHandler) rs -> consumer.accept(status(rs))));
+    }
+
+    private static BranchStatus status(ResultSet rs) throws SQLException {
+        var publishedAt = rs.getTimestamp("config_published_at");
+        return new BranchStatus(rs.getString("id"), rs.getString("name"), rs.getTimestamp("last_heartbeat_at").toInstant(),
+                rs.getBoolean("source_attached"), rs.getLong("waiting"), rs.getLong("overdue"), rs.getLong("oldest_wait_sec"),
+                rs.getLong("windows_open"), rs.getLong("outbox_lag_sec"), rs.getString("load_level"),
+                NetworkAnomalies.instant(rs.getString("load_level_since")), NetworkAnomalies.instant(rs.getString("sent_at")),
+                rs.getBoolean("db_ok"), rs.getInt("config_version"), (Integer) rs.getObject("config_published_version"),
+                publishedAt == null ? null : publishedAt.toInstant(), (Integer) rs.getObject("config_applied_version"),
+                rs.getString("events_via"));
+    }
+
+    /** How many branches, counting no further than {@code max}: cheap whatever the size of the network. */
+    public int countUpTo(int max) {
+        return jdbc.sql("SELECT count(*) FROM (SELECT 1 FROM branches LIMIT :max) b").param("max", max)
+                .query(Integer.class).single();
     }
 
     /** Full rows of a few branches — the cards of one page or of the worst list. */

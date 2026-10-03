@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -61,6 +62,17 @@ class ConfigStore {
         return jdbc.sql("SELECT queue::text q, bounds::text b, planning::text p, model::text m, updated_at, updated_by"
                         + " FROM config_branch WHERE branch_id=:b")
                 .param("b", branchId).query(this::sections).optional().orElse(Sections.empty());
+    }
+
+    /** Overrides of a few branches in one query; a branch without any is absent. */
+    Map<String, Sections> branches(List<String> ids) {
+        var out = new HashMap<String, Sections>();
+        if (ids.isEmpty()) { return out; }
+        jdbc.sql("SELECT branch_id, queue::text q, bounds::text b, planning::text p, model::text m, updated_at, updated_by"
+                        + " FROM config_branch WHERE branch_id = ANY(:ids)")
+                .param("ids", ids.toArray(String[]::new))
+                .query(rs -> { out.put(rs.getString("branch_id"), sections(rs, 0)); });
+        return out;
     }
 
     void saveGlobal(Sections s, String author, Instant now) {
@@ -178,20 +190,31 @@ class ConfigStore {
                 .param("v", version).param("at", Timestamp.from(at)).param("b", branchId).update();
     }
 
+    private static final String STATES = "SELECT id, " + BranchRegistry.SEEN_AT + " AS last_heartbeat_at, "
+            + "COALESCE((last_heartbeat->>'config_version')::int, 0) AS hb_version, "
+            + "config_published_version, config_sent_at, config_applied_version, config_applied_at "
+            + "FROM " + BranchRegistry.WITH_SEEN;
+
+    /** Every branch: the reconciler and a global publication go through all of them. */
     List<BranchState> states() {
-        return jdbc.sql("SELECT id, " + BranchRegistry.SEEN_AT + " AS last_heartbeat_at, "
-                        + "COALESCE((last_heartbeat->>'config_version')::int, 0) AS hb_version, "
-                        + "config_published_version, config_sent_at, config_applied_version, config_applied_at "
-                        + "FROM " + BranchRegistry.WITH_SEEN + " ORDER BY id")
-                .query((rs, n) -> new BranchState(rs.getString("id"), rs.getTimestamp("last_heartbeat_at").toInstant(),
-                        rs.getInt("hb_version"), (Integer) rs.getObject("config_published_version"),
-                        instant(rs, "config_sent_at"), (Integer) rs.getObject("config_applied_version"),
-                        instant(rs, "config_applied_at")))
-                .list();
+        return jdbc.sql(STATES + " ORDER BY id").query(this::stateRow).list();
+    }
+
+    /** A few branches — a page of «Конфигурация», one branch's view. */
+    List<BranchState> states(List<String> ids) {
+        if (ids.isEmpty()) { return List.of(); }
+        return jdbc.sql(STATES + " WHERE b.id = ANY(:ids)").param("ids", ids.toArray(String[]::new)).query(this::stateRow).list();
     }
 
     Optional<BranchState> state(String branchId) {
-        return states().stream().filter(s -> s.id().equals(branchId)).findFirst();
+        return states(List.of(branchId)).stream().findFirst();
+    }
+
+    private BranchState stateRow(ResultSet rs, int n) throws SQLException {
+        return new BranchState(rs.getString("id"), rs.getTimestamp("last_heartbeat_at").toInstant(),
+                rs.getInt("hb_version"), (Integer) rs.getObject("config_published_version"),
+                instant(rs, "config_sent_at"), (Integer) rs.getObject("config_applied_version"),
+                instant(rs, "config_applied_at"));
     }
 
     List<VersionRow> versions(@Nullable String branchId, int limit) {

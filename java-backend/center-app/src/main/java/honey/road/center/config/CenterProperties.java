@@ -11,7 +11,7 @@ import java.util.List;
 @ConfigurationProperties("esuo.center")
 public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration offlineAfter, List<String> corsOrigins,
                                @Name("notify") Notify notification, Mp mp, Security security, Logs logs,
-                               Metrics metrics, boolean demoMode) {
+                               Metrics metrics, Network network, boolean demoMode) {
     public CenterProperties {
         natsUrl = natsUrl == null || natsUrl.isBlank() ? "nats://localhost:4222" : natsUrl;
         rpcTimeout = rpcTimeout == null ? Duration.ofSeconds(3) : rpcTimeout;
@@ -22,6 +22,19 @@ public record CenterProperties(String natsUrl, Duration rpcTimeout, Duration off
         security = security == null ? new Security(null, null, null, null, null) : security;
         logs = logs == null ? new Logs(null, 0, null, null, null, null, null, null, 0) : logs;
         metrics = metrics == null ? new Metrics(null, 0, null, null, null, null, null) : metrics;
+        network = network == null ? new Network(null, 0) : network;
+    }
+
+    /**
+     * The network screen (scale design 8.2): one picture of the network is shared by every tab and poll and taken anew
+     * when older than three times its cost, at least a second and at most {@code snapshotMaxAge}; every card at once
+     * ({@code /network/overview}) is refused above {@code overviewMax} branches.
+     */
+    public record Network(Duration snapshotMaxAge, int overviewMax) {
+        public Network {
+            snapshotMaxAge = snapshotMaxAge == null ? Duration.ofSeconds(5) : snapshotMaxAge;
+            overviewMax = overviewMax <= 0 ? 1000 : overviewMax;
+        }
     }
 
     /**

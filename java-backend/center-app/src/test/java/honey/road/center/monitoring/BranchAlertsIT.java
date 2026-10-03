@@ -47,15 +47,11 @@ class BranchAlertsIT extends AbstractCenterIT {
                 .param("ts", Timestamp.from(ts)).param("cpu", cpu).update();
     }
 
+    /** The card of the network screen (the shared database holds more branches than the full overview allows). */
     private JsonNode card() {
-        var result = mvc.get().uri("/api/v1/network/overview").header("Authorization", "Bearer " + adminToken()).exchange();
+        var result = mvc.get().uri("/api/v1/network/branches/ba1").header("Authorization", "Bearer " + adminToken()).exchange();
         result.assertThat().hasStatusOk();
-        for (var b : json.readTree(result.getResponse().getContentAsByteArray()).path("branches")) {
-            if ("ba1".equals(b.path("id").asString())) {
-                return b;
-            }
-        }
-        throw new AssertionError("ba1 is not in the overview");
+        return json.readTree(result.getResponse().getContentAsByteArray());
     }
 
     private Instant since() {

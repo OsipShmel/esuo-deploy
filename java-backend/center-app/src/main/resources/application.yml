@@ -72,6 +72,9 @@ esuo:
     demo-mode: ${DEMO_MODE:false}               # demo stand: rule durations ×demo-duration-scale
     rpc-timeout: ${RPC_TIMEOUT:3s}              # integration.branch-rpc.timeout_ms (doc, sect 11.3)
     offline-after: 30s
+    network:                                    # scale design 8.2: one picture of the network for every tab and poll
+      snapshot-max-age: ${NETWORK_SNAPSHOT_MAX_AGE:5s}
+      overview-max: 1000                        # every card at once (/network/overview) only up to this many branches
     cors-origins: ${CORS_ORIGINS:http://localhost:5173}
     notify:                                     # sect 11.3
       url: ${NOTIFY_URL:http://notify-mock:8090/notify}
