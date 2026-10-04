@@ -14,8 +14,8 @@
 |---|---|
 | 📄 [**Отчёт о проделанной работе**](docs/ESUO-report.md) | что сделано и чем отличается, цифры, покрытие десяти проверок ТЗ — 5 минут |
 | ✅ [**Как проверить решение**](docs/demo/run-guide.md) | запуск и десять проверок ТЗ по шагам — 20 минут |
-| 🏗 [**Технический дизайн-документ**](docs/ESUO-design-doc.md) | архитектура, алгоритм очереди, прогноз, отказы, 40 000 отделений, стек |
-| 📊 [**Результаты проверок**](docs/demo/results.md) | 343 автотеста узла, 128 центра и 42 модели — без падений; 71 из 71 проверки демо-сценариев |
+| 🏗 [**Технический дизайн-документ**](docs/ESUO-design-doc.md) | архитектура, алгоритм очереди, прогноз, мониторинг, отказы, 250 000 отделений, развёртывание, стек |
+| 📊 [**Результаты проверок**](docs/demo/results.md) | 343 автотеста узла, 222 центра, 14 роя и 42 модели — без падений; 106 из 106 проверок демо-сценариев; 250 000 отделений на одном центре |
 | 🗺 [**Навигатор по документации**](docs/README.md) | все материалы, видео, где какой код |
 
 ---
@@ -164,7 +164,7 @@ java -Xmx4g -jar java-backend/swarm-sim/target/swarm-sim-0.0.1-SNAPSHOT.jar --br
 
 В воскресенье добавьте `--date <будний день>` — в модели потока воскресенье выходной. Перед новым замером обнулите
 регионы: `docker compose --profile swarm up -d --force-recreate nats-region-1 nats-region-2 nats-region-3 nats-region-4`.
-Что держит центр на 250 000 отделений и как это проверено — [`docs/final_tmp/ESUO-scale.md`](docs/final_tmp/ESUO-scale.md),
+Что держит центр на 250 000 отделений и как это проверено — [дизайн-документ, §10–12](docs/ESUO-design-doc.md#12-сеть-из-250-000-отделений),
 параметры роя — [`java-backend/swarm-sim/README.md`](java-backend/swarm-sim/README.md). На сервере с роем:
 `CENTER_HEAP=4g`, `CENTER_DB_SHARED_BUFFERS` — четверть памяти.
 
@@ -172,7 +172,7 @@ java -Xmx4g -jar java-backend/swarm-sim/target/swarm-sim-0.0.1-SNAPSHOT.jar --br
 
 | Файл | Что там |
 |---|---|
-| [`docs/demo/results.md`](docs/demo/results.md) | все итоги одной страницей: автотесты, десять проверок ТЗ, сценарии, модель, A/B |
+| [`docs/demo/results.md`](docs/demo/results.md) | все итоги одной страницей: автотесты, десять проверок ТЗ, сценарии, нагрузка, модель, A/B |
 | [`docs/demo/ml-report.md`](docs/demo/ml-report.md) | модель длительности в цифрах (`uv run esuo-ml report --end-day 2026-09-20`) |
 | [`docs/demo/jury/ab-report.md`](docs/demo/jury/ab-report.md) | отчёт последнего `pension-ab`: итоги, смена по часам, ход дня |
 | [`docs/demo/jury/runs.md`](docs/demo/jury/runs.md), [`repeatability.md`](docs/demo/jury/repeatability.md) | журнал всех прогонов демо и вердикты повторяемости; каждый прогон целиком — `runs/*.json` |
