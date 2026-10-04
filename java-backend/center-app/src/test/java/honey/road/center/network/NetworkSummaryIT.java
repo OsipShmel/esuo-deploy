@@ -173,8 +173,9 @@ class NetworkSummaryIT extends AbstractCenterIT {
         assertThat(region.path("events_via").asString()).isEqualTo("region-9");
         assertThat(region.path("total").asInt()).isEqualTo(2);
         assertThat(region.path("online").asInt()).isEqualTo(1);
-        assertThat(ids(region.path("problems"))).containsExactly("ns-r1b");
-        assertThat(region.path("problems").get(0).has("node")).isTrue();               // a full card
+        assertThat(region.path("problems").asInt()).isEqualTo(1);                      // the tile's count
+        assertThat(ids(region.path("worst_branches"))).containsExactly("ns-r1b");
+        assertThat(region.path("worst_branches").get(0).has("node")).isTrue();         // a full card
         mvc.get().uri("/api/v1/network/regions/region-404").header("Authorization", "Bearer " + token).exchange()
                 .assertThat().hasStatus(404);
     }

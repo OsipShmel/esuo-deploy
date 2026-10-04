@@ -127,7 +127,7 @@ public class NetworkController {
         return result;
     }
 
-    /** One region (scale design 8.1): its tile and its {@value #REGION_WORST} worst branches as cards. */
+    /** One region (scale design 8.1): its tile and its {@value #REGION_WORST} worst branches as cards ({@code worst_branches}). */
     @GetMapping("/api/v1/network/regions/{region}")
     public Map<String, Object> region(@PathVariable String region) {
         var v = snapshot.current();
@@ -137,7 +137,7 @@ public class NetworkController {
         }
         var result = new LinkedHashMap<String, Object>(sums.view(NetworkSnapshot.OWN.equals(region) ? null : region));
         result.put("generated_at", v.generatedAt());
-        result.put("problems", cards(v.select(null, "problems", region, null).stream().limit(REGION_WORST).toList()));
+        result.put("worst_branches", cards(v.select(null, "problems", region, null).stream().limit(REGION_WORST).toList()));
         return result;
     }
 
