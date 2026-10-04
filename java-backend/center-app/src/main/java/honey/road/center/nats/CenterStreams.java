@@ -90,6 +90,8 @@ public class CenterStreams {
                     .maxBytes(logs.maxBytes())
                     .discardPolicy(DiscardPolicy.Old)
                     .duplicateWindow(Duration.ofHours(1)));
+            fromNumberOne(jsm, Subjects.STREAM_CENTER_EVT);
+            fromNumberOne(jsm, Subjects.STREAM_CENTER_LOG);
             ready = true;
         } catch (IOException | JetStreamApiException e) {
             ready = false;
@@ -150,6 +152,27 @@ public class CenterStreams {
         }
     }
 
+    /**
+     * A source reads its origin from number 1. Without a start of its own the server begins a new source at the time of
+     * the last message of the stream once that stream has dropped anything — and {@code CENTER_EVT} drops all it has
+     * delivered: a region attached a moment after another one lost its first events, a branch that worked before its
+     * first link would lose what it had stored. Whatever the center already has, the database drops ({@code event_id}).
+     */
+    private static Source source(String name, String api) {
+        return Source.builder().name(name).external(External.builder().api(api).build()).startSeq(1).build();
+    }
+
+    /** Sources attached by an older center have no start: they get number 1 (their position so far is kept). */
+    private static void fromNumberOne(JetStreamManagement jsm, String stream) throws IOException, JetStreamApiException {
+        var current = jsm.getStreamInfo(stream).getConfiguration();
+        if (current.getSources().stream().allMatch(s -> s.getStartSeq() == 1)) {
+            return;
+        }
+        jsm.updateStream(StreamConfiguration.builder(current).sources(current.getSources().stream()
+                .map(s -> s.getStartSeq() == 1 ? s : Source.builder(s).startSeq(1).build()).toList()).build());
+        log.info("sources of {} now read from number 1", stream);
+    }
+
     private static void attachSource(JetStreamManagement jsm, String stream, String branchStream, String api, String branchId)
             throws IOException, JetStreamApiException {
         var current = jsm.getStreamInfo(stream).getConfiguration();
@@ -157,9 +180,7 @@ public class CenterStreams {
                 .anyMatch(s -> s.getExternal() != null && api.equals(s.getExternal().getApi())
                         && branchStream.equals(s.getName()));
         if (!present) {
-            jsm.updateStream(StreamConfiguration.builder(current)
-                    .addSources(Source.builder().name(branchStream).external(External.builder().api(api).build()).build())
-                    .build());
+            jsm.updateStream(StreamConfiguration.builder(current).addSources(source(branchStream, api)).build());
             log.info("{} attached to {} (source {} api={})", branchId, stream, branchStream, api);
         }
     }

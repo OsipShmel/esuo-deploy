@@ -3,7 +3,9 @@ package honey.road.center.nats;
 import honey.road.center.it.AbstractCenterNatsIT;
 import honey.road.center.network.HeartbeatListener;
 import honey.road.contracts.event.Subjects;
+import io.nats.client.api.External;
 import io.nats.client.api.RetentionPolicy;
+import io.nats.client.api.Source;
 import io.nats.client.api.StorageType;
 import io.nats.client.api.StreamConfiguration;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,22 @@ class CenterEventStreamUpgradeIT extends AbstractCenterNatsIT {
             streams.ensure(c);
 
             assertThat(jsm.getConsumerNames(Subjects.STREAM_CENTER_EVT)).contains(CenterStreams.INGEST_CONSUMER);
+        }
+    }
+
+    /** Sources an older center attached have no start of their own; the center gives them number 1 when it connects. */
+    @Test
+    void sourcesOfAnOlderCenterAreMadeToReadFromNumberOne() throws Exception {
+        try (var c = testClient()) {
+            var jsm = c.jetStreamManagement();
+            var current = jsm.getStreamInfo(Subjects.STREAM_CENTER_EVT).getConfiguration();
+            jsm.updateStream(StreamConfiguration.builder(current).addSources(Source.builder().name(Subjects.STREAM_BRANCH_EVT)
+                    .external(External.builder().api(Subjects.jsApiPrefix(Subjects.branchDomain("uo1"))).build()).build()).build());
+
+            streams.ensure(c);
+
+            assertThat(jsm.getStreamInfo(Subjects.STREAM_CENTER_EVT).getConfiguration().getSources())
+                    .extracting(Source::getStartSeq).containsOnly(1L);
         }
     }
 
