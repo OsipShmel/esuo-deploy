@@ -259,6 +259,12 @@ docker compose -f deploy/swarm/docker-compose.yml --env-file deploy/swarm/.env u
 docker compose -f deploy/swarm/docker-compose.yml --env-file deploy/swarm/.env run --rm swarm-sim --branches 40000
 ```
 
+**Все три на одной машине** (проверить раскладку до выезда): вместо адреса центра — `host.docker.internal`
+(`LEAF_ADVERTISE`, `CENTER_HOST`, `HUB_HOST`), стенд «всё в одном» остановить (те же порты 4222, 7422, 8081).
+База центра запоминает пароль первого запуска: если в томе проекта `esuo-center` осталась база со старым
+`DB_PASSWORD`, центр не войдёт в неё (`password authentication failed`) — верните прежний пароль или удалите тома
+этого проекта (`down -v`, данные центра пропадут).
+
 Остальные сценарии запускаются так же — с адресами в `NODE`, `NODE2`, `CENTER`. Для обрыва связи на двух машинах
 задайте `CUT_CMD` — команду, которая принимает `cut` или `restore` (например, `docker stop`/`start` leaf-контейнера
 на B по ssh).
