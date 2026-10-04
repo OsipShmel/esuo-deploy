@@ -83,7 +83,7 @@ services:
       # Куча центра (на сервере с роем — 4g); при нехватке памяти JVM завершается (Docker поднимает заново), а не висит
       # «живой» без работы. Первый дамп кучи остаётся в томе center-dumps (следующие не пишутся, пока его не удалить).
       JAVA_TOOL_OPTIONS: >-
-        -Xmx${CENTER_HEAP:-2g} -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/dumps
+        -Xmx${CENTER_HEAP:-4g} -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/dumps
       LOG_FILE: /app/logs/center.log           # ECS JSON с ротацией: vector-center везёт его в Loki (service=center)
     volumes: ["center-dumps:/app/dumps", "center-logs:/app/logs"]
     # 9081 — actuator центра (health, /actuator/prometheus): только localhost, его читают Prometheus и doctor
