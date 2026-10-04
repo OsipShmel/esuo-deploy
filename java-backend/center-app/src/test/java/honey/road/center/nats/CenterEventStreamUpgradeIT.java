@@ -1,6 +1,7 @@
 package honey.road.center.nats;
 
 import honey.road.center.it.AbstractCenterNatsIT;
+import honey.road.center.network.HeartbeatListener;
 import honey.road.contracts.event.Subjects;
 import io.nats.client.api.RetentionPolicy;
 import io.nats.client.api.StorageType;
@@ -8,6 +9,7 @@ import io.nats.client.api.StreamConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 import java.time.Duration;
 
@@ -22,6 +24,8 @@ import static org.awaitility.Awaitility.await;
  */
 class CenterEventStreamUpgradeIT extends AbstractCenterNatsIT {
     @Autowired CenterStreams streams;
+    @Autowired HeartbeatListener heartbeats;
+    @Autowired JdbcClient jdbc;
 
     @BeforeEach
     void ready() {
@@ -54,5 +58,41 @@ class CenterEventStreamUpgradeIT extends AbstractCenterNatsIT {
 
             assertThat(jsm.getConsumerNames(Subjects.STREAM_CENTER_EVT)).contains(CenterStreams.INGEST_CONSUMER);
         }
+    }
+
+    private static boolean sourced(String api) throws Exception {
+        try (var c = testClient()) {
+            return c.jetStreamManagement().getStreamInfo(Subjects.STREAM_CENTER_EVT).getConfiguration().getSources().stream()
+                    .anyMatch(s -> s.getExternal() != null && api.equals(s.getExternal().getApi()));
+        }
+    }
+
+    private void attachedBranch(String id, String eventsVia) {
+        jdbc.sql("""
+                INSERT INTO branches(id,name,timezone,first_seen_at,last_heartbeat_at,last_heartbeat,source_attached)
+                VALUES (:id,'U','Europe/Moscow',now(),now(),CAST(:hb AS jsonb),true) ON CONFLICT (id) DO NOTHING""")
+                .param("id", id).param("hb", eventsVia == null ? "{}" : "{\"events_via\":\"" + eventsVia + "\"}").update();
+    }
+
+    /**
+     * The registry remembers which branches are attached; a stream created anew (a lost hub volume, a reset) has no
+     * sources at all. Their events are not lost — they wait in the branch and regional buffers — but they reach the
+     * center only once the sources are back: the next reconciliation attaches them again.
+     */
+    @Test
+    void branchesAndRegionsAreAttachedAgainToAStreamCreatedAnew() throws Exception {
+        attachedBranch("ua1", null);
+        attachedBranch("ua2", "region-7");
+        assertThat(streams.attachBranch("ua1")).isTrue();
+        assertThat(streams.attachRegion("region-7")).isTrue();
+        try (var c = testClient()) {
+            c.jetStreamManagement().deleteStream(Subjects.STREAM_CENTER_EVT);
+            streams.ensure(c);
+        }
+
+        heartbeats.reconcile();
+
+        assertThat(sourced(Subjects.jsApiPrefix(Subjects.branchDomain("ua1")))).isTrue();
+        assertThat(sourced(Subjects.jsApiPrefix("region-7"))).isTrue();
     }
 }

@@ -17,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
+import java.util.ArrayList;
 
 /**
  * Heartbeat {@code branch.*.hb} → registry → source in {@code CENTER_EVT} and the first config version.
@@ -88,17 +89,31 @@ public class HeartbeatListener {
         }
     }
 
-    /** Reconciliation: branches without a source (center restarted, NATS unavailable, etc.). */
+    /**
+     * Reconciliation: branches without a source (center restarted, NATS unavailable, etc.), and all of them again when
+     * {@code CENTER_EVT} was created anew and has no sources at all (a lost hub volume).
+     */
     @Scheduled(fixedDelayString = "PT15S", initialDelayString = "PT5S")
     public void reconcile() {
         if (!streams.ready()) { return; }
         try {
+            if (streams.takeSourcesLost()) {
+                try {
+                    int detached = registry.detachAll();
+                    if (detached > 0) { log.info("{} branches to attach again: the event stream was created anew", detached); }
+                } catch (RuntimeException e) {
+                    streams.sourcesStillLost();
+                    throw e;
+                }
+            }
+            var attached = new ArrayList<String>();
             for (var b : registry.withoutSource()) {
                 if (onboarding.pending(b.id())) { continue; }        // the onboarding worker gets to it first
                 if (b.eventsVia() == null ? streams.attachBranch(b.id()) : streams.attachRegion(b.eventsVia())) {
-                    registry.markSourceAttached(b.id());
+                    attached.add(b.id());
                 }
             }
+            registry.markSourceAttached(attached);
         } catch (RuntimeException e) {
             log.warn("reconcile failed: {}", e.toString());
         }

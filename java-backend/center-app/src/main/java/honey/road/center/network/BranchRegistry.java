@@ -128,6 +128,11 @@ public class BranchRegistry {
         });
     }
 
+    /** Every branch is to be attached again: the event stream lost its sources. @return how many were attached */
+    int detachAll() {
+        return jdbc.sql("UPDATE branches SET source_attached=false WHERE source_attached").update();
+    }
+
     public void markSourceAttached(String id) {
         jdbc.sql("UPDATE branches SET source_attached=true WHERE id=:id").param("id", id).update();
     }

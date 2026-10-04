@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 
 /**
@@ -46,6 +47,7 @@ public class CenterStreams {
     private volatile boolean ready;
     /** Regions already sourced by this process: 40 000 heartbeats must not mean 40 000 stream-info calls. */
     private final Set<String> regions = ConcurrentHashMap.newKeySet();
+    private final AtomicBoolean sourcesLost = new AtomicBoolean();
 
     public CenterStreams(CenterNats nats, CenterProperties props) { this.nats = nats; this.logs = props.logs(); }
 
@@ -56,10 +58,22 @@ public class CenterStreams {
 
     public boolean ready() { return ready; }
 
+    /**
+     * Whether {@code CENTER_EVT} was created anew since the last call — a first start, a lost hub volume: the branches
+     * the registry marks as attached have no source in it. The events wait in their buffers until attached again.
+     */
+    public boolean takeSourcesLost() { return sourcesLost.getAndSet(false); }
+
+    /** Back for the next reconciliation: the branches could not be marked for attaching this time. */
+    public void sourcesStillLost() { sourcesLost.set(true); }
+
     void ensure(Connection c) {
         try {
             var jsm = c.jetStreamManagement();
-            ensureCenterEvents(jsm);
+            if (ensureCenterEvents(jsm)) {                  // created anew: whatever the registry says, no sources
+                regions.clear();
+                sourcesLost.set(true);
+            }
             createIfAbsent(jsm, Subjects.STREAM_CONFIG, b -> b
                     .subjects("center.config.>")
                     .storageType(StorageType.File)
@@ -161,8 +175,11 @@ public class CenterStreams {
      * A stream of an older center, keeping everything, is brought to this when the center connects. The ingest
      * consumer comes with the stream, before {@link #ready()}: with "until read" an event that arrives while no consumer
      * exists is dropped, and sources are attached only when ready.
+     *
+     * @return whether the stream was created now
      */
-    private static void ensureCenterEvents(JetStreamManagement jsm) throws IOException, JetStreamApiException {
+    private static boolean ensureCenterEvents(JetStreamManagement jsm) throws IOException, JetStreamApiException {
+        boolean created = false;
         try {
             var current = jsm.getStreamInfo(Subjects.STREAM_CENTER_EVT).getConfiguration();
             if (current.getRetentionPolicy() != RetentionPolicy.Interest
@@ -181,6 +198,7 @@ public class CenterStreams {
                     .duplicateWindow(EVENTS_DUPLICATE_WINDOW)
                     .build());
             log.info("stream {} created", Subjects.STREAM_CENTER_EVT);
+            created = true;
         }
         jsm.addOrUpdateConsumer(Subjects.STREAM_CENTER_EVT, ConsumerConfiguration.builder()
                 .durable(INGEST_CONSUMER)
@@ -190,6 +208,7 @@ public class CenterStreams {
                 .maxDeliver(-1)
                 .maxAckPending(10_000)
                 .build());
+        return created;
     }
 
     private static void createIfAbsent(JetStreamManagement jsm, String name, UnaryOperator<StreamConfiguration.Builder> spec)
