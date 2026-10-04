@@ -2,7 +2,11 @@ package honey.road.swarm;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -20,6 +24,7 @@ import java.util.Locale;
  * @param speed         virtual time per real second; events scale with it, heartbeats stay real-time
  * @param duration      run length in real time; zero = until Ctrl+C
  * @param startAt       Moscow wall time to start the virtual day at; {@code null} = now
+ * @param startDate     date of the virtual day; {@code null} = today (Sunday is closed: no events)
  * @param heartbeat     heartbeat period of every branch (real time, like {@code esuo.nats.heartbeat-interval})
  * @param seed          seed of the flow model: same seed, same tickets (event ids are unique per run anyway)
  * @param notifications also emit {@code notification.requested}; off by default — the center would mail them out
@@ -35,6 +40,7 @@ public record SwarmOptions(
         double speed,
         Duration duration,
         LocalTime startAt,
+        LocalDate startDate,
         Duration heartbeat,
         long seed,
         boolean notifications,
@@ -52,6 +58,7 @@ public record SwarmOptions(
               --speed X           ускорение времени: события ×X, heartbeat — реальные (1)
               --duration D        длительность: 30s, 10m, 1h; 0 — до Ctrl+C (10m)
               --start ЧЧ:ММ       виртуальное московское время старта (сейчас)
+              --date ГГГГ-ММ-ДД   дата виртуального дня (сегодня; в воскресенье отделения закрыты)
               --heartbeat D       период heartbeat (10s)
               --seed N            зерно модели потока (42)
               --notifications     слать и notification.requested (центр их разошлёт)
@@ -72,6 +79,7 @@ public record SwarmOptions(
         double peak = 1, speed = 1;
         Duration duration = Duration.ofMinutes(10), heartbeat = Duration.ofSeconds(10);
         LocalTime start = null;
+        LocalDate date = null;
         long seed = 42;
         boolean notifications = false;
         Path report = null;
@@ -92,6 +100,7 @@ public record SwarmOptions(
                 case "--speed" -> speed = Double.parseDouble(v);
                 case "--duration" -> duration = duration(v);
                 case "--start" -> start = LocalTime.parse(v);
+                case "--date" -> date = date(v);
                 case "--heartbeat" -> heartbeat = duration(v);
                 case "--seed" -> seed = Long.parseLong(v);
                 case "--max-in-flight" -> maxInFlight = Integer.parseInt(v);
@@ -105,8 +114,26 @@ public record SwarmOptions(
         } else if (java.nio.file.Files.isDirectory(report)) {
             report = report.resolve(name);                   // --report docs/demo/load: a new file per run
         }
-        return new SwarmOptions(branches, regions, urls, clients, peak, speed, duration, start, heartbeat, seed,
+        return new SwarmOptions(branches, regions, urls, clients, peak, speed, duration, start, date, heartbeat, seed,
                 notifications, maxInFlight, report);
+    }
+
+    private static LocalDate date(String v) {
+        try {
+            return LocalDate.parse(v);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("дата — ГГГГ-ММ-ДД: " + v);
+        }
+    }
+
+    /** When the virtual day starts: {@code --date} and {@code --start} in Moscow, each defaulting to now. */
+    public Instant virtualStart(Instant wallStart) {
+        if (startAt == null && startDate == null) {
+            return wallStart;
+        }
+        var day = startDate != null ? startDate : LocalDate.ofInstant(wallStart, SwarmMain.MOSCOW);
+        var time = startAt != null ? startAt : LocalTime.ofInstant(wallStart, SwarmMain.MOSCOW);
+        return ZonedDateTime.of(day, time, SwarmMain.MOSCOW).toInstant();
     }
 
     /** {@code 30s}, {@code 10m}, {@code 2h}, {@code 0}; a bare number is seconds. */

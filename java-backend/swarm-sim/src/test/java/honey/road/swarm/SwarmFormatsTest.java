@@ -89,4 +89,16 @@ class SwarmFormatsTest {
         assertThatThrownBy(() -> SwarmOptions.parse("--branches", "0")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> SwarmOptions.parse("--wat", "1")).hasMessageContaining("--wat");
     }
+
+    /** Sunday is closed in the flow model: on a Sunday a run needs another day to have any events at all. */
+    @Test
+    void theVirtualDayCanBeAnotherDate() {
+        var now = Instant.parse("2026-10-04T06:00:00Z");                          // a Sunday, 09:00 in Moscow
+
+        assertThat(SwarmOptions.parse("--date", "2026-10-05", "--start", "12:00").virtualStart(now))
+                .isEqualTo(Instant.parse("2026-10-05T09:00:00Z"));                 // Monday, noon in Moscow
+        assertThat(SwarmOptions.parse("--start", "12:00").virtualStart(now)).isEqualTo(Instant.parse("2026-10-04T09:00:00Z"));
+        assertThat(SwarmOptions.parse().virtualStart(now)).isEqualTo(now);
+        assertThatThrownBy(() -> SwarmOptions.parse("--date", "05.10.2026")).isInstanceOf(IllegalArgumentException.class);
+    }
 }

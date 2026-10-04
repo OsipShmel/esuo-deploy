@@ -7,7 +7,6 @@ import tools.jackson.databind.json.JsonMapper;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -47,8 +46,7 @@ public final class SwarmMain {
     static boolean run(SwarmOptions o) throws Exception {
         var stats = new SwarmStats();
         var wallStart = Instant.now();
-        var virtualStart = o.startAt() == null ? wallStart
-                : ZonedDateTime.of(LocalDate.now(MOSCOW), o.startAt(), MOSCOW).toInstant();
+        var virtualStart = o.virtualStart(wallStart);
 
         var urls = new ArrayList<String>();
         for (int r = 1; r <= o.regions(); r++) { urls.add(o.natsUrl(r)); }
