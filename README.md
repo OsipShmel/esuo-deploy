@@ -95,8 +95,14 @@ docker compose --profile monitoring up -d --build   # + Loki, Grafana и сбо�
 кнопки «Подробные логи (30 мин)» (появится ссылка на них в Grafana) и «Снять диагностику» (снимок скачивается
 файлом); ссылка «Графики» открывает дашборд «ЕСУО · Отделение» на этом отделении.
 
-**Grafana** — http://localhost:3000: дашборды «ЕСУО · Отделение» и «ЕСУО · Сеть», логи — Explore → Loki. Метрики
-Grafana читает ролью `grafana_ro` (только `branches`, `branch_metrics`, `branch_alerts`), пароль — `GRAFANA_DB_PASSWORD`.
+**Grafana** — http://localhost:3000: дашборды «ЕСУО · Отделение», «ЕСУО · Сеть» и «ЕСУО · Центр», логи — Explore →
+Loki. Метрики отделений Grafana читает ролью `grafana_ro` (только `branches`, `branch_metrics`, `branch_alerts`),
+пароль — `GRAFANA_DB_PASSWORD`.
+
+**Сам центр.** Prometheus (http://localhost:9090) собирает метрики центра, хаба NATS и базы центра; дашборд
+«ЕСУО · Центр» — CPU, куча, GC, сброс heartbeat, проход правил, события, хаб, база и логи центра. На `/network` —
+строка «Центр» с главным из этого. `POST /api/v1/center/diagnostics` (оператор сети) — снимок центра: какие потоки
+едят CPU (включая GC и JIT), память, очереди, пул БД; с `?heap=true` — что лежит в куче.
 
 Закрытый API центра — под входом оператора сети. Без профиля стенд прежний: метрики и правила работают в центре, узел
 пишет файл логов, а всё отправленное в центр ждёт Loki в его стриме `CENTER_LOG` (до 7 дней).
@@ -148,6 +154,20 @@ cd python-ai-service && uv run pytest              # модель длитель
 
 Подробное руководство по записи демо — [`docs/demo/video-guide.md`](docs/demo/video-guide.md).
 
+## Рой: центр под сотни тысяч отделений
+
+```bash
+docker compose --profile swarm up -d                 # четыре региональных leaf + мониторинг центра
+cd java-backend && ./mvnw -pl swarm-sim -am package -DskipTests && cd ..
+java -Xmx4g -jar java-backend/swarm-sim/target/swarm-sim-0.0.1-SNAPSHOT.jar --branches 250000 --duration 8m --start 12:00
+```
+
+В воскресенье добавьте `--date <будний день>` — в модели потока воскресенье выходной. Перед новым замером обнулите
+регионы: `docker compose --profile swarm up -d --force-recreate nats-region-1 nats-region-2 nats-region-3 nats-region-4`.
+Что держит центр на 250 000 отделений и как это проверено — [`docs/final_tmp/ESUO-scale.md`](docs/final_tmp/ESUO-scale.md),
+параметры роя — [`java-backend/swarm-sim/README.md`](java-backend/swarm-sim/README.md). На сервере с роем:
+`CENTER_HEAP=4g`, `CENTER_DB_SHARED_BUFFERS` — четверть памяти.
+
 ## Где результаты
 
 | Файл | Что там |
@@ -168,12 +188,13 @@ cd python-ai-service && uv run pytest              # модель длитель
 java-backend/
   shared-contracts/   контракты: ошибки, события, subjects NATS, RPC, DTO
   node-app/           отделение: очередь, API, SSE, outbox, планирование нагрузки, модель длительности
-  center-app/         центр: шлюз HTTP→RPC, обзор сети, конфигурация, уведомления, МП
+  center-app/         центр: шлюз HTTP→RPC, обзор сети, конфигурация, уведомления, МП, мониторинг отделений
+  swarm-sim/          рой виртуальных отделений для замеров центра
 frontend/             клиент, табло, оператор, руководитель, сеть, демо-пульт — одна сборка
 python-ai-service/    обучение модели длительности, синтетика, трассы демо, отчёт
 tools/                load-generator, notify-mock, mp-simulator
 infrastructure/       конфиги NATS, значения очереди и планирования по умолчанию, данные демо
-deploy/               compose для центра и отделения на разных машинах
+deploy/               compose по сущностям: center (с мониторингом центра), branch, swarm; корневой — из них
 scripts/              demo/, smoke/, chaos/, openapi/
 ```
 
@@ -187,11 +208,12 @@ scripts/              demo/, smoke/, chaos/, openapi/
 настраивать не нужно: первый heartbeat регистрирует отделение. Пример: **машина A — центр** (`192.168.1.10`),
 **машина B — отделения** (`192.168.1.20`). На обеих нужен Docker и клон репозитория.
 
-**Машина A — центр** (+ симуляторы МП и уведомлений):
+**Машина A — центр** (+ симуляторы МП и уведомлений; `--profile monitoring` — с мониторингом центра):
 
 ```bash
 cp deploy/center/.env.example deploy/center/.env
-#   пароли и секреты; LEAF_ADVERTISE=192.168.1.10:7422; CENTER_PUBLIC_URL=http://192.168.1.10:8081
+#   DB_PASSWORD, JWT_SECRET, LEAF_PASSWORD, MP_WEBHOOK_SECRET; LEAF_ADVERTISE=192.168.1.10:7422;
+#   CENTER_PUBLIC_URL=http://192.168.1.10:8081 (имена переменных — те же, что в корневом .env)
 docker compose -f deploy/center/docker-compose.yml --env-file deploy/center/.env up -d --build
 ```
 
@@ -199,7 +221,7 @@ docker compose -f deploy/center/docker-compose.yml --env-file deploy/center/.env
 
 ```bash
 cp deploy/branch/.env.example deploy/branch/b01.env
-#   BRANCH_ID=b01, CENTER_HOST=192.168.1.10, LEAF_PASSWORD = LEAF_SHARED_PASSWORD центра,
+#   BRANCH_ID=b01, CENTER_HOST=192.168.1.10, LEAF_PASSWORD = LEAF_PASSWORD центра,
 #   DB_PASSWORD и JWT_SECRET — любые, DEMO_MODE=true, NODE_PORT=8082,
 #   QR_PUBLIC_BASE_URL=http://192.168.1.10:8081 (QR на табло ведёт на центр, пока есть связь)
 docker compose -f deploy/branch/docker-compose.yml --env-file deploy/branch/b01.env up -d --build
@@ -227,6 +249,14 @@ PG_B01=esuo-branch-b01-postgres-1 PG_B02=esuo-branch-b02-postgres-1 ./scripts/de
 
 # машина A: прогон
 AB_SKIP_PREPARE=1 NODE=http://192.168.1.20:8082 NODE2=http://192.168.1.20:8083 ./scripts/demo/run.sh pension-ab
+```
+
+**Рой на третьей машине** — регионы подключаются к хабу центра так же, исходящим TCP на 7422:
+
+```bash
+cp deploy/swarm/.env.example deploy/swarm/.env      # HUB_HOST=192.168.1.10, LEAF_PASSWORD центра
+docker compose -f deploy/swarm/docker-compose.yml --env-file deploy/swarm/.env up -d
+docker compose -f deploy/swarm/docker-compose.yml --env-file deploy/swarm/.env run --rm swarm-sim --branches 40000
 ```
 
 Остальные сценарии запускаются так же — с адресами в `NODE`, `NODE2`, `CENTER`. Для обрыва связи на двух машинах

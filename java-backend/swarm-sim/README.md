@@ -35,11 +35,17 @@ cd java-backend && ./mvnw -pl swarm-sim -am package -DskipTests
 java -jar swarm-sim/target/swarm-sim-0.0.1-SNAPSHOT.jar --branches 40000 --duration 10m
 ```
 
-То же самое в контейнере (отчёт попадёт в `docs/demo/load/`):
+То же самое в контейнере (отчёт попадёт в `docs/demo/load/`; адреса регионов и папка отчёта уже заданы, аргументы
+добавляются к ним):
 
 ```bash
-docker compose --profile swarm run --rm swarm-sim --branches 40000 --duration 10m
+docker compose --profile swarm-run run --rm swarm-sim --branches 40000 --duration 10m
 ```
+
+Рой на отдельной машине — `deploy/swarm/docker-compose.yml` (регионы и `swarm-sim`, адрес хаба — `HUB_HOST`).
+
+**Перед новым замером обнулите регионы**: их `REGION_EVT` живут в слое контейнера и копят события прошлых прогонов —
+`docker compose --profile swarm up -d --force-recreate nats-region-1 nats-region-2 nats-region-3 nats-region-4`.
 
 | Параметр | По умолчанию | Что это |
 |---|---|---|
@@ -51,6 +57,7 @@ docker compose --profile swarm run --rm swarm-sim --branches 40000 --duration 10
 | `--speed X` | 1 | ускорение времени: событий ×X, heartbeat остаются реальными |
 | `--duration D` | 10m | `30s`, `10m`, `1h`; `0` — до Ctrl+C |
 | `--start ЧЧ:ММ` | сейчас | виртуальное московское время старта |
+| `--date ГГГГ-ММ-ДД` | сегодня | дата виртуального дня; в воскресенье отделения закрыты — событий не будет |
 | `--seed N` | 42 | зерно модели: одинаковое зерно — одинаковые талоны (id событий у каждого прогона свои) |
 | `--notifications` | выкл. | слать `notification.requested` — центр разошлёт их через notify-mock |
 | `--report PATH` | `swarm-report-<время>.json` | JSON-отчёт: отправлено, подтверждено, ошибки по типам |
@@ -72,3 +79,9 @@ docker compose --profile swarm run --rm swarm-sim --branches 40000 --duration 10
 Узкие места совпали с предсказанием плана: центр обрабатывает каждый heartbeat отдельным upsert (C3b), а
 `HeartbeatListener` запускает на каждое сообщение виртуальный поток без ограничения, поэтому при отставании
 очередь растёт в памяти до OOM. Запись событий по одной (C3a) медленнее потока роя под ускорением.
+
+## 250 000 отделений
+
+После доработок центра (`docs/final_tmp/ESUO-scale.md`) на том же ноутбуке: 250 000 отделений, 8 мин, понедельник
+12:00 — 1 448 278 событий подтверждено роем и столько же записано в базу центра, «на связи» 250 002 во всех замерах,
+центр без перезапусков **[Проверено на стенде]**. Рою нужно `-Xmx4g`.
