@@ -1,0 +1,46 @@
+# Центр на сервере: поверх deploy/center/docker-compose.yml (сервисы описаны там).
+#   docker compose -f deploy/center/docker-compose.yml -f deploy/server/center.yml --env-file .env --profile monitoring up -d --build
+# Здесь только серверное: имена контейнеров как у стенда «всё в одном» (их знают scripts/demo и scripts/chaos),
+# общая сеть esuo-wan с отделениями, роем и пультом сценариев, Prometheus для внешнего прокси.
+services:
+  postgres-center: {container_name: esuo-postgres-center}
+
+  nats-hub:
+    container_name: esuo-nats-hub
+    networks:
+      default: {}
+      wan: {aliases: [nats-hub]}               # кабели отделений и региональные leaf подключаются сюда
+
+  center-app:
+    container_name: esuo-center-app
+    networks: [default, wan]
+
+  notify-mock:
+    container_name: esuo-notify-mock
+    networks: [default, wan]
+
+  mp-simulator:
+    container_name: esuo-mp-simulator
+    networks: [default, wan]
+
+  loki:
+    container_name: esuo-loki
+    networks: [default, wan]
+
+  grafana:
+    container_name: esuo-grafana
+    networks: [default, wan]
+
+  vector-center: {container_name: esuo-vector-center}
+
+  prometheus:
+    container_name: esuo-prometheus
+    ports: !override ["${PROMETHEUS_BIND:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"]
+    networks: [default, wan]
+
+  nats-exporter: {container_name: esuo-nats-exporter}
+
+  postgres-exporter: {container_name: esuo-postgres-exporter}
+
+networks:
+  wan: {name: esuo-wan, external: true}        # docker network create esuo-wan — один раз на сервер

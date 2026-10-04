@@ -1,0 +1,33 @@
+# Пульт демо-сценариев на сервере: вкладка «Сценарии» на /demo отделения запускает scripts/demo/run.sh кнопкой.
+#   docker compose -f deploy/server/demo.yml --env-file .env up -d --build
+# У контейнера сокет Docker (обрыв связи, заливка данных) — порт наружу не публикуется: браузер ходит к пульту
+# только через узел под входом руководителя, узел предъявляет общий токен. Адреса — по именам контейнеров в esuo-wan.
+name: esuo-demo
+
+services:
+  demo-runner:
+    build: ../../tools/demo-runner
+    container_name: esuo-demo-runner
+    environment:
+      DEMO_RUNNER_TOKEN: ${DEMO_RUNNER_TOKEN:-${JWT_SECRET}}
+      NODE: http://esuo-node-b01:8080
+      NODE2: http://esuo-node-b02:8080
+      CENTER: http://esuo-center-app:8080
+      CENTER_MGMT: http://esuo-center-app:9081
+      MP: http://esuo-mp-simulator:8091
+      NOTIFY: http://esuo-notify-mock:8090
+      HUB_MONITOR: http://esuo-nats-hub:8222
+      LOKI: http://esuo-loki:3100
+      GRAFANA: http://esuo-grafana:3000
+      PROMETHEUS: http://esuo-prometheus:9090
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}       # сценарии ходят в закрытый API центра
+      CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}
+      TZ: ${BRANCH_TIMEZONE:-Europe/Moscow}
+    volumes:
+      - ../..:/repo
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [wan]
+    restart: unless-stopped
+
+networks:
+  wan: {name: esuo-wan, external: true}

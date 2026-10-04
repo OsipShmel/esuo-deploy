@@ -1,0 +1,24 @@
+# Рой на сервере: поверх deploy/swarm/docker-compose.yml (регионы и swarm-sim описаны там).
+#   docker compose -f deploy/swarm/docker-compose.yml -f deploy/server/swarm.yml --env-file .env up -d
+#   docker compose -f deploy/swarm/docker-compose.yml -f deploy/server/swarm.yml --env-file .env \
+#     --profile run run --rm swarm-sim --branches 40000 --duration 10m
+# Региональные leaf подключаются к хабу по сети esuo-wan (HUB_HOST по умолчанию — nats-hub).
+services:
+  nats-region-1:
+    container_name: esuo-nats-region-1
+    networks: [default, wan]
+
+  nats-region-2:
+    container_name: esuo-nats-region-2
+    networks: [default, wan]
+
+  nats-region-3:
+    container_name: esuo-nats-region-3
+    networks: [default, wan]
+
+  nats-region-4:
+    container_name: esuo-nats-region-4
+    networks: [default, wan]
+
+networks:
+  wan: {name: esuo-wan, external: true}

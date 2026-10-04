@@ -1034,6 +1034,7 @@ REST API описан OpenAPI (`docs/openapi/node.yaml`, `center.yaml`, Swagger 
 | `deploy/branch/services.yml` | шаблоны отделения: база, leaf, нода, сборщик логов (профиль `monitoring`) |
 | `deploy/branch/docker-compose.yml` | одно отделение где угодно (`BRANCH_ID`, `CENTER_HOST`); несколько на одной машине — разные env-файлы с разными портами |
 | `deploy/swarm/docker-compose.yml` | экземпляр роя: четыре региональных leaf и `swarm-sim` (профиль `run`) |
+| `deploy/server/` | сервер: те же центр, b01, b02, рой отдельными группами на одном хосте, пульт сценариев, общая сеть `esuo-wan`, env-заготовки; маршруты для внешнего прокси — поддомены одного домена (`deploy/server/README.md`) |
 | `docker-compose.yml` | «всё в одном»: центр, b01, b02 из `deploy/`, плюс сети, имена контейнеров, порты на localhost, прокси связи для хаоса, пульт сценариев |
 
 **Профили стенда «всё в одном»:** без профиля — центр и два отделения; `monitoring` — мониторинг центра и сборщики

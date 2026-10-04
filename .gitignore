@@ -104,3 +104,6 @@ data/
 dev-docs/
 # frontend bundle copied in by the Docker build
 java-backend/*/src/main/resources/static/
+
+# server env files: secrets (templates *.env.example stay tracked)
+deploy/server/*.env
