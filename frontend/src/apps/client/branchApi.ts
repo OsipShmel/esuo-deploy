@@ -60,9 +60,14 @@ export interface Slot {
 export interface BookInput { service_id: string; slot_start: string; client_category: string }
 export interface QrInput { qr_code: string; service_id: string; client_category: string; device_id: string }
 
+export interface BranchList { total: number; items: BranchSummary[] }
+/** Столько отделений на экране выбора: в сети их может быть 250 000 — дальше поиск. */
+export const BRANCH_PAGE = 50;
+
 export interface BranchApi {
   readonly mode: 'center' | 'node';
-  listBranches(): Promise<BranchSummary[]>;
+  /** Отделения по поиску: первые {@link BRANCH_PAGE} и сколько всего нашлось. */
+  listBranches(q?: string): Promise<BranchList>;
   info(branch: string): Promise<BranchInfo>;
   slots(branch: string, serviceId: string, date: string): Promise<Slot[]>;
   book(branch: string, body: BookInput, key: string): Promise<ClientTicket>;
@@ -79,7 +84,7 @@ const idem = (key: string) => ({ 'Idempotency-Key': key });
 /** Центр: интернет, `/api/v1/branches/{b}/…`. */
 export const centerApi: BranchApi = {
   mode: 'center',
-  listBranches: () => api<BranchSummary[]>('/branches'),
+  listBranches: (q) => api<BranchList>('/branches', { query: { q, limit: BRANCH_PAGE } }),
   info: (b) => api<BranchInfo>(`/branches/${b}/info`),
   slots: (b, serviceId, date) => api<Slot[]>(`/branches/${b}/slots`, { query: { service_id: serviceId, date } }),
   book: (b, body, key) => api<ClientTicket>(`/branches/${b}/appointments`, { method: 'POST', body, headers: idem(key) }),
@@ -96,7 +101,7 @@ export const nodeApi: BranchApi = {
   mode: 'node',
   listBranches: async () => {
     const i = await api<BranchInfo>('/public/branch');
-    return [{ id: i.id, name: i.name, timezone: i.timezone, online: true, services: i.services, load_level: i.load?.level ?? null }];
+    return { total: 1, items: [{ id: i.id, name: i.name, timezone: i.timezone, online: true, services: i.services, load_level: i.load?.level ?? null }] };
   },
   info: () => api<BranchInfo>('/public/branch'),
   slots: (_b, serviceId, date) => api<Slot[]>('/public/slots', { query: { service_id: serviceId, date } }),

@@ -15,6 +15,13 @@ test('главная центра: список отделений', async ({ pa
   await noHorizontalScroll(page);
 });
 
+test('главная центра: отделение находится поиском', async ({ page }) => {
+  await page.goto(`${CENTER}/`);
+  await page.getByLabel('Поиск отделения').fill(BRANCH);
+  await expect(page.getByRole('link', { name: new RegExp(BRANCH) }).first()).toBeVisible();
+  await noHorizontalScroll(page);
+});
+
 test('страница отделения: услуги для записи', async ({ page }) => {
   await page.goto(`${CENTER}/b/${BRANCH}`);
   await expect(page.getByText('Записаться на время')).toBeVisible();

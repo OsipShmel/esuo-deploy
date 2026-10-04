@@ -1,0 +1,151 @@
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { formatSeconds } from '@shared/format/duration';
+import { formatDateTime } from '@shared/format/time';
+import { Icon, LoadLevelBadge, problemText } from '@shared/ui';
+import { pullLogs, takeSnapshot, type BranchCard as Card, type LogPullResult, type NodeLine, type Snapshot } from '../api';
+import { ANOMALY_TITLE, DANGER } from '../anomalies';
+import { useToast } from '../toast';
+
+/** Полная карточка отделения: очередь, окна, конфигурация и строка «Узел». Заголовок ведёт в панель отделения. */
+export function BranchCard({ b }: { b: Card }) {
+  const lost = !b.online;
+  const dbStuck = b.db_unavailable_sec != null;
+  const suffix = lost ? ' (на момент потери связи)' : dbStuck ? ' (последние известные)' : '';
+  const pending = b.config_published_version !== null && b.config_applied_version !== null && b.config_published_version > b.config_applied_version;
+  return (
+    <article className={`card branch-card${lost ? ' offline' : ''}`}>
+      <div className="row between">
+        <h2><Link to={`/network/b/${b.id}`} aria-label={`Открыть ${b.id}`}>{b.id} · {b.name}</Link></h2>
+        <OnlineChip b={b} />
+      </div>
+      <div className="row"><LoadLevelBadge level={b.load_level} />
+        {b.load_level && b.clear_time_min != null && <span className="muted small">разгрузка через {b.clear_time_min} мин</span>}
+        {b.day_profile && <span className="chip tone-muted">{b.day_profile}</span>}
+        {b.events_via && <span className="chip tone-muted">{b.events_via}</span>}</div>
+      <dl className="metrics" style={{ margin: 0 }}>
+        <div><dt>Ожидают{suffix}</dt><dd>{b.waiting}</dd></div>
+        <div><dt>Просрочены</dt><dd className={b.overdue > 0 ? 'bad' : undefined}>{b.overdue > 0 && <Icon name="alert" size={16} />} {b.overdue}</dd></div>
+        <div><dt>Самое долгое ожидание</dt><dd>{formatSeconds(b.oldest_wait_sec)}</dd></div>
+        <div><dt>Окна</dt><dd>{b.windows_open} из {b.windows_total}</dd></div>
+      </dl>
+      <div className="svc-line">
+        события {b.events_attached ? 'подключены' : 'не подключены'} · в очереди на отправку {b.outbox_pending} · конфигурация{' '}
+        {pending ? `${b.config_applied_version} → ${b.config_published_version} применяется` : (b.config_applied_version ?? b.config_version)}
+        {lost && <> · последняя связь {formatDateTime(b.last_heartbeat_at)}</>}
+      </div>
+      <NodeRow b={b} />
+    </article>
+  );
+}
+
+/** Компактная карточка для списков региона: номер, связь, очередь, аномалии; клик — панель отделения. */
+export function BranchMini({ b }: { b: Card }) {
+  return (
+    <article className={`card mini-card${b.online ? '' : ' offline'}`}>
+      <div className="row between">
+        <Link to={`/network/b/${b.id}`} aria-label={`Открыть ${b.id}`}><strong>{b.id}</strong> · {b.name}</Link>
+        <OnlineChip b={b} />
+      </div>
+      <div className="svc-line">ждут {b.waiting} · просрочены {b.overdue} · окна {b.windows_open} из {b.windows_total}</div>
+      {b.anomalies.length > 0 && (
+        <div className="row net-counters">
+          {b.anomalies.map((code) => {
+            const alert = b.alerts?.find((a) => a.code === code);
+            return <span key={code} className={`chip tone-${DANGER.has(code) || alert?.severity === 'critical' ? 'danger' : 'warn'}`}>{ANOMALY_TITLE[code] ?? alert?.text ?? code}</span>;
+          })}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function OnlineChip({ b }: { b: Card }) {
+  return (
+    <span className={`chip tone-${b.online ? 'ok' : 'muted'}`}>
+      {b.online ? 'на связи' : `нет связи ${Math.max(1, Math.round(b.seconds_since_heartbeat / 60))} мин`}
+    </span>
+  );
+}
+
+/** Ошибки диагностики: центр отвечает за отделение, «запрос не потеряется» тут неправда. */
+const DIAG_PHRASES: Record<string, string> = {
+  BRANCH_UNAVAILABLE: 'отделение не ответило, повторите позже',
+  NETWORK_ERROR: 'нет связи с центром',
+};
+const diagError = (e: unknown) => { const p = problemText(e, DIAG_PHRASES); return p.detail && p.code !== 'UNKNOWN' ? `${p.title}: ${p.detail}` : p.title; };
+
+const TONE = { critical: 'danger', warning: 'warn', info: 'accent' } as const;
+
+/** Подробные логи — за последние полчаса (постановка B7). */
+const PULL_MINUTES = 30;
+
+const gb = (mb: number) => { const v = mb / 1024; return v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v)); };
+
+function nodeNumbers(n: NodeLine): string {
+  const parts = [];
+  if (n.cpu_pct != null) parts.push(`CPU ${n.cpu_pct}%`);
+  if (n.http_p95_ms != null) parts.push(`ответ p95 ${n.http_p95_ms} мс`);
+  if (n.disk_free_mb != null && n.disk_total_mb) parts.push(`диск свободно ${gb(n.disk_free_mb)} из ${gb(n.disk_total_mb)} ГБ`);
+  if (n.app_version) parts.push(`версия ${n.app_version}`);
+  return parts.join(' · ');
+}
+
+/** Снимок уходит файлом: в нём сотни строк, читать его удобнее в редакторе. */
+function download(s: Snapshot) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `snapshot-${s.branch_id}-${s.taken_at.replace(/[:.]/g, '-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Строка «Узел»: состояние ПК отделения по правилам мониторинга, пара цифр и диагностика по запросу. У отделения за
+ * региональным хабом (рой) узла, который ответил бы на запрос логов или снимка, нет — только графики.
+ */
+function NodeRow({ b }: { b: Card }) {
+  const toast = useToast();
+  const [logs, setLogs] = useState<LogPullResult | null>(null);
+  const alerts = b.alerts ?? [];
+  const logsM = useMutation({
+    mutationFn: () => pullLogs(b.id, PULL_MINUTES),
+    onSuccess: (r) => { setLogs(r); toast(`Логи ${b.id} за ${PULL_MINUTES} мин получены: ${r.lines} строк${r.truncated ? ' (не все)' : ''}`); },
+    onError: (e) => toast(`Логи ${b.id}: ${diagError(e)}`, true),
+  });
+  const snapM = useMutation({
+    mutationFn: () => takeSnapshot(b.id),
+    onSuccess: (s) => { download(s); toast(`Снимок ${b.id} сохранён, ${Math.max(1, Math.round(s.size_bytes / 1024))} КБ`); },
+    onError: (e) => toast(`Снимок ${b.id}: ${diagError(e)}`, true),
+  });
+  const offline = b.online ? undefined : 'Нет связи с отделением';
+  const node = !b.events_via;
+
+  return (
+    <section className="node-row" aria-label={`Узел ${b.id}`}>
+      <div className="row">
+        <strong>Узел</strong>
+        {alerts.length === 0
+          ? <span className="chip tone-ok">{b.node ? 'в норме' : 'нет данных'}</span>
+          : alerts.map((a) => (
+            <span key={a.code} className={`chip tone-${TONE[a.severity]}`}><Icon name="alert" size={14} /> {a.text}</span>
+          ))}
+      </div>
+      {b.node && <div className="svc-line">{nodeNumbers(b.node)}</div>}
+      <div className="row node-actions">
+        {node && <>
+          <button type="button" className="btn btn-sm" disabled={!!offline || logsM.isPending} title={offline} onClick={() => logsM.mutate()}>
+            {logsM.isPending ? 'Собираем логи…' : `Подробные логи (${PULL_MINUTES} мин)`}
+          </button>
+          <button type="button" className="btn btn-sm" disabled={!!offline || snapM.isPending} title={offline} onClick={() => snapM.mutate()}>
+            {snapM.isPending ? 'Снимаем…' : 'Снять диагностику'}
+          </button>
+        </>}
+        {b.dashboard_url && <a className="btn btn-sm" href={b.dashboard_url} target="_blank" rel="noreferrer">Графики</a>}
+        {logs?.grafana_url && <a className="small" href={logs.grafana_url} target="_blank" rel="noreferrer">Открыть логи ({logs.lines} строк)</a>}
+      </div>
+    </section>
+  );
+}

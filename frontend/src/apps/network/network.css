@@ -53,3 +53,23 @@ main.page { max-width: 1440px; margin: 0 auto; padding: 24px; display: grid; gap
 .net-filter .btn[aria-pressed='true'] { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
 .net-pager { justify-content: center; }
 .cards.stale { opacity: 0.5; transition: opacity 0.2s; }
+
+/* Сеть под рой (план финала, 8.1): плитки регионов, компактные карточки, строка «Центр». */
+.region-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.region-tile { display: grid; gap: 4px; color: inherit; text-decoration: none; }
+a.region-tile:hover, a.region-tile:focus-visible { border-color: var(--accent); }
+.mini-card { display: grid; gap: 6px; padding: 12px 14px; }
+.mini-card.offline { opacity: 0.7; }
+.mini-card a, .branch-card h2 a { color: inherit; text-decoration: none; }
+.mini-card a:hover, .branch-card h2 a:hover { text-decoration: underline; }
+.center-strip { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 12px 16px; }
+.center-strip a.btn { text-decoration: none; margin-left: auto; }
+.svc-line .bad { color: var(--danger); }
+.svc-line.warn { color: var(--warn); }
+.net-counters a.chip { text-decoration: none; }
+.table-wrap.stale { opacity: 0.5; transition: opacity 0.2s; }
+.crumbs { margin: 0; }
+.crumbs a { color: var(--accent); text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; }
+.panel-card { max-width: 720px; }
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }

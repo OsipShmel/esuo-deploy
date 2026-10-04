@@ -1,4 +1,5 @@
-// T5.1 (scale design §8): what eats the memory of /network on a big network. Not a test: a measurement, run by hand.
+// T5.1 / T5 (scale design §8): memory of /network and the cost of its API on a big network. Not a test: a measurement,
+// run by hand.
 //   node e2e/measure-network.mjs            — system Chrome (the Playwright browser is not installed)
 // Prints per stage: JS heap of the page, DOM nodes, and per API path the calls, bytes and slowest response.
 import { chromium } from '@playwright/test';
@@ -47,9 +48,21 @@ console.log(`overview shown in ${Date.now() - t0} ms`);
 await page.waitForTimeout(60_000);
 await measure('Обзор, 60 с опроса');
 
+const tiles = page.getByRole('link', { name: /^Регион / });
+if (await tiles.count() > 0) {
+  await tiles.first().click();
+  await page.waitForTimeout(30_000);
+  await measure('Регион, 30 с');
+  await page.getByRole('region', { name: 'Отделения', exact: true }).getByRole('link', { name: /^Открыть / }).first().click();
+  await page.waitForTimeout(20_000);
+  await measure('Панель отделения, 20 с');
+}
+
 await page.getByRole('link', { name: 'Конфигурация' }).click();
-await page.waitForTimeout(45_000);
-await measure('Конфигурация, 45 с');
+await page.waitForTimeout(30_000);
+await page.getByLabel('Поиск отделения').fill('s2-0001');
+await page.waitForTimeout(15_000);
+await measure('Конфигурация, 45 с, с поиском');
 
 await page.getByRole('link', { name: 'Уведомления' }).click();
 await page.waitForTimeout(20_000);

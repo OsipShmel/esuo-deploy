@@ -56,13 +56,6 @@ export interface BranchAlert {
   since: string;
 }
 
-export interface Overview {
-  generated_at: string;
-  branches_total: number;
-  branches_online: number;
-  branches: BranchCard[];
-}
-
 export interface BranchSummary {
   id: string;
   name: string;
@@ -72,9 +65,23 @@ export interface BranchSummary {
   load_level: string | null;
 }
 
-export const getOverview = () => api<Overview>('/network/overview');
+/** Плитка региона и шапка его страницы (план финала, 8.1): очередь — у отделений на связи. */
+export interface RegionSums {
+  /** Региональный leaf (`events_via`); null — отделения со своим leaf. */
+  events_via: string | null;
+  total: number;
+  online: number;
+  problems: number;
+  waiting: number;
+  overdue: number;
+  windows_open: number;
+  load_levels: Record<string, number>;
+  anomalies: Record<string, number>;
+  /** Худшее отделение; null — проблем нет. */
+  worst: string | null;
+}
 
-/** Сводка большой сети (план финала, C3c): счётчики и худшие отделения вместо всех карточек. */
+/** Сводка сети (план финала, C3c и 8.1): счётчики, плитки регионов и худшие отделения вместо всех карточек. */
 export interface NetworkSummary {
   generated_at: string;
   branches_total: number;
@@ -84,26 +91,55 @@ export interface NetworkSummary {
   load_levels: Record<string, number>;
   /** Сколько отделений с каждой аномалией. */
   anomalies: Record<string, number>;
-  /** По месту хранения событий: региональный leaf (`events_via`) или собственный leaf отделения (`null`). */
-  regions: { events_via: string | null; total: number; online: number; problems: number }[];
+  regions: RegionSums[];
   /** Худшие отделения, полные карточки, сначала самые проблемные. */
   problems: BranchCard[];
 }
 
-export type BranchFilter = 'all' | 'online' | 'offline' | 'problems';
+export interface RegionView extends RegionSums {
+  generated_at: string;
+  /** Десять худших отделений региона, полные карточки. */
+  worst_branches: BranchCard[];
+}
 
-export interface BranchPage {
+/** Строка «Центр»: справляется ли сам центр. */
+export interface CenterLine {
+  cpu: number | null;
+  cores: number;
+  gc_pct: number;
+  heap_used_mb: number;
+  heap_max_mb: number;
+  heartbeats_per_sec: number;
+  events_per_sec: number;
+  flush_sec: number;
+  rules_sec: number;
+  snapshot_sec: number;
+  heartbeats_buffered: number;
+  events_pending: number;
+  grafana_url: string | null;
+}
+
+export type BranchFilter = 'all' | 'online' | 'offline' | 'problems';
+/** Отделения со своим leaf (настоящие узлы), в отличие от регионов роя. */
+export const OWN = 'own';
+
+export interface Page<T> {
   generated_at: string;
   total: number;
   offset: number;
   limit: number;
-  items: BranchCard[];
+  items: T[];
 }
 
-export const getSummary = (top = 20) => api<NetworkSummary>('/network/summary', { query: { top } });
-export const getBranchPage = (p: { q?: string; status?: BranchFilter; offset?: number; limit?: number }) =>
-  api<BranchPage>('/network/branches', { query: { q: p.q, status: p.status, offset: p.offset, limit: p.limit } });
-export const getBranches = () => api<BranchSummary[]>('/branches');
+export interface BranchQuery { q?: string; status?: BranchFilter; region?: string; anomaly?: string; offset?: number; limit?: number }
+
+export const getSummary = (top = 10) => api<NetworkSummary>('/network/summary', { query: { top } });
+export const getRegion = (region: string) => api<RegionView>(`/network/regions/${encodeURIComponent(region)}`);
+export const getBranchPage = (p: BranchQuery) => api<Page<BranchCard>>('/network/branches', { query: { ...p } });
+export const getBranch = (id: string) => api<BranchCard>(`/network/branches/${encodeURIComponent(id)}`);
+export const getCenterLine = () => api<CenterLine>('/network/center');
+/** Публичный список (выбор отделения клиентом): поиск и страницы. */
+export const getBranches = (p: { q?: string; offset?: number; limit?: number } = {}) => api<Page<BranchSummary>>('/branches', { query: { ...p } });
 
 // ------------------------------------------------------------------ диагностика отделения
 
@@ -181,6 +217,7 @@ export interface Sections {
 
 export interface BranchConfigStatus {
   branch_id: string;
+  online: boolean;
   overrides: Sections;
   published_version: number | null;
   applied_version: number | null;
@@ -188,8 +225,12 @@ export interface BranchConfigStatus {
   pending: boolean;
 }
 
+/** Глобальная конфигурация и страница отделений (план финала, 8.2): вся сеть сразу не приходит. */
 export interface ConfigOverview {
   global: Sections & { updated_at: string | null; updated_by: string | null };
+  total: number;
+  offset: number;
+  limit: number;
   branches: BranchConfigStatus[];
 }
 
@@ -215,7 +256,18 @@ export interface UserView {
   active: boolean;
 }
 
-export const getConfig = () => api<ConfigOverview>('/config');
+export const getConfig = (p: { q?: string; region?: string; offset?: number; limit?: number } = {}) =>
+  api<ConfigOverview>('/config', { query: { ...p } });
+/** Одно отделение: его переопределения и собранная конфигурация. */
+export interface BranchConfigView {
+  overrides: Sections;
+  effective: Record<string, unknown> | null;
+  published_version: number | null;
+  applied_version: number | null;
+  applied_at: string | null;
+}
+
+export const getBranchConfig = (branch: string) => api<BranchConfigView>(`/config/branches/${encodeURIComponent(branch)}`);
 export const putGlobal = (body: Partial<Record<keyof Sections, Section | null>>) => api<Published>('/config/global', { method: 'PUT', body });
 export const putBranch = (branch: string, body: Partial<Record<keyof Sections, Section | null>>) =>
   api<Published>(`/config/branches/${branch}`, { method: 'PUT', body });
