@@ -6,7 +6,7 @@
 |---|---|
 | Для кого | инженеры и технические члены жюри: как система устроена и почему именно так |
 | Состояние | ветка `WiP/load-planning`, 2026-09-23 |
-| Стек | Java 25, Spring Boot 4.1, PostgreSQL 16, NATS 2.10 (JetStream, leaf nodes), React 18 + Vite, Python 3.11 (офлайн-обучение) |
+| Стек | Java 25, Spring Boot 4.1, PostgreSQL 16, NATS 2.15 (JetStream, leaf nodes), React 18 + Vite, Python 3.11 (офлайн-обучение) |
 | Связанные документы | [отчёт о проделанной работе](ESUO-report.md), [`openapi/`](openapi), [`demo/results.md`](demo/results.md), [`demo/ml-report.md`](demo/ml-report.md), [`demo/run-guide.md`](demo/run-guide.md) |
 
 Статусы в тексте: **[Реализовано]** — есть в коде и покрыто тестом или демо-сценарием; **[Компромисс]** — сознательное
@@ -221,7 +221,7 @@ flowchart LR
   производительность отделения не зависит от числа отделений в сети.
 - **Масштабирование центра** — стандартными средствами NATS: hub собирается в кластер, консюмеры центра — durable pull,
   их можно запускать в нескольких экземплярах. В рамках хакатона не делалось (раздел 15).
-- **Переносимость.** Все образы — alpine (`nats:2.10-alpine`, `postgres:16-alpine`, `eclipse-temurin:25-jre-alpine`).
+- **Переносимость.** Все образы — alpine (`nats:2.15.0-alpine`, `postgres:16-alpine`, `eclipse-temurin:25-jre-alpine`).
   Одна и та же топология работает на ноутбуке (all-in-one), в LAN и с центром на VPS: отделению всё равно, где центр,
   потому что соединение исходящее.
 - **Лёгкость.** На отделении нет ничего, кроме базы, брокера-бинарника и одного JAR-приложения с встроенным
@@ -744,7 +744,7 @@ REST API описан OpenAPI (`docs/openapi/node.yaml`, `center.yaml`, Swagger 
 | Java 25 (OpenJDK) | GPLv2 + Classpath Exception | российские сборки OpenJDK (например, Axiom JDK) |
 | Spring Boot 4 | Apache 2.0 | открытый код, работает на любой сборке OpenJDK |
 | PostgreSQL 16 | PostgreSQL License | совместимые российские дистрибутивы (например, Postgres Pro) |
-| NATS 2.10 | Apache 2.0 | открытый код, один бинарник без внешних зависимостей |
+| NATS 2.15 | Apache 2.0 | открытый код, один бинарник без внешних зависимостей |
 | React 18, TypeScript, Vite | MIT, Apache 2.0 | сборка в статику внутри JAR; работает в Yandex Browser и Chromium |
 | Python 3.11, только стандартная библиотека | PSF | обучение модели без сторонних пакетов |
 | Docker Compose | Apache 2.0 | образы на alpine; пересобираются на базовых образах российских ОС (Astra Linux, РЕД ОС, ALT) |

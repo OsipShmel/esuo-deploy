@@ -198,7 +198,7 @@ deploy/               compose по сущностям: center (с монитор
 scripts/              demo/, smoke/, chaos/, openapi/
 ```
 
-Стек: Java 25, Spring Boot 4, PostgreSQL 16, NATS 2.10 JetStream (leaf-домены), React 18 + TypeScript, Python 3.11.
+Стек: Java 25, Spring Boot 4, PostgreSQL 16, NATS 2.15 JetStream (leaf-домены), React 18 + TypeScript, Python 3.11.
 
 ---
 

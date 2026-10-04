@@ -14,7 +14,10 @@ import java.io.IOException;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)   // one live context per broker: no foreign subscribers
 public abstract class AbstractCenterNatsIT extends AbstractCenterIT {
 
-    static final GenericContainer<?> HUB = new GenericContainer<>("nats:2.10.26-alpine")
+    /** The NATS server of every compose file: tests run against the same version as the stand. */
+    public static final String NATS_IMAGE = "nats:2.15.0-alpine";
+
+    static final GenericContainer<?> HUB = new GenericContainer<>(NATS_IMAGE)
             .withCommand("-js")
             .withExposedPorts(4222)
             .waitingFor(Wait.forLogMessage(".*Server is ready.*", 1));

@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   nats-leaf:
-    image: nats:2.10.26-alpine
+    image: nats:2.15.0-alpine
     command: ["-c", "/etc/nats/nats.conf"]
     volumes: ["../../infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro"]
     restart: unless-stopped

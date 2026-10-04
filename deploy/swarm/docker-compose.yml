@@ -10,7 +10,7 @@
 name: esuo-swarm
 
 x-region: &region
-  image: nats:2.10.26-alpine
+  image: nats:2.15.0-alpine
   command: ["-c", "/etc/nats/nats.conf"]
   volumes: ["../../infrastructure/nats/region.conf:/etc/nats/nats.conf:ro"]
   mem_limit: 1g
