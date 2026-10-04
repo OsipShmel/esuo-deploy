@@ -2,6 +2,7 @@ package honey.road.center.monitoring;
 
 import honey.road.center.config.CenterProperties;
 import honey.road.center.nats.CenterNats;
+import honey.road.center.nats.CenterStreams;
 import honey.road.contracts.event.Subjects;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -27,7 +28,6 @@ import static honey.road.center.network.BranchRegistry.WITH_SEEN;
 @Component
 public class CenterMeters {
     private static final Logger log = LoggerFactory.getLogger(CenterMeters.class);
-    static final String INGEST_CONSUMER = "analytics-ingest";
 
     private final JdbcClient jdbc;
     private final CenterNats nats;
@@ -71,7 +71,7 @@ public class CenterMeters {
         }
         nats.connection().ifPresent(c -> {
             try {
-                eventsPending.set(c.jetStreamManagement().getConsumerInfo(Subjects.STREAM_CENTER_EVT, INGEST_CONSUMER)
+                eventsPending.set(c.jetStreamManagement().getConsumerInfo(Subjects.STREAM_CENTER_EVT, CenterStreams.INGEST_CONSUMER)
                         .getNumPending());
             } catch (Exception e) {
                 log.debug("events backlog not refreshed: {}", e.toString());

@@ -10,9 +10,6 @@ import io.nats.client.Connection;
 import io.nats.client.ConsumerContext;
 import io.nats.client.FetchConsumeOptions;
 import io.nats.client.Message;
-import io.nats.client.api.AckPolicy;
-import io.nats.client.api.ConsumerConfiguration;
-import io.nats.client.api.DeliverPolicy;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -41,7 +38,6 @@ import java.util.List;
 @Component
 public class EventIngest {
     private static final Logger log = LoggerFactory.getLogger(EventIngest.class);
-    static final String CONSUMER = "analytics-ingest";
     static final int BATCH = 500;
     static final int WAIT_MS = 1000;
 
@@ -75,17 +71,9 @@ public class EventIngest {
     synchronized void start(Connection c) {
         if (running() || !streams.ready()) { return; }
         try {
-            c.jetStreamManagement().addOrUpdateConsumer(Subjects.STREAM_CENTER_EVT, ConsumerConfiguration.builder()
-                    .durable(CONSUMER)
-                    .ackPolicy(AckPolicy.Explicit)
-                    .deliverPolicy(DeliverPolicy.All)
-                    .ackWait(Duration.ofSeconds(30))
-                    .maxDeliver(-1)
-                    .maxAckPending(BATCH * 20)
-                    .build());
-            var context = c.getConsumerContext(Subjects.STREAM_CENTER_EVT, CONSUMER);
+            var context = c.getConsumerContext(Subjects.STREAM_CENTER_EVT, CenterStreams.INGEST_CONSUMER);   // made with the stream
             worker = Thread.ofPlatform().name("analytics-ingest").daemon().start(() -> loop(context));
-            log.info("ingest consuming {} as {} in batches of {}", Subjects.STREAM_CENTER_EVT, CONSUMER, BATCH);
+            log.info("ingest consuming {} as {} in batches of {}", Subjects.STREAM_CENTER_EVT, CenterStreams.INGEST_CONSUMER, BATCH);
         } catch (Exception e) {
             log.error("cannot start ingest consumer", e);
         }
