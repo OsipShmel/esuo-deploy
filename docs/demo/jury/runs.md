@@ -86,3 +86,9 @@
 | 2026-10-04 11:01 | 40847f4 | health | 18/18 | `3577e3bc91f9` | `runs/health-20261004T110148Z.json` |
 | 2026-10-04 11:02 | 40847f4 | disputes | 22/22 | `6738fc3308db` | `runs/disputes-20261004T110230Z.json` |
 | 2026-10-04 11:04 | 40847f4 | notify-down | 8/8 | `c923a780b87b` | `runs/notify-down-20261004T110423Z.json` |
+| 2026-10-04 14:33 | aaf1548 | link-cut | 10/10 | `dd8724e64d83` | `runs/link-cut-20261004T143356Z.json` |
+| 2026-10-04 14:35 | aaf1548 | monitoring | 16/17 | `08450fe3caac` | `runs/monitoring-20261004T143528Z.json` |
+| 2026-10-04 14:37 | aaf1548 | health | 18/18 | `3577e3bc91f9` | `runs/health-20261004T143707Z.json` |
+| 2026-10-04 14:38 | aaf1548 | monitoring | 17/17 | `08450fe3caac` | `runs/monitoring-20261004T143819Z.json` |
+| 2026-10-04 14:38 | aaf1548 | three-sources | 4/4 | `4808d021508f` | `runs/three-sources-20261004T143829Z.json` |
+| 2026-10-04 14:38 | aaf1548 | three-sources | 4/4 | `4808d021508f` | `runs/three-sources-20261004T143834Z.json` |
