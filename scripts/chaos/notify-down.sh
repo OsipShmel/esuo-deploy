@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Проверка ТЗ №8 на all-in-one стенде: недоступность уведомлений.
+# Отказ провайдера уведомлений на локальном стенде (compose.yaml).
 #   ./scripts/chaos/notify-down.sh          — полный сценарий (~5 мин): отказ → CB открыт, DLQ растёт → восстановление
 #   ./scripts/chaos/notify-down.sh down|up  — только переключить notify-mock (error | ok)
 # Ожидаемо: при отказе очередь работает, circuit breaker OPEN, dead_letters растёт; после восстановления новые

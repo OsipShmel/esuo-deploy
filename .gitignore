@@ -21,7 +21,7 @@ Icon_
 *.ipr
 out/
 gen/
-!/.idea/runConfigurations/ # Разрешаем делиться общими конфигурациями запуска
+!/.idea/runConfigurations/
 
 # java
 
@@ -39,7 +39,7 @@ pom.xml.releaseBackup
 pom.xml.next
 release.properties
 
-# Логи и таймстампы
+# logs
 *.log
 *.log.*
 log/
@@ -105,5 +105,8 @@ dev-docs/
 # frontend bundle copied in by the Docker build
 java-backend/*/src/main/resources/static/
 
-# server env files: secrets (templates *.env.example stay tracked)
-deploy/server/*.env
+# deployment env files hold secrets (the *.env.example templates stay tracked)
+deploy/*/*.env
+
+# local output of scripts/demo, swarm-sim and esuo-ml report
+/reports/

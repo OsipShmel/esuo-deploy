@@ -1,0 +1,70 @@
+# Service templates shared by every branch: images, build, common environment, resources.
+# Branch id, center address, ports, volumes and dependencies are set by the file that extends these templates:
+# deploy/branch/compose.yaml (one branch site) or the root compose.yaml (two branches in the local environment).
+# No depends_on here: with `extends` it is inherited by the child, and children use their own service names.
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: 20m, max-file: "5"}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: esuo
+      POSTGRES_USER: ${DB_USER:-esuo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d esuo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+    restart: unless-stopped
+
+  nats-leaf:
+    image: nats:2.15.0-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes: ["../../infrastructure/nats/leaf.conf:/etc/nats/nats.conf:ro"]
+    logging: *logging
+    restart: unless-stopped
+
+  node-app:
+    image: ${IMAGE_REGISTRY:-esuo}/node-app:${IMAGE_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: java-backend/Dockerfile
+      args: {MODULE: node-app}
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx${NODE_HEAP:-1g} -XX:+ExitOnOutOfMemoryError   # out of memory => restart, not a zombie
+      DB_USER: ${DB_USER:-esuo}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      DEMO_DATA: ${DEMO_DATA:-false}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      # Hall QR code: auto => the center while the leaf is linked to the hub, otherwise this node
+      QR_MODE: ${QR_MODE:-auto}
+      QR_LOCAL_BASE_URL: ${QR_LOCAL_BASE_URL:-}
+      QR_SECRET: ${QR_SECRET:-}
+      QR_STICKER_KEY_VERSION: ${QR_STICKER_KEY_VERSION:-1}
+      LOG_FILE: /app/logs/node.log           # ECS JSON with rotation: read by the log shipper and diag.logs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health/liveness"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 4
+    logging: *logging
+    restart: unless-stopped
+
+  # Ships WARN, ERROR and lifecycle lines of node-app to the branch's BRANCH_LOG stream (monitoring profile)
+  vector:
+    image: ${IMAGE_REGISTRY:-esuo}/branch-log-shipper:${IMAGE_TAG:-latest}
+    build: ../../infrastructure/vector
+    profiles: [monitoring]
+    mem_limit: 64m
+    logging: *logging
+    restart: unless-stopped

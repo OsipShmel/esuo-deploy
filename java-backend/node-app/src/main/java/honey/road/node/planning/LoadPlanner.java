@@ -33,7 +33,7 @@ import java.util.UUID;
  * whether or not anybody is looking.
  *
  * <p>Everything the branch decides here is local. Planning keeps working with the center unreachable, which is
- * the whole premise of the branch being autonomous (sect 12) — and the one thing a jury will try.
+ * the whole premise of the branch being autonomous (sect 12).
  */
 @Service
 public class LoadPlanner {

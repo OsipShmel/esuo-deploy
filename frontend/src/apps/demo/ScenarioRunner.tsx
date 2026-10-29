@@ -12,7 +12,7 @@ const KIND_TEXT: Record<RunnerScenario['kind'], string> = { scenario: '', chaos:
 const MAX_SHOWN = 2000;
 
 /**
- * Вкладка «Сценарии»: запуск `scripts/demo/run.sh` кнопкой и живой вывод (план финала, D5). Ходит на узел, узел — в
+ * Вкладка «Сценарии»: запуск `scripts/demo/run.sh` кнопкой и живой вывод. Ходит на узел, узел — в
  * demo-runner. Одновременно идёт один прогон; поток SSE после переподключения присылает снимок заново.
  */
 export function ScenarioRunner() {
@@ -97,7 +97,7 @@ export function ScenarioRunner() {
             </li>
           ))}
         </ul>
-        <p className="muted small" style={{ margin: 0 }}>Итоги прогонов и подпись хода событий пишутся в <code>docs/demo/jury/runs.md</code>, как при запуске из терминала.</p>
+        <p className="muted small" style={{ margin: 0 }}>Итоги прогонов и подпись хода событий пишутся в <code>reports/demo/runs.md</code>, как при запуске из терминала.</p>
       </section>
 
       <section className="card stack" aria-label="Ход прогона">

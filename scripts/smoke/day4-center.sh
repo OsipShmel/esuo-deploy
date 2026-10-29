@@ -62,7 +62,7 @@ expect "повтор login → 409" 409 '.code == "LOGIN_TAKEN"'
 wait_until "вход $LOGIN на ноде" 90 \
   "curl -s -X POST $NODE/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"login\":\"$LOGIN\",\"password\":\"secret-$RUN\"}' | jq -e '.access_token|length>20'"
 
-echo "== 3. Запись из МП (4.6, проверка №1)"
+echo "== 3. Запись из МП (4.6)"
 TOMORROW=$(date -u -v+1d +%F 2>/dev/null || date -u -d tomorrow +%F)
 req GET "$CENTER/api/v1/branches/$BRANCH/slots?service_id=$S_PARCEL&date=$TOMORROW"
 SLOT=$(echo "$BODY" | jq -r '[.[] | select(.remaining_capacity > 0)] | .[length/2|floor].slot_start // empty')

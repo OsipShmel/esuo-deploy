@@ -1,87 +1,67 @@
-# swarm-sim — рой виртуальных отделений
+# swarm-sim
 
-Нагрузочный симулятор для центра (план финала, C1). Один процесс изображает до десятков тысяч отделений и шлёт
-в центр ровно то, что шлёт настоящая нода, — в тех же форматах и через ту же топологию NATS.
+Load generator for the center. One process simulates up to hundreds of thousands of branches and publishes exactly
+what a real node publishes, in the same formats and through the same NATS topology.
 
-## Что делает
+## Behaviour
 
-- Отделения `s{регион}-{номер}` (например, `s1-00042`) в часовых поясах России, разного размера (×0,4…×2,5 от
-  среднего потока), с 1–6 окнами.
-- Поток клиентов по кривой дня: утренний подъём, обеденный и вечерний пики. Будни 08:00–20:00, суббота 09:00–18:00
-  (×0,7), воскресенье — выходной.
-- Полный цикл талона, как на ноде: `ticket.created → called → serving → completed`, около 2 % отмен и 3 % неявок,
-  `window.opened/closed`. По флагу `--notifications` — ещё и `notification.requested`.
-- События идут в `EventEnvelope` через JetStream с `Nats-Msg-Id = event_id` (как `OutboxWorker`). Heartbeat — каждые
-  10 с через core NATS, с блоком `sys` из B1 и полем `events_via`.
-- Рой слушает `center.config.branch.>` и сообщает в heartbeat версию конфигурации, которую ему опубликовал центр.
-  Без этого центр каждую минуту переотправлял бы конфигурацию всем отделениям.
+- Branches `s{region}-{number}` (e.g. `s1-00042`) across Russian time zones, of different size (×0.4…×2.5 of the
+  average flow), with 1–6 windows.
+- Visitor flow follows a daily curve with morning ramp-up, lunch and evening peaks. Weekdays 08:00–20:00, Saturday
+  09:00–18:00 (×0.7), Sunday closed.
+- Full ticket lifecycle as on a node: `ticket.created → called → serving → completed`, about 2 % cancellations and
+  3 % no-shows, `window.opened/closed`. With `--notifications`, also `notification.requested`.
+- Events are `EventEnvelope`s published to JetStream with `Nats-Msg-Id = event_id` (like `OutboxWorker`). Heartbeats
+  every 10 s over core NATS, with the `sys` block and `events_via`.
+- The swarm subscribes to `center.config.branch.>` and reports the config version it received in its heartbeats, so
+  the center does not keep re-publishing configuration.
 
-## Топология (ДД §3.8, региональный уровень)
+## Topology
 
 ```
-рой ──▶ nats-region-1..4 (leaf, JetStream-домены region-1..4, стрим REGION_EVT) ──▶ хаб ──▶ центр
+swarm ──▶ nats-region-1..4 (JetStream domains region-1..4, stream REGION_EVT) ──▶ hub ──▶ center
 ```
 
-- Центр видит в heartbeat `events_via: "region-N"` и подключает `REGION_EVT` этого региона к `CENTER_EVT` источником
-  один раз на регион, а не по источнику на каждое отделение.
-- Фильтр по части токена (`branch.s1-*.evt.>`) в NATS недопустим. Поэтому `REGION_EVT` собирает `branch.*.evt.>`,
-  а региональный leaf не принимает от хаба чужие события (`deny_imports` в `infrastructure/nats/region.conf`).
+The center sees `events_via: "region-N"` in heartbeats and attaches that region's `REGION_EVT` to `CENTER_EVT` once
+per region. See the [LLD, regional tier](../../docs/architecture/lld.md#24-regional-tier).
 
-## Запуск
+## Running
 
 ```bash
-docker compose --profile swarm up -d                      # четыре региональных leaf рядом со стендом
+docker compose --profile swarm up -d                      # four regional hubs next to the local environment
 cd java-backend && ./mvnw -pl swarm-sim -am package -DskipTests
 java -jar swarm-sim/target/swarm-sim-0.0.1-SNAPSHOT.jar --branches 40000 --duration 10m
 ```
 
-То же самое в контейнере (отчёт попадёт в `docs/demo/load/`; адреса регионов и папка отчёта уже заданы, аргументы
-добавляются к ним):
+As a container (report goes to `reports/load/`; region addresses and the report folder are preset, arguments are
+appended):
 
 ```bash
 docker compose --profile swarm-run run --rm swarm-sim --branches 40000 --duration 10m
 ```
 
-Рой на отдельной машине — `deploy/swarm/docker-compose.yml` (регионы и `swarm-sim`, адрес хаба — `HUB_HOST`).
+On a separate host use [`deploy/loadtest`](../../deploy/loadtest/compose.yaml) with `HUB_HOST` pointing at the center.
 
-**Перед новым замером обнулите регионы**: их `REGION_EVT` живут в слое контейнера и копят события прошлых прогонов —
+**Reset the regions before a new run** — their streams live in the container layer and keep events from earlier runs:
 `docker compose --profile swarm up -d --force-recreate nats-region-1 nats-region-2 nats-region-3 nats-region-4`.
 
-| Параметр | По умолчанию | Что это |
+| Option | Default | Meaning |
 |---|---|---|
-| `--branches N` | 1000 | виртуальных отделений |
-| `--regions K` | 4 | региональных leaf; отделение `i` попадает в регион `i % K + 1` |
-| `--nats URL,…` | `nats://localhost:4231…4234` | адреса leaf по регионам |
-| `--clients N` | 150 | клиентов в день у среднего отделения |
-| `--peak X` | 1 | множитель пика (3 — пенсионный день) |
-| `--speed X` | 1 | ускорение времени: событий ×X, heartbeat остаются реальными |
-| `--duration D` | 10m | `30s`, `10m`, `1h`; `0` — до Ctrl+C |
-| `--start ЧЧ:ММ` | сейчас | виртуальное московское время старта |
-| `--date ГГГГ-ММ-ДД` | сегодня | дата виртуального дня; в воскресенье отделения закрыты — событий не будет |
-| `--seed N` | 42 | зерно модели: одинаковое зерно — одинаковые талоны (id событий у каждого прогона свои) |
-| `--notifications` | выкл. | слать `notification.requested` — центр разошлёт их через notify-mock |
-| `--report PATH` | `swarm-report-<время>.json` | JSON-отчёт: отправлено, подтверждено, ошибки по типам |
+| `--branches N` | 1000 | Simulated branches |
+| `--regions K` | 4 | Regional hubs; branch `i` goes to region `i % K + 1` |
+| `--nats URL,…` | `nats://localhost:4231…4234` | Regional hub addresses |
+| `--clients N` | 150 | Visitors per day at an average branch |
+| `--peak X` | 1 | Peak multiplier (3 ≈ pension day) |
+| `--speed X` | 1 | Time acceleration: events ×X, heartbeats stay real-time |
+| `--duration D` | 10m | `30s`, `10m`, `1h`; `0` — until Ctrl+C |
+| `--start HH:MM` | now | Simulated Moscow start time |
+| `--date YYYY-MM-DD` | today | Simulated date; on Sunday branches are closed and produce no events |
+| `--seed N` | 42 | Model seed: same seed — same tickets (event ids differ per run) |
+| `--notifications` | off | Emit `notification.requested`; the center delivers them to the notification endpoint |
+| `--report PATH` | `swarm-report-<time>.json` | JSON report: sent, acknowledged, errors by type |
 
-Раз в 5 с рой печатает heartbeat/с, события/с, число неподтверждённых публикаций и длину очереди действий.
-Потери проверяются сравнением `events_acked_total` из отчёта с числом записей в `events` центра:
+Every 5 s the swarm prints heartbeats/s, events/s, unacknowledged publishes and the action queue length. Losses are
+checked by comparing `events_acked_total` from the report with the center's
 `SELECT count(*) FROM events WHERE branch_id LIKE 's%'`.
 
-## Первые замеры
-
-[Проверено на стенде: ноутбук, Docker Desktop, 7,7 ГБ на все контейнеры; центр, хаб, Postgres, две ноды и
-четыре региональных leaf на одной машине]
-
-| Прогон | Рой | Центр |
-|---|---|---|
-| 2 000 отделений, ×60, 2 мин | 182 тыс. событий и 24 тыс. heartbeat, ошибок 0 | все 2 000 зарегистрированы; в `CENTER_EVT` 4 источника `REGION_EVT`; записаны все 182 тыс. событий, дублей 0; запись в БД ~1 000 событий/с — догоняла около 2 мин |
-| 40 000 отделений, ×1, 3 мин | 720 тыс. heartbeat (4 000/с) и 136 тыс. событий, ошибок 0 | **не справился**: хаб дважды отключил центр как медленного потребителя (64 МБ очереди), за 3 мин зарегистрировано 3,4 тыс. отделений из 40 тыс., затем `OutOfMemoryError` |
-
-Узкие места совпали с предсказанием плана: центр обрабатывает каждый heartbeat отдельным upsert (C3b), а
-`HeartbeatListener` запускает на каждое сообщение виртуальный поток без ограничения, поэтому при отставании
-очередь растёт в памяти до OOM. Запись событий по одной (C3a) медленнее потока роя под ускорением.
-
-## 250 000 отделений
-
-На том же ноутбуке (как это держит центр — `docs/ESUO-design-doc.md`, §10–12): 250 000 отделений, 8 мин, понедельник
-12:00 — 1 448 278 событий подтверждено роем и столько же записано в базу центра, «на связи» 250 002 во всех замерах,
-центр без перезапусков **[Проверено на стенде]**. Рою нужно `-Xmx4g`.
+For 250 000 branches run with `-Xmx4g` (`SWARM_HEAP=4g` in containers).

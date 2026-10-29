@@ -1,7 +1,8 @@
-# Пульт демо-сценариев на сервере: вкладка «Сценарии» на /demo отделения запускает scripts/demo/run.sh кнопкой.
-#   docker compose -f deploy/server/demo.yml --env-file .env up -d --build
-# У контейнера сокет Docker (обрыв связи, заливка данных) — порт наружу не публикуется: браузер ходит к пульту
-# только через узел под входом руководителя, узел предъявляет общий токен. Адреса — по именам контейнеров в esuo-wan.
+# Scenario console on staging: the "Scenarios" tab on a branch's /demo runs scripts/demo/run.sh.
+#   docker compose -f deploy/staging/demo-console.yaml --env-file .env up -d --build
+# The container holds the Docker socket (link cuts, data loading), so no port is published: the browser reaches it
+# only through a node, signed in as branch admin, and the node presents a shared token. Peers are addressed by
+# container name on esuo-wan.
 name: esuo-demo
 
 services:
@@ -20,7 +21,7 @@ services:
       LOKI: http://esuo-loki:3100
       GRAFANA: http://esuo-grafana:3000
       PROMETHEUS: http://esuo-prometheus:9090
-      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}       # сценарии ходят в закрытый API центра
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}
       CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}
       TZ: ${BRANCH_TIMEZONE:-Europe/Moscow}
     volumes:

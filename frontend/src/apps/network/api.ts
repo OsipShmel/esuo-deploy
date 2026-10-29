@@ -65,7 +65,7 @@ export interface BranchSummary {
   load_level: string | null;
 }
 
-/** Плитка региона и шапка его страницы (план финала, 8.1): очередь — у отделений на связи. */
+/** Плитка региона и шапка его страницы: очередь — у отделений на связи. */
 export interface RegionSums {
   /** Региональный leaf (`events_via`); null — отделения со своим leaf. */
   events_via: string | null;
@@ -81,7 +81,7 @@ export interface RegionSums {
   worst: string | null;
 }
 
-/** Сводка сети (план финала, C3c и 8.1): счётчики, плитки регионов и худшие отделения вместо всех карточек. */
+/** Сводка сети: счётчики, плитки регионов и худшие отделения вместо всех карточек. */
 export interface NetworkSummary {
   generated_at: string;
   branches_total: number;
@@ -225,7 +225,7 @@ export interface BranchConfigStatus {
   pending: boolean;
 }
 
-/** Глобальная конфигурация и страница отделений (план финала, 8.2): вся сеть сразу не приходит. */
+/** Глобальная конфигурация и страница отделений: вся сеть сразу не приходит. */
 export interface ConfigOverview {
   global: Sections & { updated_at: string | null; updated_by: string | null };
   total: number;

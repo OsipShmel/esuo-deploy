@@ -12,7 +12,7 @@
 
     <artifactId>swarm-sim</artifactId>
     <name>swarm-sim</name>
-    <description>Симулятор роя отделений: десятки тысяч виртуальных нод шлют heartbeat и события в центр (план финала, C1)</description>
+    <description>Симулятор роя отделений: десятки тысяч виртуальных нод шлют heartbeat и события в центр</description>
 
     <dependencies>
         <dependency>

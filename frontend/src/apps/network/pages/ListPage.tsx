@@ -13,7 +13,7 @@ const FILTERS: [BranchFilter, string][] = [['all', 'Все'], ['problems', 'С �
 const PAGE = 24;
 
 /**
- * Список отделений страницами (план финала, 8.1): регион (`/network/regions/:region`) или вся сеть с фильтром по
+ * Список отделений страницами: регион (`/network/regions/:region`) или вся сеть с фильтром по
  * аномалии (`/network/list?anomaly=…`). На странице не больше 24 компактных карточек: DOM не растёт с сетью.
  */
 export function ListPage() {

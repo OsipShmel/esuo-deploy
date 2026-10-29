@@ -54,7 +54,7 @@ main.page { max-width: 1440px; margin: 0 auto; padding: 24px; display: grid; gap
 .net-pager { justify-content: center; }
 .cards.stale { opacity: 0.5; transition: opacity 0.2s; }
 
-/* Сеть под рой (план финала, 8.1): плитки регионов, компактные карточки, строка «Центр». */
+/* Сеть под рой: плитки регионов, компактные карточки, строка «Центр». */
 .region-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .region-tile { display: grid; gap: 4px; color: inherit; text-decoration: none; }
 a.region-tile:hover, a.region-tile:focus-visible { border-color: var(--accent); }

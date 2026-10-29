@@ -453,7 +453,7 @@ def main() -> int:
     p.add_argument("--events", default=None)
     p.add_argument("--checks", default=None)
     p.add_argument("--facts", default=None)
-    p.add_argument("--report", default=os.path.join(root, "docs", "demo", "jury", "ab-report.md"))
+    p.add_argument("--report", default=os.path.join(root, "reports", "demo", "ab-report.md"))
     p.add_argument("--operator-password", default=os.environ.get("DEMO_OPERATOR_PASSWORD") or "operator123")
     p.add_argument("--admin-password", default=os.environ.get("DEMO_ADMIN_PASSWORD") or "admin123")
     args = p.parse_args()

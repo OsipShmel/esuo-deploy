@@ -1,41 +1,19 @@
-# Документация ЕСУО — с чего начать
+# Documentation
 
-| Если у вас… | Читайте | Время |
-|---|---|---|
-| 5 минут | [**Отчёт о проделанной работе**](ESUO-report.md): что сделано, чем отличается, цифры, покрытие ТЗ | 5 мин |
-| 20 минут и Docker | [**Как проверить решение**](demo/run-guide.md): запуск и десять проверок ТЗ по шагам | 20 мин |
-| интерес к устройству | [**Технический дизайн-документ**](ESUO-design-doc.md): архитектура, NATS, алгоритм очереди, прогноз, мониторинг, отказы, 250 000 отделений | 30 мин |
-| вопрос «а это правда работает?» | [**Результаты проверок**](demo/results.md): автотесты, прогоны сценариев, повторяемость | 3 мин |
-
-## Все материалы
-
-| Документ | Что внутри |
+| Document | Contents |
 |---|---|
-| [`ESUO-report.md`](ESUO-report.md) | отчёт для жюри: проблема, решение, архитектура простыми словами, эффект прогноза, покрытие десяти проверок, как читать по критериям |
-| [`ESUO-design-doc.md`](ESUO-design-doc.md) | технический дизайн: топология и региональный уровень, транспорт и гарантии доставки, узел и QR, доменная модель, алгоритм очереди, ETA, прогноз, планирование нагрузки, центр, мониторинг и диагностика, сеть из 250 000 отделений, матрица отказов, безопасность, интерфейсы, развёртывание, стек |
-| [`demo/run-guide.md`](demo/run-guide.md) | пошаговая проверка: запуск, десять проверок ТЗ, главное демо, автотесты |
-| [`demo/results.md`](demo/results.md) | все итоги одной страницей: автотесты, десять проверок ТЗ, сценарии, нагрузка, прогноз |
-| [`demo/ml-report.md`](demo/ml-report.md) | прогноз длительности в цифрах: без прогноза против прогноза (синтетика, воспроизводимо) |
-| [`demo/ab-cheatsheet.md`](demo/ab-cheatsheet.md) | главное демо «прогноз против его отсутствия»: что показывать и что отвечать |
-| [`demo/video-guide.md`](demo/video-guide.md) | как записать демо: раскладка экрана, порядок, что говорить, что делать при сбоях |
-| [`demo/jury/`](demo/jury) | журнал прогонов демо (`runs.md`, `runs/*.json`), повторяемость, отчёт A/B |
-| [`openapi/node.yaml`](openapi/node.yaml), [`openapi/center.yaml`](openapi/center.yaml) | REST API отделения и центра (Swagger UI: `localhost:8080/swagger-ui.html`, `localhost:8081/swagger-ui.html`) |
+| [High-Level Design](architecture/hld.md) | Goals, principles, system context, containers, key flows, data ownership, quality attributes, deployment view, stack, trade-offs |
+| [Low-Level Design](architecture/lld.md) | Code layout, NATS subjects and streams, delivery guarantees, data model, queue algorithm, ETA, duration model, load planning, center internals, monitoring, security, configuration, failure handling, testing |
+| [OpenAPI](openapi) | REST API of the branch node (`node.yaml`) and the center (`center.yaml`); regenerate with `scripts/openapi/export.sh` |
+| [Deployment](../deploy/README.md) | Production center and branch stacks, load test, sizing, upgrades, backups |
+| [Staging](../deploy/staging/README.md) | Single-host staging environment behind a reverse proxy |
 
-## Видео
+Component documentation:
 
-| Демонстрация | Ссылка |
+| Component | README |
 |---|---|
-| Основная: прогноз против его отсутствия (`pension-ab`) | [ЗАПОЛНИТЬ] |
-| Десять проверок ТЗ | [ЗАПОЛНИТЬ] |
-
-## Код рядом с документами
-
-| Где | Что |
-|---|---|
-| [`../java-backend`](../java-backend) | узел отделения (`node-app`), центр (`center-app`), общие контракты, рой отделений (`swarm-sim`) |
-| [`../frontend`](../frontend) | шесть экранов: клиент, табло, оператор, руководитель, обзор сети, демо-пульт |
-| [`../python-ai-service`](../python-ai-service) | обучение модели длительности, синтетический мир, трассы демо, отчёт |
-| [`../scripts/demo`](../scripts/demo), [`../scripts/chaos`](../scripts/chaos) | демо-сценарии, проигрыватель A/B, проверка стенда; поломки отделения по одной |
-| [`../infrastructure`](../infrastructure) | конфиги NATS (хаб, отделение, регион), правила очереди, профили нагрузки и правила мониторинга по умолчанию, сборщик логов, данные демо |
-| [`../deploy`](../deploy) | центр, отделение и рой — каждый отдельно, на своей машине |
-| [`../tools`](../tools) | симуляторы уведомлений и мобильного приложения, пульт сценариев |
+| Duration model (offline training) | [`python-ai-service`](../python-ai-service/README.md) |
+| Branch swarm simulator | [`java-backend/swarm-sim`](../java-backend/swarm-sim/README.md) |
+| Demo scenarios | [`scripts/demo`](../scripts/demo/README.md) |
+| Scenario traces and seed data | [`infrastructure/demo/scenarios`](../infrastructure/demo/scenarios/README.md) |
+| Frontend | [`frontend`](../frontend/README.md) |

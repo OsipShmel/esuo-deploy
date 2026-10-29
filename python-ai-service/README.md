@@ -1,108 +1,80 @@
-# ЕСУО — модель длительности обслуживания (офлайн)
+# esuo-ml — service-duration model (offline)
 
-Обучение живёт здесь, а не на ноде отделения. Результат обучения — **секция `model` центральной
-конфигурации**, которая доезжает до отделения обычным путём (`CONFIG` → `BRANCH_INBOX`, дизайн-док 4.8).
+Training happens here, not on the branch node. Its output is the **`model` section of the central configuration**,
+which reaches branches the usual way (`CONFIG` → `BRANCH_INBOX`, see the [LLD](../docs/architecture/lld.md#7-service-duration-model)).
 
-Отделение поэтому не зависит от доступности ML вообще: коэффициенты уже лежат в его базе
-(`branch_config.model`), а этот инструмент лишь время от времени публикует новую версию. Если ML нет
-совсем, нода уходит на запасную цепочку: каскад `handling_stats` → `default-service-duration-sec`.
+A branch therefore never depends on ML availability: the coefficients are already in its database
+(`branch_config.model`), and this tool only publishes a new version from time to time. Without a model the node falls
+back to the `handling_stats` cascade and then to `default-service-duration-sec`.
 
-Подробно — `project_docs.hide/docs/ml-model.md`.
+## Setup
 
-## Установка и запуск
-
-Зависимостей в рантайме нет — только стандартная библиотека Python 3.11+. `uv` нужен для запуска и тестов.
+No runtime dependencies — Python 3.11+ standard library only. `uv` is used for running and tests.
 
 ```bash
 cd python-ai-service
-uv sync                      # поставит только pytest (dev)
+uv sync                      # installs pytest (dev) only
 
-uv run esuo-ml generate      # справочники, история, трассы, читаемая выборка
-uv run esuo-ml fit           # обучить модель → build/model-params.json
-uv run esuo-ml report        # отчёт для жюри → ../docs/demo/ml-report.md
-uv run pytest                # 27 проверок, включая критерии готовности из ml-model.md 7.3
+uv run esuo-ml generate      # reference data, history, scenario traces, readable holdout
+uv run esuo-ml fit           # train → build/model-params.json
+uv run esuo-ml report        # model report → ../reports/ml-report.md
+uv run pytest
 ```
 
-Без `uv` всё то же работает напрямую: `PYTHONPATH=src python3 -m esuo_ml.cli fit`.
+Without `uv`: `PYTHONPATH=src python3 -m esuo_ml.cli fit`.
 
-## Команды
+## Commands
 
-| Команда | Что делает |
+| Command | Does |
 |---|---|
-| `generate` | Из мира в `infrastructure/demo/scenarios/`: `seed.sql` (услуги, окна, сотрудники), `history.sql` (6 недель), `holdout.csv` (читаемая выборка), `planning.json` (секция конфигурации), `scenario-*.json` (трассы демо-сценариев). Каталог в гите: трассы нужны проигрывателю сценариев |
-| `fit` | Обучение: backfitting со сжатием, holdout, метрики против трёх базовых линий, приёмка версии. Пишет готовую секцию `model`. **Код выхода 1, если версия не принята** |
-| `report` | `docs/demo/ml-report.md`: восстановление правды, эффект окна, точность против базовых линий и против предела, честность интервала, критерии готовности |
-| `fixtures` | Эталон для Java-теста `DurationModelTest` в тестовые ресурсы ноды |
-| `predict` | Один прогноз из готовых параметров — для отладки |
+| `generate` | From the world in `worlds/`: `seed.sql` (services, windows, employees), `history.sql` (6 weeks), `holdout.csv`, `planning.json` (config section), `scenario-*.json` (demo traces) into `infrastructure/demo/scenarios/` |
+| `fit` | Backfitting with shrinkage, holdout evaluation against three baselines, version acceptance. Writes the `model` section. **Exits with 1 if the version is rejected** |
+| `report` | Truth recovery, effect on window planning, accuracy against baselines and the oracle bound, interval calibration |
+| `fixtures` | Reference fixtures for the Java `DurationModelTest` |
+| `predict` | A single prediction from given parameters, for debugging |
 
-Полезные ключи: `--world` (файл мира), `--seed`, `--days`, `--use-window`, `--from history.csv`
-(обучение на выгрузке реальной истории вместо синтетики), `--baseline` (прежние параметры для приёмки версии),
-`--flow-bias pension=1.3` (насколько фактический поток сценария расходится с профилем).
+Useful options: `--world`, `--seed`, `--days`, `--use-window`, `--from history.csv` (train on exported real history
+instead of synthetic data), `--baseline` (previous parameters for acceptance), `--flow-bias pension=1.3` (how far a
+scenario's actual flow deviates from its profile).
 
-### Трасса сценария
-
-`scenario-*.json` самодостаточна: кроме приходов и шума длительности она несёт смену дня (`shift`:
-какие окна открыты с какого часа и кто в них сидит) и истинные множители мира (`duration_truth`).
-Проигрывателю не нужен ни `worlds/*.json`, ни обученная модель — длительность считается как
-`median_sec × noise`, а `median_sec` собирается перемножением множителей по формуле из самого файла.
-Брать длительность из `GET /admin/model` нельзя: модель — это то, что демонстрация проверяет.
-
-## Как это попадает в отделение
+## Publishing a model
 
 ```bash
-uv run esuo-ml fit --out build/model-params.json        # 0 — версия принята, 1 — отклонена
+uv run esuo-ml fit --out build/model-params.json        # 0 — accepted, 1 — rejected
 TOKEN=$(curl -s -X POST http://localhost:8081/api/v1/auth/login -H 'Content-Type: application/json' \
-     -d '{"login":"network","password":"network123"}' | jq -r .access_token)   # оператор сети из .env
+     -d "{\"login\":\"$CENTER_ADMIN_LOGIN\",\"password\":\"$CENTER_ADMIN_PASSWORD\"}" | jq -r .access_token)
 curl -X PUT http://localhost:8081/api/v1/config/global \
      -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-     -d @build/model-params.json                        # или /config/branches/{b} для одного отделения
+     -d @build/model-params.json                        # or /config/branches/{b} for a single branch
 ```
 
-Центр присвоит версию конфигурации, соберёт полное сообщение отделения и опубликует его. Нода применит
-секцию, положит её в `branch_config.model` и опубликует событие `model.trained`. Прогноз начнёт
-использоваться, когда `scoring-strategy: heuristic` — это и есть «эвристика с моделью».
-Отдельного значения `model` у `scoring-strategy` нет.
+The center assigns a config version and publishes it; each node applies the section, stores it in
+`branch_config.model` and emits `model.trained`. Predictions are used when `scoring-strategy: heuristic`.
 
-## Мир — это файл, а не константа
+## The world is a file
 
-`worlds/standard.json` описывает мир целиком: услуги, окна, сотрудников с идентификаторами, истинные
-множители, эффект часа, шум и профили потока. Из этого одного файла получаются и справочники отделения,
-и история, и трассы, и секция `planning` — поэтому идентификаторы согласованы по построению, и ничего
-не нужно сводить руками.
+`worlds/standard.json` describes the whole synthetic world: services, windows, employees with ids, true multipliers,
+hour effect, noise and flow profiles. Reference data, history, traces and the `planning` section are all derived from
+it, so ids are consistent by construction.
 
-Миров может быть сколько угодно: другое число сотрудников, другие профили, другой разброс. Для тестов
-модели зафиксирован один эталонный, чтобы критерии готовности проверялись на одном и том же материале.
+The trainer **does not read** the world file — it only sees generated observations, so "the model recovered the truth"
+is a real check.
 
-Обучатель файл мира **не читает** — он видит только сгенерированные наблюдения. Поэтому «модель
-восстановила правду» — это настоящая проверка, а не сверка с самой собой.
-
-## Структура
+## Layout
 
 ```
-worlds/standard.json     мир: правда о длительностях и профили потока
+worlds/standard.json     ground truth of durations and flow profiles
 src/esuo_ml/
-  world.py               чтение мира, истинная длительность обслуживания
-  generate.py            проигрывание дней, наблюдения
-  emit.py                seed.sql, history.sql, трассы, выборка, секция planning
-  fit.py                 обучение: backfitting, сжатие, holdout, приёмка версии
-  predict.py             применение параметров — исполняемая спецификация формата секции `model`
-  baselines.py           константа, среднее по услуге, каскад handling_stats
-  report.py              отчёт для жюри
-  cli.py                 командная строка
-tests/                   критерии готовности, детерминизм, защита эталона от расхождения
+  world.py               world loading, true service duration
+  generate.py            day simulation, observations
+  emit.py                seed.sql, history.sql, traces, holdout, planning section
+  fit.py                 backfitting, shrinkage, holdout, version acceptance
+  predict.py             applying parameters — the executable spec of the `model` section
+  baselines.py           constant, per-service mean, handling_stats cascade
+  report.py              model report
+  cli.py                 command line
+tests/                   acceptance criteria, determinism, fixture parity
 ```
 
-`predict.py` и Java-реализация на ноде считают одно и то же; `tests/test_fixtures.py` и Java-тест
-`DurationModelTest` сверяют их на общих файлах `holdout.csv` и `model-params.json`.
-
-## Что важно знать про результаты
-
-На шести неделях плотной истории модель практически достигает предела точности: её MAE совпадает
-с MAE оракула, который знает истинные параметры мира и ошибается только на случайности самого
-обслуживания. Каскад средних отстаёт от предела всего на 2 %, поэтому **по одной MAE модель против
-каскада себя не оправдывает** — и не может. Отчёт говорит это прямо.
-
-Модель оправдывает себя другим: интервалом `p50–p90` (у каскада нет разброса, интервал из него
-не построить), читаемыми параметрами («пенсионер на финансах дольше в 1,5 раза») и тем, что обучение
-уехало с ноды — это открывает обучение по всей сети без правок в отделении. Против `uniform`,
-то есть против ETA без прогнозирования вовсе, выигрыш около 20 %.
+`predict.py` and the Java implementation compute the same thing; `tests/test_fixtures.py` and `DurationModelTest`
+check both against shared `holdout.csv` and `model-params.json`.

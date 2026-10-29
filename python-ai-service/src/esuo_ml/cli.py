@@ -70,8 +70,8 @@ def main(argv: list[str] | None = None) -> int:
                             help="включить поправку на окно (по умолчанию выключена)")
     fit_parser.add_argument("--version", default=None, help="имя версии, по умолчанию dm-ГГГГ-ММ-ДД-01")
 
-    report = subparsers.add_parser("report", parents=[common], help="отчёт для жюри")
-    report.add_argument("--out", default="../docs/demo/ml-report.md")
+    report = subparsers.add_parser("report", parents=[common], help="отчёт о модели")
+    report.add_argument("--out", default="../reports/ml-report.md")
     report.add_argument("--params", default=None, help="готовые параметры; иначе обучает на месте")
 
     fixtures = subparsers.add_parser("fixtures", parents=[common],

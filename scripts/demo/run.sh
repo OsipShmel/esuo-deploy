@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Демо-сценарии для жюри (это не тесты): рабочий день, три источника, МП, спорные ситуации, обрыв связи, аналитика.
+# Демо-сценарии (это не тесты): рабочий день, три источника, МП, спорные ситуации, обрыв связи, аналитика.
 #   ./scripts/demo/run.sh doctor                    — проверка стенда перед записью (ничего не меняет)
 #   ./scripts/demo/run.sh normal                    — вернуть стенд в обычный режим после pension-ab
 #   ./scripts/demo/run.sh list                      — список сценариев
@@ -11,7 +11,7 @@
 #   ./scripts/demo/run.sh all [--with-chaos]        — все сценарии подряд (chaos = обрыв связи и отказ уведомлений, долго)
 # Настройки (окружение): NODE, NODE2, CENTER, MP, PACE (пауза, с), SEED (зерно потока), CLOCK_RATE (скорость демо-часов),
 #   AB_START/AB_END (отрезок дня pension-ab), AB_SKIP_PREPARE=1 (не готовить стенд заново), DEMO_*_PASSWORD (или .env).
-# Результаты: docs/demo/jury/runs.md и docs/demo/jury/runs/*.json — отдельно от результатов тестов (docs/demo/results.md).
+# Результаты: reports/demo/runs.md и reports/demo/runs/*.json (каталог reports/ не хранится в git).
 set -o pipefail   # без -u: в bash 3.2 (macOS) пустые "${@}" считаются неопределёнными
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 DIR="$ROOT/scripts/demo"
@@ -58,11 +58,11 @@ case "${1:-list}" in
       sigs="$sigs $(cat "$sigfile")"; rm -f "$sigfile"; i=$((i+1))
     done
     uniq_n=$(echo "$sigs" | tr ' ' '\n' | grep -v '^$' | sort -u | wc -l | tr -d ' ')
-    rep="$ROOT/docs/demo/jury/repeatability.md"
+    rep="$ROOT/reports/demo/repeatability.md"
     [ -n "$mode" ] && modename="быстрый режим" || modename="режим показа (с паузами)"
     if [ "$uniq_n" = 1 ]; then verdict="ход событий одинаков во всех $n прогонах ($modename)"; else verdict="ход событий РАСХОДИТСЯ (${uniq_n} разных подписей, $modename)"; fi
     printf '\n%s\n' "Повторяемость «${code}»: $verdict (подписи:$sigs)"
-    mkdir -p "$ROOT/docs/demo/jury"
+    mkdir -p "$ROOT/reports/demo"
     [ -f "$rep" ] || printf '# Повторяемость демо-сценариев\n\nТри прогона подряд дают один и тот же ход событий (одинаковая подпись). Создаётся `run.sh repeat`.\n\n| Время (UTC) | Коммит | Сценарий | Прогонов | Итог | Подписи |\n|---|---|---|---|---|---|\n' > "$rep"
     printf '| %s | %s | %s | %s | %s | `%s` |\n' "$(date -u '+%F %H:%M')" "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo -)" "$code" "$n" "$verdict" "$(echo $sigs)" >> "$rep"
     [ "$uniq_n" = 1 ] && [ "$okall" = 1 ] ;;

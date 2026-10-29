@@ -1,106 +1,109 @@
-# Демо-сценарии для жюри
+# Demo scenarios
 
-> **Записываете видео?** Пошаговое руководство — [`docs/demo/video-guide.md`](../../docs/demo/video-guide.md), перед записью — `./scripts/demo/run.sh doctor`.
+Scripted business days on the local environment (`compose.yaml`) or staging. These are **not tests**: a scenario
+plays a plausible day so that what happens is visible on the screens (board, operator, manager, client, network
+overview) and repeatable. Each step is narrated in the terminal with what to look at. Regression coverage lives in the
+test suites and `scripts/smoke`.
 
-Это **не тесты**: сценарии проигрывают правдоподобный рабочий день на стенде так, чтобы происходящее было видно на экранах
-(табло, оператор, руководитель, клиент, обзор сети) и повторялось. Каждый шаг подписан, на экране терминала видно, что смотреть.
-Проверки внутри сценария нужны для показа («система сделала то-то»), а не для регрессии — регрессию держат тесты (`./mvnw test`, `scripts/smoke`).
-
-## Запуск
+## Running
 
 ```bash
-docker compose up -d --build            # стенд: центр + b01 + b02, нужен .env (DEMO_DATA=true)
-./scripts/demo/run.sh list              # список сценариев
-./scripts/demo/run.sh normal-day        # один сценарий (пауза между шагами PACE=1.2 с)
-./scripts/demo/run.sh normal-day --fast # без пауз
-./scripts/demo/run.sh repeat normal-day 3
+docker compose up -d --build              # needs .env with DEMO_DATA=true and DEMO_MODE=true
+./scripts/demo/run.sh doctor              # environment check, changes nothing
+./scripts/demo/run.sh list                # all scenarios
+./scripts/demo/run.sh normal-day          # one scenario (PACE=1.2 s between steps)
+./scripts/demo/run.sh normal-day --fast   # no pauses
+./scripts/demo/run.sh repeat normal-day 3 # three runs, compares the event signatures
 ./scripts/demo/run.sh all [--with-chaos]
+./scripts/demo/run.sh normal              # return the environment to normal mode after pension-ab
 ```
 
-Нужны `curl`, `jq`, `python3`; для `analytics` — Java 25 и docker, для `link-cut`/`notify-down` — docker. Пароли берутся из `.env`
-(`DEMO_OPERATOR_PASSWORD`, `DEMO_ADMIN_PASSWORD`), адреса — из `NODE`, `NODE2`, `CENTER`, `MP`, `NOTIFY` (по умолчанию all-in-one стенд).
+Requires `curl`, `jq`, `python3`; `analytics` also needs Java 25, and `link-cut` / `notify-down` need Docker.
+Passwords come from `.env` (`DEMO_OPERATOR_PASSWORD`, `DEMO_ADMIN_PASSWORD`, `CENTER_ADMIN_PASSWORD`), addresses from
+`NODE`, `NODE2`, `CENTER`, `MP`, `NOTIFY` (defaults match the local environment).
 
-**Поставьте `DEMO_MODE=true` в `.env` и пересоздайте узлы** (`docker compose up -d node-b01 node-b02`). С демо-часами сценарии не зависят от времени суток:
-`three-sources` ставит «10:05» (слоты на сегодня есть даже ночью), `normal-day` и `pension-day` идут ×60 и ×180 (очередь успевает «состариться»,
-в пик видны просрочки и рекомендация «открыть окно»). После сценария часы возвращаются на реальное время. Без `DEMO_MODE` всё работает,
-но просрочек и check-in по записи вечером не будет — сценарии предупредят об этом.
+With `DEMO_MODE=true` scenarios do not depend on the time of day: `three-sources` sets the clock to 10:05,
+`normal-day` and `pension-day` run at ×60 and ×180 so the queue ages and overdue tickets and recommendations appear.
+The clock returns to real time after a scenario.
 
-| Код | Что показывает | Смотреть |
+| Code | Shows | Watch |
 |---|---|---|
-| `normal-day` | Поток клиентов, три окна на двух узлах | табло, оператор, `/network` |
-| `three-sources` | Запись через центр, QR, живая очередь — одна очередь, причина вызова из журнала | оператор, клиент |
-| `mp` | Вебхук МП → талон → callback со ссылкой; повтор без дубля; отказ | центр, запросы МП |
-| `disputes` | graceful/force закрытие окна, перенаправление, неявка после повторов, возврат в хвост | табло, оператор |
-| `link-cut` | Обрыв связи посреди дня, автономная работа, докачка событий | `/network`, табло |
-| `notify-down` | Отказ уведомлений: breaker размыкается, DLQ растёт, после восстановления закрывается, повтор из DLQ (~4 мин) | `/network` → «Уведомления» |
-| `monitoring` | Мониторинг отделений: ошибка в Grafana за секунды, ошибки за время обрыва доезжают со своим временем, полные логи по запросу, история метрик сервера, правило «перезапуск» (нужен `--profile monitoring`) | Grafana → ЕСУО · Отделение, Explore → Loki; `/network` → «Аномалии» |
-| `health` | Хаос на ПК отделения: нехватка CPU, зависшая блокировка в базе (отделение на связи, «очередь не обновляется», снимок показывает блокировку), `kill -9` во время обрыва связи — правила срабатывают, логи доезжают, в конце всё возвращается (нужны `--profile monitoring` и `DEMO_MODE=true`) | `/network` → строка «Узел» и «Аномалии»; Grafana → ЕСУО · Отделение |
-| `analytics` | История за 14 дней → отчёты руководителя непустые | админка → «Аналитика» |
-| `pension-day` | Пик: 45% пенсионеров, очередь растёт, просрочки | админка, оператор |
-| `pension-ab` | **Прогноз против его отсутствия.** b01 без модели и истории, b02 с ними; одна трасса пенсионного дня, смена по прогнозу своего отделения, запись из МП на 10:00 (b02 — `BOOKING_LIMITED`) и 15:00. Сам готовит стенд (`ab-prepare.sh`) | `/network`, два табло, админки «Нагрузка» — [шпаргалка](../../docs/demo/ab-cheatsheet.md) |
+| `normal-day` | Visitor flow, three windows on two nodes | board, operator, `/network` |
+| `three-sources` | Booking via the center, QR, walk-in — one queue; call reason from the journal | operator, client |
+| `mp` | Mobile-app webhook → ticket → callback; replay without duplicates; rejection | center: mobile-app requests |
+| `disputes` | Graceful/force window close, redirect, no-show after recalls, requeue to tail | board, operator |
+| `link-cut` | Link outage mid-day, autonomous operation, event catch-up | `/network`, board |
+| `notify-down` | Notification provider outage: breaker opens, DLQ grows, recovery, DLQ retry (~4 min) | `/network` → Notifications |
+| `monitoring` | Branch monitoring: error in Grafana within seconds, logs from the outage arrive with their timestamps, full logs on request, metrics history, restart rule (needs `--profile monitoring`) | Grafana, `/network` → Anomalies |
+| `health` | Branch PC faults: CPU starvation, stuck DB lock (branch stays online, "queue data not updating", snapshot shows the lock), `kill -9` during an outage (needs `--profile monitoring`) | `/network` → node row and anomalies |
+| `analytics` | 14 days of history → manager reports are populated | manager → Analytics |
+| `pension-day` | Peak: 45 % pensioners, growing queue, overdue tickets | manager, operator |
+| `pension-ab` | The same pension-day trace on b01 (no model, no history) and b02 (with both): shift by each branch's own forecast, mobile-app bookings at 10:00 (b02 answers `BOOKING_LIMITED`) and 15:00. Prepares the environment itself (`ab-prepare.sh`) | `/network`, both boards, manager → Load |
 
-## Запуск кнопкой (пульт сценариев)
+## Scenario console
 
 ```bash
-docker compose --profile demo up -d --build   # поднимает сервис demo-runner рядом со стендом
+docker compose --profile demo up -d --build   # starts demo-runner next to the environment
 ```
 
-На `/demo` (вход руководителя) появляется вкладка «Сценарии»: карточки сценариев, «Запустить», живой ход по шагам,
-счётчик проверок ✔/✘, «Остановить». Это те же `run.sh` — итоги так же пишутся в `docs/demo/jury/`.
+The "Scenarios" tab on `/demo` (manager login) lists scenarios with Run / Stop and a live step log with ✔/✘ counters.
+It runs the same `run.sh`.
 
-- Одновременно идёт один прогон; второй запуск отклоняется.
-- «Остановить» прерывает прогон и сам возвращает стенд в порядок: связь отделений и режим `notify-mock`.
-- Нужен `DEMO_MODE=true` на узлах. Сервис наружу не публикуется: браузер ходит через узел, узел предъявляет
-  `DEMO_RUNNER_TOKEN` (по умолчанию берётся `JWT_SECRET`).
-- У `demo-runner` есть сокет Docker (обрыв связи, заливка данных), поэтому он включается только профилем `demo`
-  и только на демо-стенде. В раздельном запуске (`deploy/center`, `deploy/branch`) его нет: сценариям нужен доступ
-  к контейнерам обоих отделений на одной машине.
+- One run at a time; a second start is rejected.
+- Stop interrupts the run and restores the environment (branch links, `notify-mock` mode).
+- Needs `DEMO_MODE=true` on the nodes. The console is not published: the browser goes through a node, and the node
+  presents `DEMO_RUNNER_TOKEN` (defaults to `JWT_SECRET`).
+- `demo-runner` holds the Docker socket, so it only exists in the `demo` profile and in staging.
 
-## Скорость (для записи видео)
+## Speed
 
-Демо-часы настраиваются для всех сценариев с рабочим днём: `--rate N` (или `CLOCK_RATE=N`), пауза между шагами — `--pace С`.
+`--rate N` (or `CLOCK_RATE=N`) sets the demo clock for scenarios with a working day; `--pace S` sets the pause between
+steps.
 
 ```bash
-./scripts/demo/run.sh pension-ab --rate 120                  # день 08:50–12:30 за 1 мин 50 с
+./scripts/demo/run.sh pension-ab --rate 120
 ./scripts/demo/run.sh pension-ab --rate 60 --from 09:00 --to 11:00
 ./scripts/demo/run.sh normal-day --rate 90 --pace 0.5
-CLOCK_RATE=120 ./scripts/demo/run.sh repeat pension-ab 3     # repeat берёт скорость из окружения
+CLOCK_RATE=120 ./scripts/demo/run.sh repeat pension-ab 3
 ```
 
-По умолчанию: `normal-day` и `pension-ab` ×60, `pension-day` ×180. `link-cut` и `notify-down` идут по реальному времени центра
-и не ускоряются.
+Defaults: `normal-day` and `pension-ab` ×60, `pension-day` ×180. `link-cut` and `notify-down` run on real time.
 
-## Повторяемость
+## Repeatability
 
-Ход событий — это последовательность (приход клиента, вызов окном, команда), в которой клиенты названы метками `c01…`, а не номерами талонов
-и без времени. Его хеш — «подпись». Трасса (какой клиент, какая услуга, какая категория) детерминирована зерном `SEED` (по умолчанию 42);
-перед прогоном отделения приводятся в чистое состояние. Три прогона подряд:
+The event sequence (arrival, call by window, command) names visitors by labels `c01…` rather than ticket numbers and
+has no timestamps; its hash is the run's signature. The visitor trace is deterministic for a given `SEED` (default 42)
+and branches are reset before a run. `repeat` runs a scenario N times and compares signatures. Compare runs of the same
+mode only: fast and paced runs age the queue differently, so decisions may differ.
+
+## Output
+
+Written to `reports/` (not tracked):
+
+- `reports/demo/runs.md` — one line per run: time, commit, scenario, checks, signature;
+- `reports/demo/runs/*.json` — full run: facts, checks, event sequence;
+- `reports/demo/repeatability.md` — `repeat` verdicts;
+- `reports/demo/ab-report.md` — the latest `pension-ab` report;
+- `reports/ml-report.md` — duration model report (`cd python-ai-service && uv run esuo-ml report`).
+
+## Several machines
+
+`NODE=http://<branch-ip>:8080 CENTER=http://<center-ip>:8081 ./scripts/demo/run.sh three-sources`. For `link-cut`
+set `CUT_CMD` to a command that accepts `cut` or `restore` (for example, stopping and starting the branch's
+`nats-leaf` over ssh). `NODE2` is required by `normal-day` and `pension-day`.
+
+For `pension-ab` across machines, prepare the data on the branch host and run on the center host:
 
 ```bash
-./scripts/demo/run.sh repeat normal-day 3            # быстро, без пауз
-./scripts/demo/run.sh repeat pension-day 3 --paced   # как на показе, с паузами
+# branch host
+NODE=http://localhost:8082 NODE2=http://localhost:8083 CENTER=http://<center-ip>:8081 \
+PG_B01=esuo-branch-b01-postgres-1 PG_B02=esuo-branch-b02-postgres-1 ./scripts/demo/ab-prepare.sh
+# center host
+AB_SKIP_PREPARE=1 NODE=http://<branch-ip>:8082 NODE2=http://<branch-ip>:8083 ./scripts/demo/run.sh pension-ab
 ```
 
-Подписи должны совпасть; вердикт дописывается в `docs/demo/jury/repeatability.md`. Сравнивать можно прогоны одного режима: в быстром и в неспешном
-очередь «стареет» по-разному, и решения (а значит, подпись) могут отличаться. Расхождение внутри режима — сигнал, что решения системы зависят от чего-то, кроме входа.
+## Not covered
 
-## Результаты (отдельно от тестов)
-
-- `docs/demo/jury/runs.md` — таблица прогонов: время, коммит, сценарий, проверки, подпись.
-- `docs/demo/jury/repeatability.md` — вердикты `repeat`.
-- `docs/demo/jury/runs/*.json` — прогон целиком: факты (пик очереди, число обслуженных), проверки, полный ход событий.
-- `docs/demo/jury/ab-report.md` — отчёт последнего `pension-ab`: итоговая таблица, смена по часам, ход дня каждые 30 минут.
-- `docs/demo/ml-report.md` — модель длительности в цифрах (`cd python-ai-service && uv run esuo-ml report --end-day 2026-09-20`).
-- Результаты тестов остаются в `docs/demo/results.md`.
-
-## Несколько компьютеров
-
-`NODE=http://<ip-отделения>:8080 CENTER=http://<ip-центра>:8081 ./scripts/demo/run.sh three-sources`. Для `link-cut` на стенде из нескольких ПК задайте
-`CUT_CMD` — команду, принимающую `cut` или `restore` (например, остановка/запуск `nats-leaf` на ПК отделения по ssh).
-`NODE2` нужен только `normal-day` и `pension-day`; без второго узла эти сценарии не запустятся.
-
-## Чего нет
-
-Реакция системы на перегрузку — уровень нагрузки, закрытие записи, честное ожидание — показывается в `pension-ab`; `pension-day` показывает
-саму перегрузку: рост очереди, просрочки, рекомендацию открыть окно.
-Опоздавшая запись (`convert_to_qr` / `reject`) ждёт слота и покрыта автотестами, в скриптах её нет.
+`pension-day` shows the overload itself (growing queue, overdue tickets, the open-window recommendation); the system's
+response to it — load level, booking closure, honest wait — is shown by `pension-ab`. Late appointments
+(`convert_to_qr` / `reject`) are covered by tests, not scenarios.

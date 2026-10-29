@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The fallback chain (ml-model.md 5.3) and, above all, the guarantee that turning the model off is free.
  *
  * <p>A branch with no {@code model} section — which is every branch until someone publishes one — must behave
- * exactly as it did before the model existed. That property is what makes the feature safe to ship mid-hackathon:
+ * exactly as it did before the model existed. That property is what makes the feature safe to roll out gradually:
  * publishing nothing is the off switch, and {@code enabled: false} returns to it without a restart.
  */
 class DurationModelChainIT extends AbstractNodeIT {

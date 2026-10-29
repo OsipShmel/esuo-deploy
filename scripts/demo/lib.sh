@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Общая библиотека демо-сценариев для жюри (не тесты): рассказ по шагам, повторяемый ход событий, отдельные результаты.
+# Общая библиотека демо-сценариев (не тесты): рассказ по шагам, повторяемый ход событий, отдельные результаты.
 # Подключается из run.sh; совместима с bash 3.2 (macOS): без ассоциативных массивов.
 # shellcheck disable=SC2034,SC2154
 
@@ -260,10 +260,10 @@ queue_len() { op "$1" GET "/api/v1/queue?status=waiting"; echo "$BODY" | jq 'len
 git_commit() { git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo "нет-git"; }
 signature() { shasum -a 256 "$EVENTS" | cut -c1-12; }
 
-finish() { # finish КОД ЗАГОЛОВОК — итог, JSON прогона и строка в docs/demo/jury/runs.md
+finish() { # finish КОД ЗАГОЛОВОК — итог, JSON прогона и строка в reports/demo/runs.md
   local code=$1 title=$2 sig ts out dir
   sig=$(signature); ts=$(date -u +%Y%m%dT%H%M%SZ)
-  dir="$ROOT/docs/demo/jury/runs"; mkdir -p "$dir"
+  dir="$ROOT/reports/demo/runs"; mkdir -p "$dir"
   out="$dir/$code-$ts.json"
   jq -n --arg code "$code" --arg title "$title" --arg started "$STARTED" --arg finished "$(date -u +%FT%TZ)" --arg commit "$(git_commit)" \
         --arg sig "$sig" --argjson pass "$PASS" --argjson fail "$FAIL" \
@@ -271,8 +271,8 @@ finish() { # finish КОД ЗАГОЛОВОК — итог, JSON прогона 
         --slurpfile checks <(jq -R -s 'split("\n")|map(select(length>0))' "$CHECKS") \
         --slurpfile facts <(jq -R -s 'split("\n")|map(select(length>0))|map(split("=")|{key:.[0],value:(.[1:]|join("="))})|from_entries' "$FACTS") \
         '{scenario:$code,title:$title,started:$started,finished:$finished,commit:$commit,pass:$pass,fail:$fail,signature:$sig,facts:$facts[0],checks:$checks[0],events:$events[0]}' > "$out"
-  local runs="$ROOT/docs/demo/jury/runs.md"
-  [ -f "$runs" ] || printf '# Прогоны демо-сценариев для жюри\n\nСоздаётся скриптами `scripts/demo` (не тестами). Подпись — хеш хода событий: у повторных прогонов она совпадает.\n\n| Время (UTC) | Коммит | Сценарий | Проверки | Подпись хода событий | Файл |\n|---|---|---|---|---|---|\n' > "$runs"
+  local runs="$ROOT/reports/demo/runs.md"
+  [ -f "$runs" ] || printf '# Прогоны демо-сценариев\n\nСоздаётся скриптами `scripts/demo` (не тестами). Подпись — хеш хода событий: у повторных прогонов она совпадает.\n\n| Время (UTC) | Коммит | Сценарий | Проверки | Подпись хода событий | Файл |\n|---|---|---|---|---|---|\n' > "$runs"
   printf '| %s | %s | %s | %s/%s | `%s` | `runs/%s` |\n' "$(date -u '+%F %H:%M')" "$(git_commit)" "$code" "$PASS" "$((PASS+FAIL))" "$sig" "$(basename "$out")" >> "$runs"
   echo "$sig" > "${SIG_OUT:-/dev/null}"
   printf '\n%s== Итог: %s ==%s\n' "$C_BOLD" "$title" "$C_RESET"

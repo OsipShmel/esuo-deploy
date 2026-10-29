@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-/** Сценарии для жюри запускаются скриптами `scripts/demo` (не тестами); пульт показывает их и готовые команды. */
+/** Демо-сценарии запускаются скриптами `scripts/demo` (не тестами); пульт показывает их и готовые команды. */
 const SCENARIOS: { code: string; title: string; what: string; watch: string }[] = [
   { code: 'normal-day', title: 'Обычный рабочий день', what: 'Поток клиентов, три окна на двух отделениях', watch: 'табло, оператор, обзор сети' },
   { code: 'three-sources', title: 'Три источника талонов', what: 'Запись через сайт, QR, живая очередь — одна очередь', watch: 'оператор, страница клиента' },
@@ -30,7 +30,7 @@ export function ScenarioHelp() {
         <p className="muted small">
           Сценарии запускаются кнопкой на вкладке «Сценарии» (если на стенде поднят demo-runner) или в терминале и идут по
           шагам, а на экране пульта всё видно. Результаты и подпись хода событий
-          пишутся отдельно от тестов: <code>docs/demo/jury/runs.md</code>. Повторяемость: <code>repeat КОД 3</code>.
+          пишутся отдельно от тестов: <code>reports/demo/runs.md</code>. Повторяемость: <code>repeat КОД 3</code>.
         </p>
         <ul className="scenario-list">
           {SCENARIOS.map((s) => {

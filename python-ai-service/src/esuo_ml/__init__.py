@@ -9,7 +9,7 @@
 
     uv run esuo-ml generate --world worlds/standard.json --out ../infrastructure/demo/scenarios
     uv run esuo-ml fit      --world worlds/standard.json --out build/model-params.json
-    uv run esuo-ml report   --world worlds/standard.json --out ../docs/demo/ml-report.md
+    uv run esuo-ml report   --world worlds/standard.json --out ../reports/ml-report.md
 """
 
 from .baselines import CascadeBaseline, ConstantBaseline, ServiceMeanBaseline, mae

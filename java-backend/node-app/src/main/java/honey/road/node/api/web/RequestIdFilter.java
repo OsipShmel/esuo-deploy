@@ -26,7 +26,7 @@ import static honey.road.contracts.http.EsuoHeaders.REQUEST_ID;
 public class RequestIdFilter extends OncePerRequestFilter {
 
     public static final String ATTRIBUTE = RequestIdFilter.class.getName() + ".requestId";
-    //TODO! мб стоит подумать, хотя в рамках хакатона плевать
+    // A client-supplied id is reused only if it is short and safe to log; anything else gets a fresh one
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9._-]{8,64}");
 
     @Override

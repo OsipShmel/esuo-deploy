@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { OWN, type RegionSums } from '../api';
 import { n } from '../anomalies';
 
-/** Плитка региона (план финала, 8.1): сколько, на связи, проблем, очередь у отделений на связи, худшее отделение. */
+/** Плитка региона: сколько, на связи, проблем, очередь у отделений на связи, худшее отделение. */
 export function RegionTile({ r, link = false }: { r: RegionSums; link?: boolean }) {
   const name = r.events_via ?? 'Свои отделения';
   const body = (

@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * {@code uniform} vs {@code heuristic} on a deterministic simulation (sect 16.3) and the bounded-wait guarantee
  * (sect 6.6). Scenarios are chosen so the result can be derived by hand. The summary table goes to
- * {@code target/simulation/uniform-vs-heuristic.md} for {@code docs/demo/results.md} (synthetic).
+ * {@code target/simulation/uniform-vs-heuristic.md} (synthetic).
  */
 class UniformVsHeuristicTest {
     static final UUID FAST = UUID.fromString("00000000-0000-4000-8000-0000000000f1");

@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.within;
  *
  * <p>Two properties matter more than the rest and are checked hardest: that a section the branch cannot use
  * switches planning off instead of breaking the queue, and that the profile of a day is chosen in the documented
- * order. The second one decides which day the jury sees.
+ * order. The second one decides which day the branch plans for.
  */
 class PlanningConfigTest {
     private static final JsonMapper JSON = JsonMapper.builder().build();

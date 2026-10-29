@@ -92,7 +92,7 @@ expect "start → serving" 200 '.status == "serving"'
 req "$NODE" POST "/api/v1/tickets/$T1/complete" "${A1[@]}"
 expect "complete → done" 200 '.status == "done"'
 
-echo "== 3. Конкурентный вызов из двух окон (проверка ТЗ №4)"
+echo "== 3. Конкурентный вызов из двух окон"
 for i in $(seq 1 10); do qr "$NODE" b01 "$S_PARCEL"; done
 TMP=$(mktemp -d)
 for i in $(seq 1 10); do
@@ -109,7 +109,7 @@ TOTAL=$(wc -l < "$TMP/called" | tr -d ' '); UNIQUE=$(sort -u "$TMP/called" | wc 
   || bad "двойное назначение?" "вызвано $TOTAL, уникальных $UNIQUE"
 rm -rf "$TMP"
 
-echo "== 4. Закрытие окна с активным клиентом (ТЗ №5)"
+echo "== 4. Закрытие окна с активным клиентом"
 qr "$NODE" b01 "$S_PARCEL"; T2=$(json .ticket_id)
 qr "$NODE" b01 "$S_PARCEL"; T3=$(json .ticket_id)
 req "$NODE" POST "/api/v1/windows/$W1/call-next" "${A1[@]}"
@@ -122,7 +122,7 @@ req "$NODE" GET "/api/v1/queue?service_id=$S_PARCEL&status=waiting" "${A1[@]}"
 expect "талон вернулся в голову очереди (позиция 0, раньше T3)" 200 \
   "(map(select(.ticket_id==\"$T2\"))[0].position == 0) and (map(select(.ticket_id==\"$T3\"))[0].position == 1)"
 
-echo "== 5. Перенаправление (ТЗ №6)"
+echo "== 5. Перенаправление"
 req "$NODE" POST "/api/v1/windows/$W2/call-next" "${A2[@]}"
 expect "окно 2 вызывает T2" 200 ".ticket_id == \"$T2\""
 req "$NODE" POST "/api/v1/tickets/$T2/redirect" "${J[@]}" "${A2[@]}" -d "{\"service_id\":\"$S_FIN\",\"reason\":\"нужен перевод\"}"

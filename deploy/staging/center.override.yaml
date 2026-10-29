@@ -1,0 +1,56 @@
+# Staging overlay for the center (services are defined in deploy/center/compose.yaml):
+#   docker compose -f deploy/center/compose.yaml -f deploy/staging/center.override.yaml --env-file .env \
+#     --profile monitoring up -d
+# Adds what staging needs on top of production: the integration mocks, container names matching the local
+# environment (scripts/ address containers by name) and the shared network esuo-wan with the other projects.
+# Relative paths resolve against deploy/center, the directory of the first compose file.
+services:
+  postgres-center: {container_name: esuo-postgres-center}
+
+  nats-hub:
+    container_name: esuo-nats-hub
+    networks:
+      default: {}
+      wan: {aliases: [nats-hub]}               # branch link proxies and regional hubs connect here
+
+  center-app:
+    container_name: esuo-center-app
+    networks: [default, wan]
+
+  notify-mock:
+    build: ../../tools/notify-mock
+    container_name: esuo-notify-mock
+    ports: ["127.0.0.1:${NOTIFY_MOCK_PORT:-8095}:8090"]
+    networks: [default, wan]
+    restart: unless-stopped
+
+  mp-simulator:
+    build: ../../tools/mp-simulator
+    container_name: esuo-mp-simulator
+    environment:
+      CENTER_URL: http://center-app:8080
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET}
+    ports: ["127.0.0.1:${MP_SIMULATOR_PORT:-8096}:8091"]
+    networks: [default, wan]
+    restart: unless-stopped
+
+  loki:
+    container_name: esuo-loki
+    networks: [default, wan]
+
+  grafana:
+    container_name: esuo-grafana
+    networks: [default, wan]
+
+  vector-center: {container_name: esuo-vector-center}
+
+  prometheus:
+    container_name: esuo-prometheus
+    networks: [default, wan]
+
+  nats-exporter: {container_name: esuo-nats-exporter}
+
+  postgres-exporter: {container_name: esuo-postgres-exporter}
+
+networks:
+  wan: {name: esuo-wan, external: true}        # docker network create esuo-wan — once per host

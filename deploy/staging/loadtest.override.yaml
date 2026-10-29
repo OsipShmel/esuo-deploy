@@ -1,8 +1,8 @@
-# Рой на сервере: поверх deploy/swarm/docker-compose.yml (регионы и swarm-sim описаны там).
-#   docker compose -f deploy/swarm/docker-compose.yml -f deploy/server/swarm.yml --env-file .env up -d
-#   docker compose -f deploy/swarm/docker-compose.yml -f deploy/server/swarm.yml --env-file .env \
+# Staging overlay for the load test (regions and swarm-sim are defined in deploy/loadtest/compose.yaml):
+#   docker compose -f deploy/loadtest/compose.yaml -f deploy/staging/loadtest.override.yaml --env-file .env up -d
+#   docker compose -f deploy/loadtest/compose.yaml -f deploy/staging/loadtest.override.yaml --env-file .env \
 #     --profile run run --rm swarm-sim --branches 40000 --duration 10m
-# Региональные leaf подключаются к хабу по сети esuo-wan (HUB_HOST по умолчанию — nats-hub).
+# Regional hubs reach the center's hub over esuo-wan (HUB_HOST defaults to nats-hub).
 services:
   nats-region-1:
     container_name: esuo-nats-region-1

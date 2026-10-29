@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.within;
  *
  * <p>This is the number the whole block exists for: it decides how many windows the day needs. The measured
  * effect of planning comes entirely from here — a constant 300 s understates the need by 20–45%, and the
- * shortfall turns into an hour and a half of waiting (docs/demo/ml-report.md, sect 3.2). So the arithmetic is
+ * shortfall turns into an hour and a half of waiting (see {@code esuo-ml report}). So the arithmetic is
  * checked against hand-computed values rather than against itself.
  */
 class LoadForecastTest {

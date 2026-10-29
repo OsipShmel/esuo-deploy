@@ -54,7 +54,7 @@ public class AdminLoadController {
     /**
      * Day profile chosen by hand: {@code {"profile": "pension"}}, or {@code {"profile": null}} to go back to the
      * center's calendar. Needed when the payouts arrive on a different day than the calendar says — and for the
-     * demo console, where the whole point is to switch the day in front of the jury.
+     * demo console, which switches the day profile on the fly.
      */
     @PutMapping("/profile")
     public Map<String, Object> putProfile(@RequestBody SetProfile body) {

@@ -1,25 +1,31 @@
-# All-in-one: центр и два отделения на одной машине (для проверки жюри и разработки).
+# Local development environment: the center and two branches (b01, b02) on one machine, plus stand-ins for the
+# external integrations (notification provider, mobile app).
+#
 #   cp .env.example .env && docker compose up -d --build
-# Профили: monitoring — мониторинг центра и сборщики логов отделений; swarm — регионы роя (с мониторингом центра);
-# demo — пульт сценариев.
-# Сервисы описаны по сущностям и берутся отсюда через extends: центр — deploy/center, отделение — deploy/branch
-# (шаблоны services.yml), рой — deploy/swarm. Здесь только то, что нужно стенду «всё в одном»: сети, имена
-# контейнеров, порты на localhost, b01 и b02, прокси связи для хаоса и пульт демо.
-# Сети: каждое отделение изолировано, с центром связано только через сеть wan (как через интернет).
-# Разрыв связи b01 ↔ центр:   ./scripts/chaos/cut-branch-link.sh b01   (docker network disconnect)
+#
+# Profiles: monitoring — center observability and branch log shippers; swarm — regional hubs for load tests (with
+# observability); swarm-run — swarm-sim as a container; demo — the scenario console behind /demo.
+#
+# Services come from the deployable stacks via `extends`: the center from deploy/center, a branch from
+# deploy/branch/services.yaml, the regions from deploy/loadtest. This file adds only what a single-machine environment
+# needs: networks, fixed container names (scripts/ address containers by name), loopback ports, the mocks, the
+# per-branch link proxies used for fault injection and the scenario console.
+#
+# Networks: each branch is isolated and reaches the center only through the `wan` network via its link proxy, the
+# same way a branch PC reaches the center over the internet. Cut b01 off: ./scripts/chaos/cut-branch-link.sh b01
 name: esuo
 
 x-link: &link
-  image: alpine/socat:latest
+  image: alpine/socat:1.8.0.3
   command: ["-d", "tcp-listen:7422,fork,reuseaddr", "tcp-connect:nats-hub:7422"]
-  # unless-stopped: a link cut by scripts/chaos (docker stop) stays cut, but a Docker restart or a sleeping laptop
-  # does not leave both branches offline until someone notices
+  # unless-stopped: a link cut by scripts/chaos (docker stop) stays cut, while a Docker restart or a sleeping laptop
+  # does not leave both branches offline
   restart: unless-stopped
 
 services:
-  # ------------------------------------------------------------------ центр (deploy/center)
+  # ------------------------------------------------------------------ center (deploy/center)
   nats-hub:
-    extends: {file: deploy/center/docker-compose.yml, service: nats-hub}
+    extends: {file: deploy/center/compose.yaml, service: nats-hub}
     container_name: esuo-nats-hub
     environment:
       LEAF_ADVERTISE: center-link:7422
@@ -27,66 +33,77 @@ services:
     networks: [center, wan]
 
   postgres-center:
-    extends: {file: deploy/center/docker-compose.yml, service: postgres-center}
+    extends: {file: deploy/center/compose.yaml, service: postgres-center}
     container_name: esuo-postgres-center
+    ports: ["127.0.0.1:${CENTER_DB_PORT:-5435}:5432"]
     networks: [center]
 
   center-app:
-    extends: {file: deploy/center/docker-compose.yml, service: center-app}
+    extends: {file: deploy/center/compose.yaml, service: center-app}
     container_name: esuo-center-app
     ports: !override ["127.0.0.1:${CENTER_PORT:-8081}:8080", "127.0.0.1:${CENTER_MANAGEMENT_PORT:-9081}:9081"]
     networks: [center]
 
+  # ------------------------------------------------------------------ integration mocks
+  # Notification provider: POST /chaos {"mode":"error"} simulates an outage (scripts/chaos/notify-down.sh)
   notify-mock:
-    extends: {file: deploy/center/docker-compose.yml, service: notify-mock}
+    build: tools/notify-mock
     container_name: esuo-notify-mock
+    ports: ["127.0.0.1:${NOTIFY_MOCK_PORT:-8095}:8090"]
     networks: [center]
+    restart: unless-stopped
 
+  # Mobile app: POST /send sends a signed webhook to the center, GET /callbacks lists the callbacks received
   mp-simulator:
-    extends: {file: deploy/center/docker-compose.yml, service: mp-simulator}
+    build: tools/mp-simulator
     container_name: esuo-mp-simulator
+    environment:
+      CENTER_URL: http://center-app:8080
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET}
+    ports: ["127.0.0.1:${MP_SIMULATOR_PORT:-8096}:8091"]
     networks: [center]
+    restart: unless-stopped
 
-  # Мониторинг центра: с профилем monitoring, а также с swarm — рой без графиков не замерить
+  # ------------------------------------------------------------------ center observability (monitoring, swarm)
   loki:
-    extends: {file: deploy/center/docker-compose.yml, service: loki}
+    extends: {file: deploy/center/compose.yaml, service: loki}
     container_name: esuo-loki
     profiles: [monitoring, swarm]
     networks: [center]
 
   grafana:
-    extends: {file: deploy/center/docker-compose.yml, service: grafana}
+    extends: {file: deploy/center/compose.yaml, service: grafana}
     container_name: esuo-grafana
     profiles: [monitoring, swarm]
     networks: [center]
 
   vector-center:
-    extends: {file: deploy/center/docker-compose.yml, service: vector-center}
+    extends: {file: deploy/center/compose.yaml, service: vector-center}
     container_name: esuo-vector-center
     profiles: [monitoring, swarm]
     networks: [center]
 
   prometheus:
-    extends: {file: deploy/center/docker-compose.yml, service: prometheus}
+    extends: {file: deploy/center/compose.yaml, service: prometheus}
     container_name: esuo-prometheus
     profiles: [monitoring, swarm]
     networks: [center]
 
   nats-exporter:
-    extends: {file: deploy/center/docker-compose.yml, service: nats-exporter}
+    extends: {file: deploy/center/compose.yaml, service: nats-exporter}
     container_name: esuo-nats-exporter
     profiles: [monitoring, swarm]
     networks: [center]
 
   postgres-exporter:
-    extends: {file: deploy/center/docker-compose.yml, service: postgres-exporter}
+    extends: {file: deploy/center/compose.yaml, service: postgres-exporter}
     container_name: esuo-postgres-exporter
     profiles: [monitoring, swarm]
     networks: [center]
 
-  # Пульт демо-сценариев (вкладка «Сценарии» в /demo): запускает scripts/demo/run.sh и отдаёт вывод построчно.
-  # Только для демо-стенда: docker compose --profile demo up -d. У контейнера сокет Docker (обрыв связи, заливка
-  # данных), поэтому порт наружу не публикуется — браузер ходит через ноду под входом руководителя.
+  # ------------------------------------------------------------------ scenario console (demo)
+  # Runs scripts/demo/run.sh for the "Scenarios" tab on /demo and streams the output. It holds the Docker socket
+  # (link cuts, data loading), so no port is published: the browser reaches it only through a node, as branch admin.
   demo-runner:
     build: tools/demo-runner
     container_name: esuo-demo-runner
@@ -99,7 +116,7 @@ services:
       MP: http://mp-simulator:8091
       NOTIFY: http://notify-mock:8090
       HUB_MONITOR: http://nats-hub:8222
-      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}       # сценарии ходят в закрытый API центра
+      CENTER_ADMIN_LOGIN: ${CENTER_ADMIN_LOGIN:-network}
       CENTER_ADMIN_PASSWORD: ${CENTER_ADMIN_PASSWORD:-}
       TZ: ${BRANCH_TIMEZONE:-Europe/Moscow}
     volumes:
@@ -108,44 +125,44 @@ services:
     networks: [center, b01, b02]
     restart: unless-stopped
 
-  # ------------------------------------------------------------------ рой (deploy/swarm, план финала C1)
-  # Четыре региональных leaf: docker compose --profile swarm up -d. Сам рой — java -jar с хоста (порты 4231–4234)
-  # или контейнером: docker compose --profile swarm-run run --rm swarm-sim --branches 40000 --duration 10m
+  # ------------------------------------------------------------------ load test (deploy/loadtest)
+  # Regional hubs: docker compose --profile swarm up -d. swarm-sim runs from the host (ports 4231–4234) or as a
+  # container: docker compose --profile swarm-run run --rm swarm-sim --branches 40000 --duration 10m
   nats-region-1:
-    extends: {file: deploy/swarm/docker-compose.yml, service: nats-region-1}
+    extends: {file: deploy/loadtest/compose.yaml, service: nats-region-1}
     container_name: esuo-nats-region-1
     profiles: [swarm, swarm-run]
     depends_on: [nats-hub]
     networks: [center]
 
   nats-region-2:
-    extends: {file: deploy/swarm/docker-compose.yml, service: nats-region-2}
+    extends: {file: deploy/loadtest/compose.yaml, service: nats-region-2}
     container_name: esuo-nats-region-2
     profiles: [swarm, swarm-run]
     depends_on: [nats-hub]
     networks: [center]
 
   nats-region-3:
-    extends: {file: deploy/swarm/docker-compose.yml, service: nats-region-3}
+    extends: {file: deploy/loadtest/compose.yaml, service: nats-region-3}
     container_name: esuo-nats-region-3
     profiles: [swarm, swarm-run]
     depends_on: [nats-hub]
     networks: [center]
 
   nats-region-4:
-    extends: {file: deploy/swarm/docker-compose.yml, service: nats-region-4}
+    extends: {file: deploy/loadtest/compose.yaml, service: nats-region-4}
     container_name: esuo-nats-region-4
     profiles: [swarm, swarm-run]
     depends_on: [nats-hub]
     networks: [center]
 
   swarm-sim:
-    extends: {file: deploy/swarm/docker-compose.yml, service: swarm-sim}
+    extends: {file: deploy/loadtest/compose.yaml, service: swarm-sim}
     container_name: esuo-swarm-sim
     profiles: [swarm-run]
     networks: [center]
 
-  # ------------------------------------------------------------------ отделение b01 (deploy/branch)
+  # ------------------------------------------------------------------ branch b01 (deploy/branch)
   link-b01:
     <<: *link
     container_name: esuo-link-b01
@@ -154,7 +171,7 @@ services:
       wan: {}
 
   nats-leaf-b01:
-    extends: {file: deploy/branch/services.yml, service: nats-leaf}
+    extends: {file: deploy/branch/services.yaml, service: nats-leaf}
     container_name: esuo-nats-leaf-b01
     environment:
       LEAF_SERVER_NAME: leaf-b01
@@ -166,22 +183,22 @@ services:
     networks: [b01]
 
   postgres-b01:
-    extends: {file: deploy/branch/services.yml, service: postgres}
+    extends: {file: deploy/branch/services.yaml, service: postgres}
     container_name: esuo-postgres-b01
     ports: ["127.0.0.1:${DB_PORT:-5433}:5432"]
     volumes: ["b01-db:/var/lib/postgresql/data"]
     networks: [b01]
 
   node-b01:
-    extends: {file: deploy/branch/services.yml, service: node-app}
+    extends: {file: deploy/branch/services.yaml, service: node-app}
     container_name: esuo-node-b01
     environment:
       DB_URL: jdbc:postgresql://postgres-b01:5432/esuo
       BRANCH_ID: b01
-      BRANCH_NAME: Отделение 101000 (b01)
+      BRANCH_NAME: Branch 101000 (b01)
       NATS_URL: nats://nats-leaf-b01:4222
       QR_PUBLIC_BASE_URL: ${QR_PUBLIC_BASE_URL:-${CENTER_PUBLIC_URL:-http://localhost:8081}}
-      # Пульт сценариев на /demo: работает при DEMO_MODE=true и запущенном demo-runner (профиль demo)
+      # Scenario console on /demo: needs DEMO_MODE=true and demo-runner (profile demo)
       DEMO_RUNNER_URL: ${DEMO_RUNNER_URL:-http://demo-runner:8099}
       DEMO_RUNNER_TOKEN: ${DEMO_RUNNER_TOKEN:-${JWT_SECRET}}
     ports: ["127.0.0.1:${NODE_PORT:-8080}:8080"]
@@ -192,14 +209,14 @@ services:
     networks: [b01]
 
   vector-b01:
-    extends: {file: deploy/branch/services.yml, service: vector}
+    extends: {file: deploy/branch/services.yaml, service: vector}
     container_name: esuo-vector-b01
     environment: {BRANCH_ID: b01, NATS_URL: "nats://nats-leaf-b01:4222"}
     volumes: ["b01-logs:/logs:ro", "vector-b01-data:/var/lib/vector"]
-    depends_on: [node-b01, nats-leaf-b01]          # том логов создаёт нода (владелец app), сборщик только читает
+    depends_on: [node-b01, nats-leaf-b01]          # node-app creates the log volume (owned by app); vector only reads
     networks: [b01]
 
-  # ------------------------------------------------------------------ отделение b02 (deploy/branch)
+  # ------------------------------------------------------------------ branch b02 (deploy/branch)
   link-b02:
     <<: *link
     container_name: esuo-link-b02
@@ -208,7 +225,7 @@ services:
       wan: {}
 
   nats-leaf-b02:
-    extends: {file: deploy/branch/services.yml, service: nats-leaf}
+    extends: {file: deploy/branch/services.yaml, service: nats-leaf}
     container_name: esuo-nats-leaf-b02
     environment:
       LEAF_SERVER_NAME: leaf-b02
@@ -220,19 +237,19 @@ services:
     networks: [b02]
 
   postgres-b02:
-    extends: {file: deploy/branch/services.yml, service: postgres}
+    extends: {file: deploy/branch/services.yaml, service: postgres}
     container_name: esuo-postgres-b02
     ports: ["127.0.0.1:5434:5432"]
     volumes: ["b02-db:/var/lib/postgresql/data"]
     networks: [b02]
 
   node-b02:
-    extends: {file: deploy/branch/services.yml, service: node-app}
+    extends: {file: deploy/branch/services.yaml, service: node-app}
     container_name: esuo-node-b02
     environment:
       DB_URL: jdbc:postgresql://postgres-b02:5432/esuo
       BRANCH_ID: b02
-      BRANCH_NAME: Отделение 102000 (b02)
+      BRANCH_NAME: Branch 102000 (b02)
       NATS_URL: nats://nats-leaf-b02:4222
       QR_PUBLIC_BASE_URL: ${QR_PUBLIC_BASE_URL:-${CENTER_PUBLIC_URL:-http://localhost:8081}}
       DEMO_RUNNER_URL: ${DEMO_RUNNER_URL:-http://demo-runner:8099}
@@ -245,7 +262,7 @@ services:
     networks: [b02]
 
   vector-b02:
-    extends: {file: deploy/branch/services.yml, service: vector}
+    extends: {file: deploy/branch/services.yaml, service: vector}
     container_name: esuo-vector-b02
     environment: {BRANCH_ID: b02, NATS_URL: "nats://nats-leaf-b02:4222"}
     volumes: ["b02-logs:/logs:ro", "vector-b02-data:/var/lib/vector"]

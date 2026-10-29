@@ -48,7 +48,7 @@ public record SwarmOptions(
         Path report
 ) {
     public static final String USAGE = """
-            swarm-sim: рой виртуальных отделений для замера центра (план финала, C1)
+            swarm-sim: рой виртуальных отделений для замера центра
 
               --branches N        виртуальных отделений (1000)
               --regions K         региональных leaf (4)
@@ -112,7 +112,7 @@ public record SwarmOptions(
         if (report == null) {
             report = Path.of(name);
         } else if (java.nio.file.Files.isDirectory(report)) {
-            report = report.resolve(name);                   // --report docs/demo/load: a new file per run
+            report = report.resolve(name);                   // --report reports/load: a new file per run
         }
         return new SwarmOptions(branches, regions, urls, clients, peak, speed, duration, start, date, heartbeat, seed,
                 notifications, maxInFlight, report);

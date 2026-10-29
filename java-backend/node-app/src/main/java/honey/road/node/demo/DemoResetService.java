@@ -23,7 +23,7 @@ import java.time.ZoneId;
  * the trace player is {@code scripts/demo} and reads its own seed and history separately. What this clears is
  * exactly what {@code AbstractNodeIT} clears between tests, by the same technique: {@code TRUNCATE} with the
  * append-only triggers (sect 8.3) disabled for the one statement, which needs the node's DB role to be the
- * bootstrap Postgres superuser. In this stand it always is — {@code docker-compose.yml} never creates a
+ * bootstrap Postgres superuser. In this stand it always is — {@code deploy/branch} never creates a
  * lower-privileged role — but that is a property of the stand, not of Postgres in general, so this stays behind
  * {@code DEMO_MODE=true} and nowhere near a real deployment.
  */

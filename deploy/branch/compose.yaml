@@ -1,0 +1,53 @@
+# ESUO branch site: PostgreSQL, the branch NATS leaf node, node-app (API + all hall screens) and, with the
+# `monitoring` profile, the log shipper. One stack per branch PC:
+#
+#   cp deploy/branch/.env.example deploy/branch/.env       # BRANCH_ID, CENTER_HOST, secrets
+#   docker compose -f deploy/branch/compose.yaml --env-file deploy/branch/.env --profile monitoring up -d
+#
+# The branch only needs outbound TCP to CENTER_HOST:7422; nothing at the center is configured per branch.
+# Several branches on one host: one env file per branch (BRANCH_ID, ports) — each becomes project esuo-branch-<id>.
+name: esuo-branch-${BRANCH_ID:?Set BRANCH_ID}
+
+services:
+  postgres:
+    extends: {file: services.yaml, service: postgres}
+    ports: ["127.0.0.1:${DB_PORT:-5433}:5432"]
+    volumes: ["branch-db:/var/lib/postgresql/data"]
+
+  nats-leaf:
+    extends: {file: services.yaml, service: nats-leaf}
+    environment:
+      LEAF_SERVER_NAME: leaf-${BRANCH_ID}
+      JS_DOMAIN: branch-${BRANCH_ID}
+      LEAF_REMOTE_URL: nats-leaf://${LEAF_USER:-leaf}:${LEAF_PASSWORD:?Set LEAF_PASSWORD}@${CENTER_HOST:?Set CENTER_HOST}:${CENTER_LEAF_PORT:-7422}
+    volumes: ["leaf-data:/data"]
+    ports: ["127.0.0.1:${LEAF_CLIENT_PORT:-4222}:4222", "127.0.0.1:${LEAF_MONITOR_PORT:-8223}:8222"]
+
+  node-app:
+    extends: {file: services.yaml, service: node-app}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/esuo
+      BRANCH_ID: ${BRANCH_ID}
+      BRANCH_NAME: ${BRANCH_NAME:-Branch ${BRANCH_ID}}
+      NATS_URL: nats://nats-leaf:4222
+      QR_PUBLIC_BASE_URL: ${QR_PUBLIC_BASE_URL:-}
+    # Hall devices (board, operator PCs, visitors' phones on the branch Wi-Fi) reach the node over the branch LAN
+    ports: ["${NODE_BIND:-0.0.0.0}:${NODE_PORT:-8080}:8080"]
+    volumes: ["branch-logs:/app/logs"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      nats-leaf: {condition: service_started}
+
+  vector:
+    extends: {file: services.yaml, service: vector}
+    environment:
+      BRANCH_ID: ${BRANCH_ID}
+      NATS_URL: nats://nats-leaf:4222
+    volumes: ["branch-logs:/logs:ro", "vector-data:/var/lib/vector"]
+    depends_on: [node-app, nats-leaf]          # node-app creates the log volume (owned by app); the shipper only reads
+
+volumes:
+  branch-db:
+  leaf-data:
+  branch-logs:
+  vector-data:

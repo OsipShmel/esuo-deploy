@@ -1,0 +1,36 @@
+# Staging overlay for a branch (services are defined in deploy/branch/compose.yaml); id and ports come from the env file:
+#   docker compose -f deploy/branch/compose.yaml -f deploy/staging/branch.override.yaml \
+#     --env-file .env --env-file deploy/staging/b01.env --profile monitoring up -d
+# Adds the link proxy to the hub (the fault-injection scripts cut it), container names matching the local
+# environment and the esuo-wan network for the link proxy and the scenario console.
+services:
+  link:
+    image: alpine/socat:1.8.0.3
+    container_name: esuo-link-${BRANCH_ID}
+    command: ["-d", "tcp-listen:7422,fork,reuseaddr", "tcp-connect:nats-hub:7422"]
+    # unless-stopped: a link cut by scripts/chaos (docker stop) stays cut, a restarted Docker brings it back
+    restart: unless-stopped
+    networks:
+      default: {aliases: [center-link]}        # the branch leaf connects to CENTER_HOST=center-link
+      wan: {}
+
+  postgres:
+    container_name: esuo-postgres-${BRANCH_ID}
+
+  nats-leaf:
+    container_name: esuo-nats-leaf-${BRANCH_ID}
+    depends_on: [link]
+
+  node-app:
+    container_name: esuo-node-${BRANCH_ID}
+    environment:
+      # Scenario console on /demo (deploy/staging/demo-console.yaml)
+      DEMO_RUNNER_URL: ${DEMO_RUNNER_URL:-http://esuo-demo-runner:8099}
+      DEMO_RUNNER_TOKEN: ${DEMO_RUNNER_TOKEN:-${JWT_SECRET}}
+    networks: [default, wan]                   # wan is for the scenario console only; NATS stays on the branch leaf
+
+  vector:
+    container_name: esuo-vector-${BRANCH_ID}
+
+networks:
+  wan: {name: esuo-wan, external: true}
