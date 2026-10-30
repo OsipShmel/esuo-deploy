@@ -98,7 +98,7 @@ data/
 *.p12
 *.jks
 
-.dockerignore
+
 .env
 .smoke-day1-token
 dev-docs/
